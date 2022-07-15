@@ -60,10 +60,7 @@
     <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);E:\Projects\assimp-5.2.4\include</IncludePath>
     <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);E:\Projects\assimp-5.2.4\build\lib\Release</LibraryPath>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);E:\Projects\assimp-5.2.4\include</IncludePath>
-    <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);E:\Projects\assimp-5.2.4\build\lib\Release</LibraryPath>
-  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" />
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>..\..\asset-baker;..\..\third_party\tinyobjloader;..\..\third_party\stb_image;..\..\third_party\nlohmann_json;..\..\third_party\lz4;..\..\assetlib;..\..\third_party\gltf;..\..\third_party\nvidia-texture-tools\src\nvtt;..\..\third_party\glm;..\..\third_party\assimp\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -95,7 +92,7 @@
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
     <Link>
-      <AdditionalDependencies>..\third_party\Debug\tinyobjloader.lib;..\third_party\Debug\lz4.lib;..\assetlib\Debug\assetlib.lib;..\..\libs\Debug\nvtt.lib;..\..\libs\Debug\bc6h.lib;..\..\libs\Debug\bc7.lib;..\..\libs\Debug\EtcLib.lib;..\..\libs\Debug\nvcore.lib;..\..\libs\Debug\nvimage.lib;..\..\libs\Debug\nvmath.lib;..\..\libs\Debug\nvsquish.lib;..\..\libs\Debug\nvthread.lib;..\..\libs\Debug\posh.lib;..\..\libs\Debug\rg_etc1.lib;assimp-vc143-mt.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>..\third_party\Debug\tinyobjloader.lib;..\third_party\Debug\lz4.lib;..\assetlib\Debug\assetlib.lib;..\..\libs\Debug\nvtt.lib;..\..\libs\Debug\bc6h.lib;..\..\libs\Debug\bc7.lib;..\..\libs\Debug\EtcLib.lib;..\..\libs\Debug\nvcore.lib;..\..\libs\Debug\nvimage.lib;..\..\libs\Debug\nvmath.lib;..\..\libs\Debug\nvsquish.lib;..\..\libs\Debug\nvthread.lib;..\..\libs\Debug\posh.lib;..\..\libs\Debug\rg_etc1.lib;..\..\third_party\assimp\lib\Debug\assimp-vc143-mtd.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -138,7 +135,7 @@
       <ProxyFileName>%(Filename)_p.c</ProxyFileName>
     </Midl>
     <Link>
-      <AdditionalDependencies>assimp-vc143-mt.lib;..\third_party\Release\tinyobjloader.lib;..\third_party\Release\lz4.lib;..\assetlib\Release\assetlib.lib;..\..\libs\Release\nvtt.lib;..\..\libs\Release\bc6h.lib;..\..\libs\Release\bc7.lib;..\..\libs\Release\EtcLib.lib;..\..\libs\Release\nvcore.lib;..\..\libs\Release\nvimage.lib;..\..\libs\Release\nvmath.lib;..\..\libs\Release\nvsquish.lib;..\..\libs\Release\nvthread.lib;..\..\libs\Release\posh.lib;..\..\libs\Release\rg_etc1.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
+      <AdditionalDependencies>..\..\third_party\assimp\lib\Release\assimp-vc143-mt.lib;..\third_party\Release\tinyobjloader.lib;..\third_party\Release\lz4.lib;..\assetlib\Release\assetlib.lib;..\..\libs\Release\nvtt.lib;..\..\libs\Release\bc6h.lib;..\..\libs\Release\bc7.lib;..\..\libs\Release\EtcLib.lib;..\..\libs\Release\nvcore.lib;..\..\libs\Release\nvimage.lib;..\..\libs\Release\nvmath.lib;..\..\libs\Release\nvsquish.lib;..\..\libs\Release\nvthread.lib;..\..\libs\Release\posh.lib;..\..\libs\Release\rg_etc1.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib</AdditionalDependencies>
       <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
