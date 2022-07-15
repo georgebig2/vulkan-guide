@@ -53,19 +53,21 @@ assets::MeshInfo assets::read_mesh_info(AssetFile* file)
     return info;
 }
 
-void assets::unpack_mesh(MeshInfo* info, const char* sourcebuffer, size_t sourceSize, char* vertexBufer, char* indexBuffer)
+void assets::unpack_mesh(MeshInfo* info, const char* sourcebuffer, size_t sourceSize, char*& vertexBufer, char*& indexBuffer)
 {
 	//decompressing into temporal vector. TODO: streaming decompress directly on the buffers
-	std::vector<char> decompressedBuffer;
-	decompressedBuffer.resize(info->vertexBuferSize + info->indexBuferSize);
+	static std::vector<char> decompressedBuffer(1024*1024*96,0);
+	if (decompressedBuffer.size() < info->vertexBuferSize + info->indexBuferSize)
+		decompressedBuffer.resize(info->vertexBuferSize + info->indexBuferSize);
 
-	LZ4_decompress_safe(sourcebuffer, decompressedBuffer.data(), static_cast<int>(sourceSize), static_cast<int>(decompressedBuffer.size()));
-
+	LZ4_decompress_safe(sourcebuffer, decompressedBuffer.data(), static_cast<int>(sourceSize), static_cast<int>(info->vertexBuferSize + info->indexBuferSize));
+	vertexBufer = decompressedBuffer.data();
 	//copy vertex buffer
-	memcpy(vertexBufer, decompressedBuffer.data(), info->vertexBuferSize);
+	//memcpy(vertexBufer, decompressedBuffer.data(), info->vertexBuferSize);
 
 	//copy index buffer
-	memcpy(indexBuffer, decompressedBuffer.data() + info->vertexBuferSize, info->indexBuferSize);
+	indexBuffer = decompressedBuffer.data() + info->vertexBuferSize;
+	//memcpy(indexBuffer, decompressedBuffer.data() + info->vertexBuferSize, info->indexBuferSize);
 }
 
 assets::AssetFile assets::pack_mesh(MeshInfo* info, char* vertexData, char* indexData)

@@ -111,7 +111,7 @@ void Vertex::pack_color(glm::vec3 c)
 
 bool Mesh::load_from_meshasset(const char* filename)
 {
-	assets::AssetFile file;
+	static assets::AssetFile file;
 	bool loaded = assets::load_binaryfile(filename, file);
 
 	if (!loaded) {
@@ -119,20 +119,10 @@ bool Mesh::load_from_meshasset(const char* filename)
 		return false;
 	}
 	
-		
-	
-
 	assets::MeshInfo meshinfo = assets::read_mesh_info(&file);
 
-
-
-	std::vector<char> vertexBuffer;
-	std::vector<char> indexBuffer;
-
-	vertexBuffer.resize(meshinfo.vertexBuferSize);
-	indexBuffer.resize(meshinfo.indexBuferSize);
-
-	assets::unpack_mesh(&meshinfo, file.binaryBlob.data(), file.binaryBlob.size(), vertexBuffer.data(), indexBuffer.data());
+	char* vertexBuffer = 0; char* indexBuffer = 0;
+	assets::unpack_mesh(&meshinfo, file.binaryBlob.data(), file.binaryBlob.size(), vertexBuffer, indexBuffer);
 
 	bounds.extents.x = meshinfo.bounds.extents[0];
 	bounds.extents.y = meshinfo.bounds.extents[1];
@@ -148,17 +138,17 @@ bool Mesh::load_from_meshasset(const char* filename)
 	_vertices.clear();
 	_indices.clear();
 
-	_indices.resize(indexBuffer.size() / sizeof(uint32_t));
+	_indices.resize(meshinfo.indexBuferSize / sizeof(uint32_t));
 	for (int i = 0; i < _indices.size(); i++) {
-		uint32_t* unpacked_indices = (uint32_t*)indexBuffer.data();
+		uint32_t* unpacked_indices = (uint32_t*)indexBuffer;
 		_indices[i] = unpacked_indices[i];
 	}
 
 	if (meshinfo.vertexFormat == assets::VertexFormat::PNCV_F32)
 	{
-		assets::Vertex_f32_PNCV* unpackedVertices = (assets::Vertex_f32_PNCV*)vertexBuffer.data();
+		assets::Vertex_f32_PNCV* unpackedVertices = (assets::Vertex_f32_PNCV*)vertexBuffer;
 
-		_vertices.resize(vertexBuffer.size() / sizeof(assets::Vertex_f32_PNCV));
+		_vertices.resize(meshinfo.vertexBuferSize / sizeof(assets::Vertex_f32_PNCV));
 
 		for (int i = 0; i < _vertices.size(); i++) {
 
@@ -181,9 +171,9 @@ bool Mesh::load_from_meshasset(const char* filename)
 	}
 	else if (meshinfo.vertexFormat == assets::VertexFormat::P32N8C8V16)
 	{
-		assets::Vertex_P32N8C8V16* unpackedVertices = (assets::Vertex_P32N8C8V16*)vertexBuffer.data();
+		assets::Vertex_P32N8C8V16* unpackedVertices = (assets::Vertex_P32N8C8V16*)vertexBuffer;
 
-		_vertices.resize(vertexBuffer.size() / sizeof(assets::Vertex_P32N8C8V16));
+		_vertices.resize(meshinfo.vertexBuferSize / sizeof(assets::Vertex_P32N8C8V16));
 
 		for (int i = 0; i < _vertices.size(); i++) {
 

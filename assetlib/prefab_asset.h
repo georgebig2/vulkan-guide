@@ -17,7 +17,6 @@ namespace assets {
 		};
 
 		std::unordered_map<uint64_t, NodeMesh> node_meshes;
-
 		std::vector<std::array<float,16>> matrices;
 	};
 

@@ -120,4 +120,5 @@ void main()
 	vec3 diffuse = lightColor * color * shadow;
 
 	outFragColor = vec4(diffuse+ ambient,texture(tex1,texCoord).a);
+	if (outFragColor.w < 1) { discard; }
 }

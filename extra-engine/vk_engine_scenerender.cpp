@@ -40,9 +40,7 @@ void VulkanEngine::execute_compute_cull(VkCommandBuffer cmd, RenderScene::MeshPa
 	dynamicInfo.range = sizeof(GPUCameraData);
 
 	VkDescriptorBufferInfo instanceInfo = pass.passObjectsBuffer.get_info();
-
 	VkDescriptorBufferInfo finalInfo = pass.compactedInstanceBuffer.get_info();
-
 	VkDescriptorBufferInfo indirectInfo = pass.drawIndirectBuffer.get_info();
 
 	VkDescriptorImageInfo depthPyramid;
@@ -106,11 +104,8 @@ void VulkanEngine::execute_compute_cull(VkCommandBuffer cmd, RenderScene::MeshPa
 	}
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _cullPipeline);
-
 	vkCmdPushConstants(cmd, _cullLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(DrawCullData), &cullData);
-
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _cullLayout, 0, 1, &COMPObjectDataSet, 0, nullptr);
-	
 	vkCmdDispatch(cmd, static_cast<uint32_t>((pass.flat_batches.size() / 256)+1), 1, 1);
 
 
@@ -212,8 +207,6 @@ void VulkanEngine::ready_mesh_draw(VkCommandBuffer cmd)
 				for (int i = 0; i < _renderScene.dirtyObjects.size(); i++)
 				{
 					_renderScene.write_object(objectSSBO + i, _renderScene.dirtyObjects[i]);
-
-
 					uint32_t dstOffset = static_cast<uint32_t>(wordsize * _renderScene.dirtyObjects[i].handle);
 
 					for (int b = 0; b < wordsize; b++ )
@@ -243,11 +236,8 @@ void VulkanEngine::ready_mesh_draw(VkCommandBuffer cmd)
 
 			vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _sparseUploadPipeline);
 
-			
 			vkCmdPushConstants(cmd, _sparseUploadLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t), &launchcount);
-
 			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _sparseUploadLayout, 0, 1, &COMPObjectDataSet, 0, nullptr);
-
 			vkCmdDispatch(cmd, ((launchcount) / 256) + 1, 1, 1);
 		}
 
@@ -264,19 +254,16 @@ void VulkanEngine::ready_mesh_draw(VkCommandBuffer cmd)
 	{
 		auto& pass = *passes[p];
 
-
 		//reallocate the gpu side buffers if needed
 
 		if (pass.drawIndirectBuffer._size < pass.batches.size() * sizeof(GPUIndirectObject))
 		{
 			reallocate_buffer(pass.drawIndirectBuffer, pass.batches.size() * sizeof(GPUIndirectObject), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 		}
-
 		if (pass.compactedInstanceBuffer._size < pass.flat_batches.size() * sizeof(uint32_t))
 		{
 			reallocate_buffer(pass.compactedInstanceBuffer, pass.flat_batches.size() * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
 		}
-
 		if (pass.passObjectsBuffer._size < pass.flat_batches.size() * sizeof(GPUInstance))
 		{
 			reallocate_buffer(pass.passObjectsBuffer, pass.flat_batches.size() * sizeof(GPUInstance), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
@@ -288,7 +275,6 @@ void VulkanEngine::ready_mesh_draw(VkCommandBuffer cmd)
 
 	std::vector<AllocatedBufferUntyped> unmaps;
 	
-
 	for (int p = 0; p < 3; p++)
 	{
 		RenderScene::MeshPass& pass = *passes[p];
@@ -301,23 +287,16 @@ void VulkanEngine::ready_mesh_draw(VkCommandBuffer cmd)
 			ZoneScopedNC("Refresh Indirect Buffer", tracy::Color::Red);
 
 			AllocatedBuffer<GPUIndirectObject> newBuffer = create_buffer(sizeof(GPUIndirectObject) * pass.batches.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-
 			GPUIndirectObject* indirect = map_buffer(newBuffer);
 
-			
-
 			async_calls.push_back(std::async(std::launch::async, [=] { 
-				
-				
 				pScene->fill_indirectArray(indirect, *ppass);
-				
 			}));
 			//async_calls.push_back([&]() {
 			//	_renderScene.fill_indirectArray(indirect, pass);
 			//});
 			
 			unmaps.push_back(newBuffer);
-
 			//unmap_buffer(newBuffer);
 
 			if (pass.clearIndirectBuffer._buffer != VK_NULL_HANDLE)
@@ -325,7 +304,6 @@ void VulkanEngine::ready_mesh_draw(VkCommandBuffer cmd)
 				AllocatedBufferUntyped deletionBuffer = pass.clearIndirectBuffer;
 				//add buffer to deletion queue of this frame
 				get_current_frame()._frameDeletionQueue.push_function([=]() {
-
 					vmaDestroyBuffer(_allocator, deletionBuffer._buffer, deletionBuffer._allocation);
 				});
 			}
@@ -342,17 +320,13 @@ void VulkanEngine::ready_mesh_draw(VkCommandBuffer cmd)
 
 			GPUInstance* instanceData = map_buffer(newBuffer);
 			async_calls.push_back(std::async(std::launch::async, [=] {
-
-
 				pScene->fill_instancesArray(instanceData, *ppass);
-
 			}));
 			unmaps.push_back(newBuffer);
 			//_renderScene.fill_instancesArray(instanceData, pass);
 			//unmap_buffer(newBuffer);
 
 			get_current_frame()._frameDeletionQueue.push_function([=]() {
-
 				vmaDestroyBuffer(_allocator, newBuffer._buffer, newBuffer._allocation);
 				});
 			
@@ -368,7 +342,6 @@ void VulkanEngine::ready_mesh_draw(VkCommandBuffer cmd)
 			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
 			uploadBarriers.push_back(barrier);
-
 			pass.needsInstanceRefresh = false;
 		}
 	}
@@ -470,7 +443,7 @@ void VulkanEngine::execute_draw_commands(VkCommandBuffer cmd, RenderScene::MeshP
 
 		vkCmdBindIndexBuffer(cmd, _renderScene.mergedIndexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 
-		stats.objects = static_cast<uint32_t>(pass.flat_batches.size());
+		stats.objects += static_cast<uint32_t>(pass.flat_batches.size());
 		for (int i = 0; i < pass.multibatches.size(); i++)
 		{
 			auto& multibatch = pass.multibatches[i];
@@ -538,6 +511,7 @@ void VulkanEngine::execute_draw_commands(VkCommandBuffer cmd, RenderScene::MeshP
 		}
 	}
 }
+
 void VulkanEngine::draw_objects_shadow(VkCommandBuffer cmd, RenderScene::MeshPass& pass)
 {
 	ZoneScopedNC("DrawObjects", tracy::Color::Blue);

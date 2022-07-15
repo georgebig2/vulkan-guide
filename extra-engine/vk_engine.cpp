@@ -133,17 +133,16 @@ void VulkanEngine::init()
 	init_imgui();
 	
 	_renderScene.build_batches();
-
 	_renderScene.merge_meshes(this);
-	//everything went fine
+
 	_isInitialized = true;
 
 	_camera = {};
 	_camera.position = { 0.f,6.f,5.f };
 
-	_mainLight.lightPosition = { 0,0,0 };
+	_mainLight.lightPosition = { 0,50,0 };
 	_mainLight.lightDirection = glm::vec3(0.3, -1, 0.3);
-	_mainLight.shadowExtent = { 100 ,100 ,100 };
+	_mainLight.shadowExtent = { 700 ,700 ,700 };
 }
 void VulkanEngine::cleanup()
 {
@@ -178,6 +177,12 @@ void VulkanEngine::cleanup()
 void VulkanEngine::draw()
 {
 	ZoneScopedN("Engine Draw");
+
+	stats.drawcalls = 0;
+	stats.draws = 0;
+	stats.objects = 0;
+	stats.triangles = 0;
+
 
 	ImGui::Render();
 
@@ -446,8 +451,6 @@ void VulkanEngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 
 void VulkanEngine::shadow_pass(VkCommandBuffer cmd)
 {
-	
-
 	vkutil::VulkanScopeTimer timer(cmd, _profiler, "Shadow Pass");
 	vkutil::VulkanPipelineStatRecorder timer2(cmd, _profiler, "Shadow Primitives");
 	if (CVAR_FreezeShadows.Get()) return;
@@ -485,11 +488,6 @@ void VulkanEngine::shadow_pass(VkCommandBuffer cmd)
 	vkCmdSetScissor(cmd, 0, 1, &scissor);
 	
 
-
-	stats.drawcalls = 0;
-	stats.draws = 0;
-	stats.objects = 0;
-	stats.triangles = 0;
 
 	if(_renderScene._shadowPass.batches.size() > 0)
 	{
@@ -573,42 +571,42 @@ void VulkanEngine::run()
 		SDL_Event e;
 		{
 			ZoneScopedNC("Event Loop", tracy::Color::White);
-		while (SDL_PollEvent(&e) != 0)
-		{
-
-			ImGui_ImplSDL2_ProcessEvent(&e);
-			_camera.process_input_event(&e);
-
-
-			//close the window when user alt-f4s or clicks the X button			
-			if (e.type == SDL_QUIT)
+			while (SDL_PollEvent(&e) != 0)
 			{
-				bQuit = true;
-			}
-			else if (e.type == SDL_KEYDOWN)
-			{
-				if (e.key.keysym.sym == SDLK_SPACE)
+
+				ImGui_ImplSDL2_ProcessEvent(&e);
+				_camera.process_input_event(&e);
+
+
+				//close the window when user alt-f4s or clicks the X button			
+				if (e.type == SDL_QUIT)
 				{
-					_selectedShader += 1;
-					if (_selectedShader > 1)
+					bQuit = true;
+				}
+				else if (e.type == SDL_KEYDOWN)
+				{
+					if (e.key.keysym.sym == SDLK_SPACE)
 					{
-						_selectedShader = 0;
+						_selectedShader += 1;
+						if (_selectedShader > 1)
+						{
+							_selectedShader = 0;
+						}
+					}
+					if (e.key.keysym.sym == SDLK_TAB)
+					{
+						if (CVAR_CamLock.Get())
+						{
+							LOG_INFO("Mouselook disabled");
+							CVAR_CamLock.Set(false);
+						}
+						else {
+							LOG_INFO("Mouselook enabled");
+							CVAR_CamLock.Set(true);
+						}
 					}
 				}
-				if (e.key.keysym.sym == SDLK_TAB)
-				{
-					if (CVAR_CamLock.Get())
-					{
-						LOG_INFO("Mouselook disabled");
-						CVAR_CamLock.Set(false);
-					}
-					else {
-						LOG_INFO("Mouselook enabled");
-						CVAR_CamLock.Set(true);
-					}
-				}
 			}
-		}
 		}
 		{
 			ZoneScopedNC("Imgui Logic", tracy::Color::Grey);
@@ -616,14 +614,10 @@ void VulkanEngine::run()
 			//imgui new frame 
 			ImGui_ImplVulkan_NewFrame();
 			ImGui_ImplSDL2_NewFrame(_window);
-
 			ImGui::NewFrame();
-
-
-			
+	
 			if (ImGui::BeginMainMenuBar())
 			{
-				
 				if (ImGui::BeginMenu("Debug"))
 				{
 					if (ImGui::BeginMenu("CVAR"))
@@ -637,7 +631,7 @@ void VulkanEngine::run()
 			}
 
 
-			ImGui::Begin("engine");
+			ImGui::Begin("engine", 0, ImGuiWindowFlags_AlwaysAutoResize);
 
 			ImGui::Text("Frametimes: %f", stats.frametime);
 			ImGui::Text("Objects: %d", stats.objects);
@@ -651,18 +645,16 @@ void VulkanEngine::run()
 				CVAR_OutputIndirectToFile.Set(true);
 			}
 		
-
 			ImGui::Separator();
-
 			for (auto& [k, v] : _profiler->timing)
 			{
 				ImGui::Text("TIME %s %f ms",k.c_str(), v);
 			}
 			for (auto& [k, v] : _profiler->stats)
 			{
-				ImGui::Text("STAT %s %d", k.c_str(), v);
+				ImGui::Text("STAT %s %d,%03d,%03d", k.c_str(), v / 1000000, (v / 1000) % 1000, v % 1000);
+				//ImGui::Text("STAT %s %d", k.c_str(), v);
 			}
-
 
 			ImGui::End();
 		}
@@ -1378,9 +1370,7 @@ void VulkanEngine::init_pipelines()
 
 	//load the compute shaders
 	load_compute_shader(shader_path("indirect_cull.comp.spv").c_str(), _cullPipeline, _cullLayout);
-
 	load_compute_shader(shader_path("depthReduce.comp.spv").c_str(), _depthReducePipeline, _depthReduceLayout);
-
 	load_compute_shader(shader_path("sparse_upload.comp.spv").c_str(), _sparseUploadPipeline, _sparseUploadLayout);
 }
 
@@ -1564,7 +1554,6 @@ void VulkanEngine::init_scene()
 
 	vkCreateSampler(_device, &samplerInfo, nullptr, &smoothSampler);
 	
-
 	{
 		vkutil::MaterialData texturedInfo;
 		texturedInfo.baseTemplate = "texturedPBR_opaque";
@@ -1593,11 +1582,23 @@ void VulkanEngine::init_scene()
 
 	}
 
+	{
+		glm::mat4 tr = glm::translate(glm::mat4{ 1.0 }, glm::vec3(0, 15, 0));
+		glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(10.f));
+		//glm::mat4 rot = glm::rotate(glm::radians(90.f), glm::vec3{ 1,0,0 });
+		//glm::mat4 m = glm::scale(glm::mat4{ 1.0 }, glm::vec3(10));
+		load_prefab(asset_path("san.pfb").c_str(), scale*tr);
+	}
 
-	
+	{
+		glm::mat4 tr = glm::translate(glm::mat4{ 1.0 }, glm::vec3(0, 0, 0));
+		glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(0.75f));
+		glm::mat4 rot = glm::rotate(glm::radians(90.f), glm::vec3{ 1,0,0 });
+		glm::mat4 m = glm::scale(glm::mat4{ 1.0 }, glm::vec3(1));;
+		//load_prefab(asset_path("mine.pfb").c_str(), (scale * rot * tr));
+	}
 
-
-	int dimHelmets =1;
+	int dimHelmets =15;
 	for (int x = -dimHelmets; x <= dimHelmets; x++) {
 		for (int y = -dimHelmets; y <= dimHelmets; y++) {
 	
@@ -1608,13 +1609,15 @@ void VulkanEngine::init_scene()
 		}
 	}
 
-	glm::mat4 sponzaMatrix = glm::scale(glm::mat4{ 1.0 }, glm::vec3(1));;
+	{
+		glm::mat4 sponzaMatrix = glm::scale(glm::mat4{ 1.0 }, glm::vec3(1));;
+		load_prefab(asset_path("Sponza.pfb").c_str(), sponzaMatrix);
+	}
+
+	//glm::mat4 unrealFixRotation = glm::rotate(glm::radians(-90.f), glm::vec3{ 1,0,0 });
 	
-	glm::mat4 unrealFixRotation = glm::rotate(glm::radians(-90.f), glm::vec3{ 1,0,0 });
-	
-	load_prefab(asset_path("Sponza2.pfb").c_str(), sponzaMatrix);
-	load_prefab(asset_path("scifi/TopDownScifi.pfb").c_str(),  glm::translate(glm::vec3{0,20,0}));
-	int dimcities = 2;
+	//load_prefab(asset_path("scifi/TopDownScifi.pfb").c_str(),  glm::translate(glm::vec3{0,20,0}));
+	/*int dimcities = 2;
 	for (int x = -dimcities; x <= dimcities; x++) {
 		for (int y = -dimcities; y <= dimcities; y++) {
 	
@@ -1625,10 +1628,10 @@ void VulkanEngine::init_scene()
 			glm::mat4 cityMatrix = translation;// * glm::scale(glm::mat4{ 1.0f }, glm::vec3(.01f));
 			//load_prefab(asset_path("scifi/TopDownScifi.pfb").c_str(), unrealFixRotation * glm::scale(glm::mat4{ 1.0 }, glm::vec3(.01)));
 			//load_prefab(asset_path("PolyCity/PolyCity.pfb").c_str(), cityMatrix);
-			load_prefab(asset_path("CITY/polycity.pfb").c_str(), cityMatrix);
+			//load_prefab(asset_path("CITY/polycity.pfb").c_str(), cityMatrix);
 		//	load_prefab(asset_path("scifi/TopDownScifi.pfb").c_str(), cityMatrix);
 		}
-	}
+	}*/
 	
 
 	//for (int x = -20; x <= 20; x++) {
@@ -1775,29 +1778,18 @@ bool VulkanEngine::load_prefab(const char* path, glm::mat4 root)
 		}
 
 		_prefabCache[path] = new assets::PrefabInfo;
-
 		*_prefabCache[path] = assets::read_prefab_info(&file);
 	}
 
 	assets::PrefabInfo* prefab = _prefabCache[path];
 
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-
-
-	VkSampler smoothSampler;
-	vkCreateSampler(_device, &samplerInfo, nullptr, &smoothSampler);
-
-
 	std::unordered_map<uint64_t, glm::mat4> node_worldmats;
-
 	std::vector<std::pair<uint64_t, glm::mat4>> pending_nodes;
 	for (auto& [k, v] : prefab->node_matrices)
 	{
-		
 		glm::mat4 nodematrix{ 1.f };
 
-		auto nm = prefab->matrices[v];
+		auto& nm = prefab->matrices[v];
 		memcpy(&nodematrix, &nm, sizeof(glm::mat4));
 
 		//check if it has parents
@@ -1841,29 +1833,27 @@ bool VulkanEngine::load_prefab(const char* path, glm::mat4 root)
 	std::vector<MeshObject> prefab_renderables;
 	prefab_renderables.reserve(prefab->node_meshes.size());
 
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	VkSampler smoothSampler;
+	vkCreateSampler(_device, &samplerInfo, nullptr, &smoothSampler);
+
 	for (auto& [k, v] : prefab->node_meshes)
 	{
-		
 		//load mesh
-
 		if (v.mesh_path.find("Sky") != std::string::npos) {
 			continue;
 		}
-
 		if (!get_mesh(v.mesh_path.c_str()))
 		{
 			Mesh mesh{};
 			mesh.load_from_meshasset(asset_path(v.mesh_path).c_str());
-
 			upload_mesh(mesh);
-
 			_meshes[v.mesh_path.c_str()] = mesh;
 		}
 
-		
-		auto materialName = v.material_path.c_str();
 		//load material
-		
+		auto materialName = v.material_path.c_str();
 		vkutil::Material* objectMaterial = _materialSystem->get_material(materialName);
 		if (!objectMaterial)
 		{
@@ -1873,7 +1863,6 @@ bool VulkanEngine::load_prefab(const char* path, glm::mat4 root)
 			if (loaded)
 			{
 				assets::MaterialInfo material = assets::read_material_info(&materialFile);
-
 				auto texture = material.textures["baseColor"];
 				if (texture.size() <= 3)
 				{
@@ -1881,7 +1870,6 @@ bool VulkanEngine::load_prefab(const char* path, glm::mat4 root)
 				}
 
 				loaded = load_image_to_cache(texture.c_str(), asset_path(texture).c_str());
-				
 				if (loaded)
 				{
 					vkutil::SampledTexture tex;
@@ -1926,13 +1914,16 @@ bool VulkanEngine::load_prefab(const char* path, glm::mat4 root)
 		loadmesh.bDrawShadowPass = true;
 		
 
-		glm::mat4 nodematrix{ 1.f };
-
+		glm::mat4 nodematrix = root;// { 1.f };
 		auto matrixIT = node_worldmats.find(k);
 		if (matrixIT != node_worldmats.end()) {
-			auto nm = (*matrixIT).second;
+			auto& nm = (*matrixIT).second;
 			memcpy(&nodematrix, &nm, sizeof(glm::mat4));
-		}		
+		}
+		else
+		{
+			//memcpy(&nodematrix, &root, sizeof(glm::mat4));
+		}
 		
 		loadmesh.mesh = get_mesh(v.mesh_path.c_str());
 		loadmesh.transformMatrix = nodematrix;

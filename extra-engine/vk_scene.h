@@ -158,7 +158,7 @@ public:
 
 	void refresh_pass(MeshPass* pass);
 
-	void build_indirect_batches(MeshPass* pass, std::vector<IndirectBatch>& outbatches, std::vector<RenderScene::RenderBatch>& inobjects);
+	void build_indirect_batches(MeshPass* pass, std::vector<IndirectBatch>& outbatches, const std::vector<RenderScene::RenderBatch>& inobjects);
 	RenderObject* get_object(Handle<RenderObject> objectID);
 	DrawMesh* get_mesh(Handle<DrawMesh> objectID);
 

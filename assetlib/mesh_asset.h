@@ -49,7 +49,7 @@ namespace assets {
 
 	MeshInfo read_mesh_info(AssetFile* file);
 
-	void unpack_mesh(MeshInfo* info, const char* sourcebuffer, size_t sourceSize, char* vertexBufer, char* indexBuffer);
+	void unpack_mesh(MeshInfo* info, const char* sourcebuffer, size_t sourceSize, char*& vertexBufer, char*& indexBuffer);
 
 	AssetFile pack_mesh(MeshInfo* info, char* vertexData, char* indexData);
 

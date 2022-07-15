@@ -2,6 +2,8 @@
 #include <vk_engine.h>
 #include "Tracy.hpp"
 #include "logger.h"
+#include "cvars.h"
+
 
 void RenderScene::init()
 {
@@ -27,18 +29,18 @@ Handle<RenderObject> RenderScene::register_object(MeshObject* object)
 
 	if (object->bDrawForwardPass)
 	{
-		if (object->material->original->passShaders[MeshpassType::Transparency])
+		if (object->material && object->material->original->passShaders[MeshpassType::Transparency])
 		{
 			_transparentForwardPass.unbatchedObjects.push_back(handle);
 		}
-		if (object->material->original->passShaders[MeshpassType::Forward])
+		if (object->material && object->material->original->passShaders[MeshpassType::Forward])
 		{
 			_forwardPass.unbatchedObjects.push_back(handle);
 		}
 	}
 	if (object->bDrawShadowPass)
 	{
-		if (object->material->original->passShaders[MeshpassType::DirectionalShadow])
+		if (object->material && object->material->original->passShaders[MeshpassType::DirectionalShadow])
 		{
 			_shadowPass.unbatchedObjects.push_back(handle);
 		}
@@ -162,12 +164,9 @@ void RenderScene::fill_instancesArray(GPUInstance* data, MeshPass& pass)
 	int dataIndex = 0;
 	for (int i = 0; i < pass.batches.size(); i++) {
 
-		auto batch = pass.batches[i];
-
-		
+		auto& batch = pass.batches[i];
 		for (int b = 0; b < batch.count; b++)
 		{
-			
 			data[dataIndex].objectID = pass.get(pass.flat_batches[b + batch.first].object)->original.handle;
 			data[dataIndex].batchID = i;
 			dataIndex++;
@@ -245,6 +244,9 @@ void RenderScene::merge_meshes(VulkanEngine* engine)
 		}
 	});
 }
+
+AutoCVar_Int CVAR_Batch("gpu.batch", "Batch objects", 1, CVarFlags::EditCheckbox);
+
 
 void RenderScene::refresh_pass(MeshPass* pass)
 {
@@ -434,55 +436,50 @@ void RenderScene::refresh_pass(MeshPass* pass)
 		Multibatch newbatch;
 		pass->multibatches.clear();
 
-		
 		newbatch.count = 1;
 		newbatch.first = 0;
-		 
-#if 1
-		for (int i = 1; i < pass->batches.size(); i++)
+	
+		if (CVAR_Batch.Get() > 0)
 		{
-			IndirectBatch* joinbatch = &pass->batches[newbatch.first];
-			IndirectBatch* batch = &pass->batches[i];
-
-			
-			bool bCompatibleMesh = get_mesh(joinbatch->meshID)->isMerged;
-			
-					
-			bool bSameMat = false;
-			
-			if (bCompatibleMesh && joinbatch->material.materialSet == batch->material.materialSet &&
-				joinbatch->material.shaderPass == batch->material.shaderPass
-				)
+			for (int i = 1; i < pass->batches.size(); i++)
 			{
-				bSameMat = true;
-			}
+				IndirectBatch* joinbatch = &pass->batches[newbatch.first];
+				IndirectBatch* batch = &pass->batches[i];
 
+				bool bCompatibleMesh = get_mesh(joinbatch->meshID)->isMerged;
+				bool bSameMat = false;
+				if (bCompatibleMesh && joinbatch->material == batch->material)//  joinbatch->material.materialSet == batch->material.materialSet &&
+	//				joinbatch->material.shaderPass == batch->material.shaderPass)
+				{
+					bSameMat = true;
+				}
 
-			if (!bSameMat || !bCompatibleMesh)
-			{
-				pass->multibatches.push_back(newbatch);
-				newbatch.count = 1;
-				newbatch.first = i;
+				if (!bSameMat || !bCompatibleMesh)
+				{
+					pass->multibatches.push_back(newbatch);
+					newbatch.count = 1;
+					newbatch.first = i;
+				}
+				else {
+					newbatch.count++;
+				}
 			}
-			else {
-				newbatch.count++;
-			}
-		}
-		pass->multibatches.push_back(newbatch);
-#else 
-		for (int i = 0; i < pass->batches.size(); i++)
-		{
-			Multibatch newbatch;
-			newbatch.count = 1;
-			newbatch.first = i;
-
 			pass->multibatches.push_back(newbatch);
 		}
-#endif
+		else {
+			for (int i = 0; i < pass->batches.size(); i++)
+			{
+				Multibatch newbatch;
+				newbatch.count = 1;
+				newbatch.first = i;
+
+				pass->multibatches.push_back(newbatch);
+			}
+		}
 	}
 }
 
-void RenderScene::build_indirect_batches(MeshPass* pass, std::vector<IndirectBatch>& outbatches, std::vector<RenderScene::RenderBatch>& inobjects)
+void RenderScene::build_indirect_batches(MeshPass* pass, std::vector<IndirectBatch>& outbatches, const std::vector<RenderScene::RenderBatch>& inobjects)
 {
 	if (inobjects.size() == 0) return;
 
@@ -499,7 +496,8 @@ void RenderScene::build_indirect_batches(MeshPass* pass, std::vector<IndirectBat
 	RenderScene::IndirectBatch* back = &pass->batches.back();
 
 	RenderScene::PassMaterial lastMat = pass->get(inobjects[0].object)->material;
-	for (int i = 0; i <inobjects.size(); i++) {
+	for (int i = 0; i < inobjects.size(); i++)
+	{
 		PassObject* obj = pass->get(inobjects[i].object);
 
 		bool bSameMesh = obj->meshID.handle == back->meshID.handle;
@@ -508,11 +506,9 @@ void RenderScene::build_indirect_batches(MeshPass* pass, std::vector<IndirectBat
 		{
 			bSameMaterial = true;
 		}
-
 		if (!bSameMaterial || !bSameMesh)
 		{
 			newBatch.material = obj->material;
-
 			if (newBatch.material == back->material)
 			{
 				bSameMaterial = true;
@@ -523,8 +519,8 @@ void RenderScene::build_indirect_batches(MeshPass* pass, std::vector<IndirectBat
 		{
 			back->count++;
 		}
-		else {
-
+		else
+		{
 			newBatch.first = i;
 			newBatch.count = 1;
 			newBatch.meshID = obj->meshID;
