@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\fc818bea1c943af68d44f11b5143684b\nvtools-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\0f1084ecff4e35d6890ae1e66eff9459\nvtools.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\third_party\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="E:\Projects\Vulkan\build\third_party\CMakeFiles\nvtools" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{05DFCA3A-B425-3649-ABCD-1ED2637CFFB3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
