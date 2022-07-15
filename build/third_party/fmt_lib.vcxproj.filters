@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="..\..\third_party\fmt_lib\fmt\format.cc" />
+    <ClCompile Include="..\..\third_party\fmt_lib\fmt\os.cc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\args.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\chrono.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\color.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\compile.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\core.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\format.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\format-inl.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\locale.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\os.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\ostream.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\posix.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\printf.h" />
+    <ClInclude Include="..\..\third_party\fmt_lib\fmt\ranges.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\third_party\CMakeLists.txt" />
+  </ItemGroup>
+</Project>

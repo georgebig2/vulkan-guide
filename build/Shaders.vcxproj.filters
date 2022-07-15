@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\ebf7d04be3317e87937f2996628d841c\blit.frag.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\ebf7d04be3317e87937f2996628d841c\default_lit.frag.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\ebf7d04be3317e87937f2996628d841c\depthReduce.comp.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\ebf7d04be3317e87937f2996628d841c\fullscreen.vert.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\ebf7d04be3317e87937f2996628d841c\indirect_cull.comp.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\ebf7d04be3317e87937f2996628d841c\sparse_upload.comp.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\ebf7d04be3317e87937f2996628d841c\textured_lit.frag.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\ebf7d04be3317e87937f2996628d841c\tri_mesh_ssbo.vert.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\ebf7d04be3317e87937f2996628d841c\tri_mesh_ssbo_instanced.vert.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\ebf7d04be3317e87937f2996628d841c\tri_mesh_ssbo_instanced_shadowcast.vert.spv.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\f5828adb4fbc9ea65356526947ee0a78\Shaders.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="E:\Projects\Vulkan\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="E:\Projects\Vulkan\shaders\blit.frag" />
+    <None Include="E:\Projects\Vulkan\shaders\default_lit.frag" />
+    <None Include="E:\Projects\Vulkan\shaders\depthReduce.comp" />
+    <None Include="E:\Projects\Vulkan\shaders\fullscreen.vert" />
+    <None Include="E:\Projects\Vulkan\shaders\indirect_cull.comp" />
+    <None Include="E:\Projects\Vulkan\shaders\sparse_upload.comp" />
+    <None Include="E:\Projects\Vulkan\shaders\textured_lit.frag" />
+    <None Include="E:\Projects\Vulkan\shaders\tri_mesh_ssbo.vert" />
+    <None Include="E:\Projects\Vulkan\shaders\tri_mesh_ssbo_instanced.vert" />
+    <None Include="E:\Projects\Vulkan\shaders\tri_mesh_ssbo_instanced_shadowcast.vert" />
+    <None Include="E:\Projects\Vulkan\build\CMakeFiles\Shaders" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{05DFCA3A-B425-3649-ABCD-1ED2637CFFB3}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
