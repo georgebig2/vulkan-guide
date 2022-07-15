@@ -239,8 +239,6 @@
     <ClInclude Include="..\..\extra-engine\vk_types.h" />
     <ClInclude Include="CMakeFiles\extra.dir\Debug\cmake_pch.hxx" />
     <ClInclude Include="CMakeFiles\extra.dir\Release\cmake_pch.hxx" />
-    <ClInclude Include="CMakeFiles\extra.dir\MinSizeRel\cmake_pch.hxx" />
-    <ClInclude Include="CMakeFiles\extra.dir\RelWithDebInfo\cmake_pch.hxx" />
     <Object Include="..\third_party\tracy.dir\$(Configuration)\TracyClient.obj" />
   </ItemGroup>
   <ItemGroup>

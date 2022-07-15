@@ -34,13 +34,8 @@
     <ClInclude Include="..\..\extra-engine\vk_shaders.h" />
     <ClInclude Include="..\..\extra-engine\vk_textures.h" />
     <ClInclude Include="..\..\extra-engine\vk_types.h" />
-    <ClInclude Include="CMakeFiles\extra.dir\MinSizeRel\cmake_pch.hxx" />
     <ClInclude Include="CMakeFiles\extra.dir\Debug\cmake_pch.hxx" />
     <ClInclude Include="CMakeFiles\extra.dir\Release\cmake_pch.hxx" />
-    <ClInclude Include="CMakeFiles\extra.dir\RelWithDebInfo\cmake_pch.hxx" />
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\..\extra-engine\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
     <Object Include="..\third_party\tracy.dir\$(Configuration)\TracyClient.obj" />
