@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="..\..\..\nvidia-texture-tools\extern\poshlib\posh.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\nvidia-texture-tools\extern\poshlib\posh.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{C9E8D906-A048-3AA6-BD76-37AA425B198B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{9A51D441-F2B5-35F9-8F7C-B8875AC7AE57}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

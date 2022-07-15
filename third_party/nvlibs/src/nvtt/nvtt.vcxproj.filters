@@ -1,0 +1,156 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\nvtt.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\nvtt_wrapper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\BlockCompressor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX9.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX10.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX11.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\icbc.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDXT5_RGBM.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorETC.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorRGB.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\Context.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\QuickCompressDXT.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\OptimalCompressDXT.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\SingleColorLookup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressionOptions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\InputOptions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\OutputOptions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\Surface.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CubeSurface.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\CudaUtils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\CudaCompressorDXT.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\nvtt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\nvtt_wrapper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\Compressor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\BlockCompressor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX9.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX10.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX11.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\icbc.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDXT5_RGBM.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorETC.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorRGB.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\Context.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\QuickCompressDXT.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\OptimalCompressDXT.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\SingleColorLookup.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressionOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\InputOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\OutputOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\TaskDispatcher.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\Surface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CubeSurface.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\CudaUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\CudaMath.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\BitmapTable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\CudaCompressorDXT.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{C9E8D906-A048-3AA6-BD76-37AA425B198B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{9A51D441-F2B5-35F9-8F7C-B8875AC7AE57}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

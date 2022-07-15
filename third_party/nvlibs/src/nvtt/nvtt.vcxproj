@@ -1,0 +1,312 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <PreferredToolArchitecture>x64</PreferredToolArchitecture>
+  </PropertyGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="MinSizeRel|x64">
+      <Configuration>MinSizeRel</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="RelWithDebInfo|x64">
+      <Configuration>RelWithDebInfo</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{99EDA2A0-856C-3011-BA68-52F021ABE962}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0.20348.0</WindowsTargetPlatformVersion>
+    <Platform>x64</Platform>
+    <ProjectName>nvtt</ProjectName>
+    <VCProjectUpgraderObjectName>NoUpgrade</VCProjectUpgraderObjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Projects\Vulkan\libs\Debug\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">nvtt.dir\Debug\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">nvtt</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Projects\Vulkan\libs\Release\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">nvtt.dir\Release\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">nvtt</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">E:\Projects\Vulkan\libs\MinSizeRel\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">nvtt.dir\MinSizeRel\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">nvtt</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.lib</TargetExt>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">E:\Projects\Vulkan\libs\RelWithDebInfo\</OutDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">nvtt.dir\RelWithDebInfo\</IntDir>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">nvtt</TargetName>
+    <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.lib</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>Disabled</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;__SSE2__;__SSE__;__MMX__;NVTT_EXPORTS;CMAKE_INTDIR="Debug"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_DEBUG;_WINDOWS;__SSE2__;__SSE__;__MMX__;NVTT_EXPORTS;CMAKE_INTDIR=\"Debug\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <OmitFramePointers>true</OmitFramePointers>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;__SSE2__;__SSE__;__MMX__;NVTT_EXPORTS;CMAKE_INTDIR="Release"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;__SSE2__;__SSE__;__MMX__;NVTT_EXPORTS;CMAKE_INTDIR=\"Release\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MinSpace</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;__SSE2__;__SSE__;__MMX__;NVTT_EXPORTS;CMAKE_INTDIR="MinSizeRel"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <DebugInformationFormat>
+      </DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;__SSE2__;__SSE__;__MMX__;NVTT_EXPORTS;CMAKE_INTDIR=\"MinSizeRel\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">
+    <ClCompile>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <RuntimeTypeInfo>true</RuntimeTypeInfo>
+      <UseFullPaths>false</UseFullPaths>
+      <WarningLevel>Level3</WarningLevel>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;__SSE2__;__SSE__;__MMX__;NVTT_EXPORTS;CMAKE_INTDIR="RelWithDebInfo"</PreprocessorDefinitions>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);WIN32;_WINDOWS;NDEBUG;__SSE2__;__SSE__;__MMX__;NVTT_EXPORTS;CMAKE_INTDIR=\"RelWithDebInfo\"</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+    <Midl>
+      <AdditionalIncludeDirectories>E:\Projects\Vulkan\third_party\nvidia-texture-tools\src;E:\Projects\Vulkan\third_party\nvlibs\src;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\poshlib;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\stb;E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt;E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <OutputDirectory>$(ProjectDir)/$(IntDir)</OutputDirectory>
+      <HeaderFileName>%(Filename).h</HeaderFileName>
+      <TypeLibraryName>%(Filename).tlb</TypeLibraryName>
+      <InterfaceIdentifierFileName>%(Filename)_i.c</InterfaceIdentifierFileName>
+      <ProxyFileName>%(Filename)_p.c</ProxyFileName>
+    </Midl>
+    <Lib>
+      <AdditionalOptions>%(AdditionalOptions) /machine:x64</AdditionalOptions>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\nvtt.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\nvtt.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\nvtt_wrapper.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\nvtt_wrapper.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\Compressor.h" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\BlockCompressor.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\BlockCompressor.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX9.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX9.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX10.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX10.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX11.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDX11.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\icbc.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\icbc.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDXT5_RGBM.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorDXT5_RGBM.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorETC.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorETC.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorRGB.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressorRGB.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\Context.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\Context.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\QuickCompressDXT.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\QuickCompressDXT.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\OptimalCompressDXT.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\OptimalCompressDXT.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\SingleColorLookup.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\SingleColorLookup.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressionOptions.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CompressionOptions.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\InputOptions.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\InputOptions.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\OutputOptions.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\OutputOptions.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\TaskDispatcher.h" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\Surface.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\Surface.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CubeSurface.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\CubeSurface.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\CudaUtils.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\CudaUtils.cpp" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\CudaMath.h" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\BitmapTable.h" />
+    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\CudaCompressorDXT.h" />
+    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\src\nvtt\cuda\CudaCompressorDXT.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\ZERO_CHECK.vcxproj">
+      <Project>{7BB9EE6D-1E48-3A9D-A9E3-A3B84C05CC74}</Project>
+      <Name>ZERO_CHECK</Name>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </ProjectReference>
+    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\src\bc6h\bc6h.vcxproj">
+      <Project>{168CBCCC-510A-310E-A0A2-8C5148DE26D0}</Project>
+      <Name>bc6h</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\src\bc7\bc7.vcxproj">
+      <Project>{9E522639-2644-341F-A4A6-71EDBDED28CB}</Project>
+      <Name>bc7</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\src\nvcore\nvcore.vcxproj">
+      <Project>{91680389-6AFC-3C99-9CD2-F8CD9702E03F}</Project>
+      <Name>nvcore</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\src\nvimage\nvimage.vcxproj">
+      <Project>{235A5129-1B43-3A51-BA38-08A6454D8660}</Project>
+      <Name>nvimage</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\src\nvmath\nvmath.vcxproj">
+      <Project>{CFFD2C3D-A4FF-3A1E-939C-46D90628CE77}</Project>
+      <Name>nvmath</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\src\nvtt\squish\nvsquish.vcxproj">
+      <Project>{4E8D34CF-F77C-3147-B555-85D16123578E}</Project>
+      <Name>nvsquish</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\src\nvthread\nvthread.vcxproj">
+      <Project>{8C080D49-5D1E-315B-AAC7-38278E37BEA4}</Project>
+      <Name>nvthread</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\extern\poshlib\posh.vcxproj">
+      <Project>{04D000B9-623E-32B8-A64C-721D1B815CEE}</Project>
+      <Name>posh</Name>
+    </ProjectReference>
+    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\extern\rg_etc1_v104\rg_etc1.vcxproj">
+      <Project>{D908BF95-1383-3D5A-A23B-C06A9F53CC90}</Project>
+      <Name>rg_etc1</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
