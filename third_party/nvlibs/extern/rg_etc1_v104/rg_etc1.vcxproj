@@ -118,42 +118,11 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CustomBuild Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104\CMakeLists.txt">
-      <UseUtf8Encoding>Always</UseUtf8Encoding>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule E:/Projects/Vulkan/third_party/nvidia-texture-tools/extern/rg_etc1_v104/CMakeLists.txt</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SE:/Projects/Vulkan/third_party/nvidia-texture-tools -BE:/Projects/Vulkan/third_party/nvlibs --check-stamp-file E:/Projects/Vulkan/third_party/nvlibs/extern/rg_etc1_v104/CMakeFiles/generate.stamp
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Projects\Vulkan\third_party\nvlibs\extern\rg_etc1_v104\CMakeFiles\generate.stamp</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule E:/Projects/Vulkan/third_party/nvidia-texture-tools/extern/rg_etc1_v104/CMakeLists.txt</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SE:/Projects/Vulkan/third_party/nvidia-texture-tools -BE:/Projects/Vulkan/third_party/nvlibs --check-stamp-file E:/Projects/Vulkan/third_party/nvlibs/extern/rg_etc1_v104/CMakeFiles/generate.stamp
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Projects\Vulkan\third_party\nvlibs\extern\rg_etc1_v104\CMakeFiles\generate.stamp</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
-    </CustomBuild>
+    <ClCompile Include="..\..\..\nvidia-texture-tools\extern\rg_etc1_v104\rg_etc1.cpp" />
+    <ClInclude Include="..\..\..\nvidia-texture-tools\extern\rg_etc1_v104\rg_etc1.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104\rg_etc1.cpp" />
-    <ClInclude Include="E:\Projects\Vulkan\third_party\nvidia-texture-tools\extern\rg_etc1_v104\rg_etc1.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="E:\Projects\Vulkan\third_party\nvlibs\ZERO_CHECK.vcxproj">
+    <ProjectReference Include="..\..\ZERO_CHECK.vcxproj">
       <Project>{7BB9EE6D-1E48-3A9D-A9E3-A3B84C05CC74}</Project>
       <Name>ZERO_CHECK</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
