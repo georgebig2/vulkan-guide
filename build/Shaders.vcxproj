@@ -395,31 +395,31 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <None Include="E:\Projects\Vulkan\shaders\blit.frag">
+    <None Include="..\shaders\blit.frag">
     </None>
-    <None Include="E:\Projects\Vulkan\shaders\default_lit.frag">
+    <None Include="..\shaders\default_lit.frag">
     </None>
-    <None Include="E:\Projects\Vulkan\shaders\depthReduce.comp">
+    <None Include="..\shaders\depthReduce.comp">
     </None>
-    <None Include="E:\Projects\Vulkan\shaders\fullscreen.vert">
+    <None Include="..\shaders\fullscreen.vert">
     </None>
-    <None Include="E:\Projects\Vulkan\shaders\indirect_cull.comp">
+    <None Include="..\shaders\indirect_cull.comp">
     </None>
-    <None Include="E:\Projects\Vulkan\shaders\sparse_upload.comp">
+    <None Include="..\shaders\sparse_upload.comp">
     </None>
-    <None Include="E:\Projects\Vulkan\shaders\textured_lit.frag">
+    <None Include="..\shaders\textured_lit.frag">
     </None>
-    <None Include="E:\Projects\Vulkan\shaders\tri_mesh_ssbo.vert">
+    <None Include="..\shaders\tri_mesh_ssbo.vert">
     </None>
-    <None Include="E:\Projects\Vulkan\shaders\tri_mesh_ssbo_instanced.vert">
+    <None Include="..\shaders\tri_mesh_ssbo_instanced.vert">
     </None>
-    <None Include="E:\Projects\Vulkan\shaders\tri_mesh_ssbo_instanced_shadowcast.vert">
+    <None Include="..\shaders\tri_mesh_ssbo_instanced_shadowcast.vert">
     </None>
-    <None Include="E:\Projects\Vulkan\build\CMakeFiles\Shaders">
+    <None Include="..\build\CMakeFiles\Shaders">
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="E:\Projects\Vulkan\build\ZERO_CHECK.vcxproj">
+    <ProjectReference Include="ZERO_CHECK.vcxproj">
       <Project>{2E59FC35-9C5E-31ED-9992-0DD2EA0FA8E6}</Project>
       <Name>ZERO_CHECK</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

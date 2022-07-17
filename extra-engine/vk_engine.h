@@ -164,23 +164,23 @@ struct /*alignas(16)*/DrawCullData
 	glm::mat4 viewMat;
 	float P00, P11, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
-	float lodBase, lodStep; // lod distance i = base * pow(step, i)
+	//float lodBase, lodStep; // lod distance i = base * pow(step, i)
 	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
 
 	uint32_t drawCount;
 
-	int cullingEnabled;
-	int lodEnabled;
-	int occlusionEnabled;
-	int distanceCheck;
-	int AABBcheck;
+	int flags;
+//	int cullingEnabled;
+	//int lodEnabled;
+//	int occlusionEnabled;
+//	int distanceCheck;
+//	int AABBcheck;
 	float aabbmin_x;
 	float aabbmin_y;
 	float aabbmin_z;
 	float aabbmax_x;
 	float aabbmax_y;
 	float aabbmax_z;
-	
 };
 
 //struct EngineConfig {
