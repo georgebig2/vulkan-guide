@@ -195,6 +195,7 @@ void VulkanEngine::draw()
 		get_current_frame().dynamicData.reset();
 
 		_renderScene.build_batches();
+
 		//check the debug data
 		void* data;		
 		vmaMapMemory(_allocator, get_current_frame().debugOutputBuffer._allocation, &data);
@@ -215,7 +216,6 @@ void VulkanEngine::draw()
 				std::string filename = fmt::format("{}_CULLDATA_{}.txt", _frameNumber,i);
 
 				auto out = fmt::output_file(filename);
-
 				for (int o = 0; o < objectCount; o++)
 				{
 					out.print("DRAW: {} ------------ \n", o);
@@ -245,9 +245,7 @@ void VulkanEngine::draw()
 	{
 		ZoneScopedN("Aquire Image");
 		//request image from the swapchain
-
-		VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, 0, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex));
-
+		VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, -1, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex));
 	}
 
 	//naming it cmd for shorter writing
@@ -266,7 +264,6 @@ void VulkanEngine::draw()
 	_profiler->grab_queries(cmd);
 
 	{
-
 		postCullBarriers.clear();
 		cullReadyBarriers.clear();
 
@@ -287,54 +284,46 @@ void VulkanEngine::draw()
 			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, cullReadyBarriers.size(), cullReadyBarriers.data(), 0, nullptr);
 		}
 
-
-		CullParams forwardCull;
-		forwardCull.projmat = _camera.get_projection_matrix(true);
-		forwardCull.viewmat = _camera.get_view_matrix();
-		forwardCull.frustrumCull = true;
-		forwardCull.occlusionCull = true;
-		forwardCull.drawDist = CVAR_DrawDistance.Get();
-		forwardCull.aabb = false;
 		{
+			CullParams forwardCull;
+			forwardCull.projmat = _camera.get_projection_matrix(true);
+			forwardCull.viewmat = _camera.get_view_matrix();
+			forwardCull.frustrumCull = true;
+			forwardCull.occlusionCull = true;
+			forwardCull.drawDist = CVAR_DrawDistance.Get();
+			forwardCull.aabb = false;
 			execute_compute_cull(cmd, _renderScene._forwardPass, forwardCull);
 			execute_compute_cull(cmd, _renderScene._transparentForwardPass, forwardCull);
 		}
 
-		glm::vec3 extent = _mainLight.shadowExtent * 10.f;
-		glm::mat4 projection = glm::orthoLH_ZO(-extent.x, extent.x, -extent.y, extent.y, -extent.z, extent.z);
-		
-		
-		CullParams shadowCull;
-		shadowCull.projmat = _mainLight.get_projection();
-		shadowCull.viewmat = _mainLight.get_view();
-		shadowCull.frustrumCull = true;
-		shadowCull.occlusionCull = false;
-		shadowCull.drawDist = 9999999;
-		shadowCull.aabb = true;
-
-		glm::vec3 aabbcenter = _mainLight.lightPosition;
-		glm::vec3 aabbextent = _mainLight.shadowExtent * 1.5f;
-		shadowCull.aabbmax = aabbcenter + aabbextent;
-		shadowCull.aabbmin = aabbcenter - aabbextent;
-
+		//glm::vec3 extent = _mainLight.shadowExtent * 10.f;
+		//glm::mat4 projection = glm::orthoLH_ZO(-extent.x, extent.x, -extent.y, extent.y, -extent.z, extent.z);
 		{
-			vkutil::VulkanScopeTimer timer2(cmd, _profiler, "Shadow Cull");
-
 			if (*CVarSystem::Get()->GetIntCVar("gpu.shadowcast"))
 			{
+				vkutil::VulkanScopeTimer timer2(cmd, _profiler, "Shadow Cull");
+
+				CullParams shadowCull;
+				shadowCull.projmat = _mainLight.get_projection();
+				shadowCull.viewmat = _mainLight.get_view();
+				shadowCull.frustrumCull = true;
+				shadowCull.occlusionCull = false;
+				shadowCull.drawDist = 9999999;
+				shadowCull.aabb = true;
+
+				glm::vec3 aabbcenter = _mainLight.lightPosition;
+				glm::vec3 aabbextent = _mainLight.shadowExtent * 1.5f;
+				shadowCull.aabbmax = aabbcenter + aabbextent;
+				shadowCull.aabbmin = aabbcenter - aabbextent;
 				execute_compute_cull(cmd, _renderScene._shadowPass, shadowCull);
 			}
 		}
 
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, postCullBarriers.size(), postCullBarriers.data(), 0, nullptr);
 
-
-
 		shadow_pass(cmd);
-		
 		forward_pass(clearValue, cmd);
 		
-
 		reduce_depth(cmd);
 
 		copy_render_to_swapchain(swapchainImageIndex, cmd);
@@ -348,43 +337,40 @@ void VulkanEngine::draw()
 	//prepare the submission to the queue. 
 	//we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
 	//we will signal the _renderSemaphore, to signal that rendering has finished
-
-	VkSubmitInfo submit = vkinit::submit_info(&cmd);
-	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-	submit.pWaitDstStageMask = &waitStage;
-
-	submit.waitSemaphoreCount = 1;
-	submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
-
-	submit.signalSemaphoreCount = 1;
-	submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
 	{
 		ZoneScopedN("Queue Submit");
+		VkSubmitInfo submit = vkinit::submit_info(&cmd);
+		VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+		submit.pWaitDstStageMask = &waitStage;
+
+		submit.waitSemaphoreCount = 1;
+		submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
+
+		submit.signalSemaphoreCount = 1;
+		submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
 		//submit command buffer to the queue and execute it.
 		// _renderFence will now block until the graphic commands finish execution
 		VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
-
 	}
 	//prepare present
 	// this will put the image we just rendered to into the visible window.
 	// we want to wait on the _renderSemaphore for that, 
 	// as its necessary that drawing commands have finished before the image is displayed to the user
-	VkPresentInfoKHR presentInfo = vkinit::present_info();
-
-	presentInfo.pSwapchains = &_swapchain;
-	presentInfo.swapchainCount = 1;
-
-	presentInfo.pWaitSemaphores = &get_current_frame()._renderSemaphore;
-	presentInfo.waitSemaphoreCount = 1;
-
-	presentInfo.pImageIndices = &swapchainImageIndex;
-
 	{
 		ZoneScopedN("Queue Present");
-		VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
+		VkPresentInfoKHR presentInfo = vkinit::present_info();
 
+		presentInfo.pSwapchains = &_swapchain;
+		presentInfo.swapchainCount = 1;
+
+		presentInfo.pWaitSemaphores = &get_current_frame()._renderSemaphore;
+		presentInfo.waitSemaphoreCount = 1;
+
+		presentInfo.pImageIndices = &swapchainImageIndex;
+		VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
 	}
+
 	//increase the number of frames drawn
 	_frameNumber++;
 }
@@ -648,7 +634,7 @@ void VulkanEngine::run()
 			ImGui::Separator();
 			for (auto& [k, v] : _profiler->timing)
 			{
-				ImGui::Text("TIME %s %f ms",k.c_str(), v);
+				ImGui::Text("TIME %s %.2f ms",k.c_str(), v);
 			}
 			for (auto& [k, v] : _profiler->stats)
 			{
@@ -842,7 +828,7 @@ void VulkanEngine::init_swapchain()
 	vkb::Swapchain vkbSwapchain = swapchainBuilder
 		.use_default_format_selection()
 		//use vsync present mode
-		.set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
+		.set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
 		.set_desired_extent(_windowExtent.width, _windowExtent.height)
 		
 		.build()
@@ -1587,7 +1573,7 @@ void VulkanEngine::init_scene()
 		glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(10.f));
 		//glm::mat4 rot = glm::rotate(glm::radians(90.f), glm::vec3{ 1,0,0 });
 		//glm::mat4 m = glm::scale(glm::mat4{ 1.0 }, glm::vec3(10));
-		load_prefab(asset_path("san.pfb").c_str(), scale*tr);
+		//load_prefab(asset_path("san.pfb").c_str(), scale*tr);
 	}
 
 	{
@@ -1598,14 +1584,14 @@ void VulkanEngine::init_scene()
 		//load_prefab(asset_path("mine.pfb").c_str(), (scale * rot * tr));
 	}
 
-	int dimHelmets =15;
+	int dimHelmets =5;
 	for (int x = -dimHelmets; x <= dimHelmets; x++) {
 		for (int y = -dimHelmets; y <= dimHelmets; y++) {
 	
 			glm::mat4 translation = glm::translate(glm::mat4{ 1.0 }, glm::vec3(x * 5, 10, y * 5));
 			glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(10));
 	
-			load_prefab(asset_path("FlightHelmet/FlightHelmet.pfb").c_str(),(translation * scale));
+			load_prefab(asset_path("FlightHelmet_GLTF/FlightHelmet.pfb").c_str(),(translation * scale));
 		}
 	}
 

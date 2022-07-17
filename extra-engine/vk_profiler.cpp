@@ -167,14 +167,14 @@ namespace vkutil {
 
 		VkQueryPool pool = profiler->get_timer_pool();
 
-		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, pool, timer.startTimestamp);
+		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, pool, timer.startTimestamp);
 	}
 
 	VulkanScopeTimer::~VulkanScopeTimer()
 	{
 		timer.endTimestamp = profiler->get_timestamp_id();
 		VkQueryPool pool = profiler->get_timer_pool();
-		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, pool, timer.endTimestamp);
+		vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, pool, timer.endTimestamp);
 
 		profiler->add_timer(timer);
 	}
