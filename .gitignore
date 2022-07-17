@@ -1,2 +1,4 @@
 /third_party/nvidia-texture-tools/data
 /assets_export
+/.vs
+/build/.vs

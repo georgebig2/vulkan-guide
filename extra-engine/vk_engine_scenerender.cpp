@@ -76,16 +76,16 @@ void VulkanEngine::execute_compute_cull(VkCommandBuffer cmd, RenderScene::MeshPa
 	cullData.frustum[2] = frustumY.y;
 	cullData.frustum[3] = frustumY.z;
 	cullData.drawCount = static_cast<uint32_t>(pass.flat_batches.size());
-	cullData.cullingEnabled = params.frustrumCull;
-	cullData.lodEnabled = false;
-	cullData.occlusionEnabled = params.occlusionCull;
-	cullData.lodBase = 10.f;
-	cullData.lodStep = 1.5f;
+	cullData.flags |= params.frustrumCull ? 1 : 0;
+	//cullData.lodEnabled = false;
+	cullData.flags |= params.occlusionCull ? 2 : 0;
+	//cullData.lodBase = 10.f;
+	//cullData.lodStep = 1.5f;
 	cullData.pyramidWidth = static_cast<float>(depthPyramidWidth);
 	cullData.pyramidHeight = static_cast<float>(depthPyramidHeight);
 	cullData.viewMat = params.viewmat;//get_view_matrix();
 
-	cullData.AABBcheck = params.aabb;
+	cullData.flags |= params.aabb ? 8 : 0;
 	cullData.aabbmin_x = params.aabbmin.x;
 	cullData.aabbmin_y = params.aabbmin.y;
 	cullData.aabbmin_z = params.aabbmin.z;
@@ -94,14 +94,7 @@ void VulkanEngine::execute_compute_cull(VkCommandBuffer cmd, RenderScene::MeshPa
 	cullData.aabbmax_y = params.aabbmax.y;
 	cullData.aabbmax_z = params.aabbmax.z;
 
-	if (params.drawDist > 10000)
-	{
-		cullData.distanceCheck = false; 
-	}
-	else
-	{
-		cullData.distanceCheck = true;
-	}
+	cullData.flags |= params.drawDist > 10000 ? 0 : 4;
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _cullPipeline);
 	vkCmdPushConstants(cmd, _cullLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(DrawCullData), &cullData);

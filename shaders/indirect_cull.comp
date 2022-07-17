@@ -14,23 +14,23 @@ struct DrawCullData
 	mat4 view;
 	float P00, P11, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
-	float lodBase, lodStep; // lod distance i = base * pow(step, i)
+	//float lodBase, lodStep; // lod distance i = base * pow(step, i)
 	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
 
 	uint drawCount;
 
-	int cullingEnabled;
-	int lodEnabled;
-	int occlusionEnabled;
-	int distCull;
-	int AABBcheck;
+	int flags;
+	//int cullingEnabled;
+	//int lodEnabled;
+	//int occlusionEnabled;
+	//int distanceCheck;
+	//int AABBcheck;
 	float aabbmin_x;
 	float aabbmin_y;
 	float aabbmin_z;
 	float aabbmax_x;
 	float aabbmax_y;
 	float aabbmax_z;
-
 };
 
 layout(push_constant) uniform  constants{   
@@ -122,18 +122,18 @@ bool IsVisible(uint objectIndex)
 	visible = visible && center.z * cullData.frustum[1] - abs(center.x) * cullData.frustum[0] > -radius;
 	visible = visible && center.z * cullData.frustum[3] - abs(center.y) * cullData.frustum[2] > -radius;
 
-	if(cullData.distCull != 0)
+	if((cullData.flags & 4) != 0)
 	{// the near/far plane culling uses camera space Z directly
 		visible = visible && center.z + radius > cullData.znear && center.z - radius < cullData.zfar;
 	}
 	
 
-	visible = visible || cullData.cullingEnabled == 0;
+	visible = visible || (cullData.flags & 1) == 0;
 
 	//flip Y because we access depth texture that way
 	center.y *= -1;
 
-	if(visible && cullData.occlusionEnabled != 0)
+	if(visible && (cullData.flags & 2) != 0)
 	{
 		vec4 aabb;
 		if (projectSphere(center, radius, cullData.znear, cullData.P00, cullData.P11, aabb))
@@ -182,7 +182,7 @@ void main()
 	{
 		uint objectID = compactInstanceBuffer.Instances[gID].objectID;
 		bool visible = false;
-		if(cullData.AABBcheck == 0)
+		if ((cullData.flags & 8) == 0)
 		{
 			visible = IsVisible(objectID);
 		}
