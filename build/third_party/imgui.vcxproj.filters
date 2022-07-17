@@ -8,9 +8,17 @@
     <ClCompile Include="..\..\third_party\imgui\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\..\third_party\imgui\imgui_stdlib.cpp" />
     <ClCompile Include="..\..\third_party\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\..\third_party\imgui\imgui_tables.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\third_party\imgui\imgui.h" />
     <ClInclude Include="..\..\third_party\imgui\imgui_stdlib.h" />
+    <ClInclude Include="..\..\third_party\imgui\imconfig.h" />
+    <ClInclude Include="..\..\third_party\imgui\imgui_impl_sdl.h" />
+    <ClInclude Include="..\..\third_party\imgui\imgui_impl_vulkan.h" />
+    <ClInclude Include="..\..\third_party\imgui\imgui_internal.h" />
+    <ClInclude Include="..\..\third_party\imgui\imstb_rectpack.h" />
+    <ClInclude Include="..\..\third_party\imgui\imstb_textedit.h" />
+    <ClInclude Include="..\..\third_party\imgui\imstb_truetype.h" />
   </ItemGroup>
 </Project>
