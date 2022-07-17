@@ -6,7 +6,4 @@
   <ItemGroup>
     <ClInclude Include="..\..\third_party\tinyobjloader\tiny_obj_loader.h" />
   </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\..\third_party\CMakeLists.txt" />
-  </ItemGroup>
 </Project>

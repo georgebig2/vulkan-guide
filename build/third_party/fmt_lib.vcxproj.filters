@@ -19,7 +19,4 @@
     <ClInclude Include="..\..\third_party\fmt_lib\fmt\printf.h" />
     <ClInclude Include="..\..\third_party\fmt_lib\fmt\ranges.h" />
   </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\..\third_party\CMakeLists.txt" />
-  </ItemGroup>
 </Project>

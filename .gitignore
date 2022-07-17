@@ -1,2 +1,12 @@
 /third_party/nvidia-texture-tools/data
 /assets_export
+.vs
+*.opendb
+*.db
+*.d
+*.o
+*.so
+*.swp
+*.tlog
+*.obj
+*.log

@@ -3,7 +3,4 @@
   <ItemGroup>
     <ClCompile Include="..\..\third_party\tracy\TracyClient.cpp" />
   </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\..\third_party\CMakeLists.txt" />
-  </ItemGroup>
 </Project>
