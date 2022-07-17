@@ -13,7 +13,4 @@
     <ClInclude Include="..\..\third_party\imgui\imgui.h" />
     <ClInclude Include="..\..\third_party\imgui\imgui_stdlib.h" />
   </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\..\third_party\CMakeLists.txt" />
-  </ItemGroup>
 </Project>

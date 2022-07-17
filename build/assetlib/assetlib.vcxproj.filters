@@ -14,7 +14,4 @@
     <ClInclude Include="..\..\assetlib\prefab_asset.h" />
     <ClInclude Include="..\..\assetlib\texture_asset.h" />
   </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\..\assetlib\CMakeLists.txt" />
-  </ItemGroup>
 </Project>

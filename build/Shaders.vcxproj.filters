@@ -34,7 +34,6 @@
     <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\f5828adb4fbc9ea65356526947ee0a78\Shaders.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
-    <CustomBuild Include="E:\Projects\Vulkan\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\shaders\blit.frag" />
@@ -47,7 +46,7 @@
     <None Include="..\shaders\tri_mesh_ssbo.vert" />
     <None Include="..\shaders\tri_mesh_ssbo_instanced.vert" />
     <None Include="..\shaders\tri_mesh_ssbo_instanced_shadowcast.vert" />
-    <None Include="E:\Projects\Vulkan\build\CMakeFiles\Shaders" />
+    <None Include="..\build\CMakeFiles\Shaders" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="CMake Rules">
