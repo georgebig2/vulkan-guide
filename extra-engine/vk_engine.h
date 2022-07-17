@@ -165,11 +165,12 @@ struct /*alignas(16)*/DrawCullData
 	float P00, P11, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
 	//float lodBase, lodStep; // lod distance i = base * pow(step, i)
-	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
+	//float pyramidWidth, pyramidHeight; // depth pyramid size in texels
+	uint32_t pyramid;
 
-	uint32_t drawCount;
+	//uint32_t drawCount;
 
-	int flags;
+	uint32_t flags;
 //	int cullingEnabled;
 	//int lodEnabled;
 //	int occlusionEnabled;

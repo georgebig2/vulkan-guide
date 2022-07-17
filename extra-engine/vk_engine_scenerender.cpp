@@ -75,14 +75,15 @@ void VulkanEngine::execute_compute_cull(VkCommandBuffer cmd, RenderScene::MeshPa
 	cullData.frustum[1] = frustumX.z;
 	cullData.frustum[2] = frustumY.y;
 	cullData.frustum[3] = frustumY.z;
-	cullData.drawCount = static_cast<uint32_t>(pass.flat_batches.size());
+	cullData.flags = static_cast<uint16_t>(pass.flat_batches.size()) << 16;
 	cullData.flags |= params.frustrumCull ? 1 : 0;
 	//cullData.lodEnabled = false;
 	cullData.flags |= params.occlusionCull ? 2 : 0;
 	//cullData.lodBase = 10.f;
 	//cullData.lodStep = 1.5f;
-	cullData.pyramidWidth = static_cast<float>(depthPyramidWidth);
-	cullData.pyramidHeight = static_cast<float>(depthPyramidHeight);
+	//cullData.pyramidWidth = static_cast<float>(depthPyramidWidth);
+	//cullData.pyramidHeight = static_cast<float>(depthPyramidHeight);
+	cullData.pyramid = depthPyramidWidth + (depthPyramidHeight<<16);
 	cullData.viewMat = params.viewmat;//get_view_matrix();
 
 	cullData.flags |= params.aabb ? 8 : 0;

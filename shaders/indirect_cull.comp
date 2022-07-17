@@ -15,11 +15,12 @@ struct DrawCullData
 	float P00, P11, znear, zfar; // symmetric projection parameters
 	float frustum[4]; // data for left/right/top/bottom frustum planes
 	//float lodBase, lodStep; // lod distance i = base * pow(step, i)
-	float pyramidWidth, pyramidHeight; // depth pyramid size in texels
+	//float pyramidWidth, pyramidHeight; // depth pyramid size in texels
+	uint pyramid; // depth pyramid size in texels
 
-	uint drawCount;
+	//uint drawCount;
 
-	int flags;
+	uint flags;
 	//int cullingEnabled;
 	//int lodEnabled;
 	//int occlusionEnabled;
@@ -138,8 +139,10 @@ bool IsVisible(uint objectIndex)
 		vec4 aabb;
 		if (projectSphere(center, radius, cullData.znear, cullData.P00, cullData.P11, aabb))
 		{
-			float width = (aabb.z - aabb.x) * cullData.pyramidWidth;
-			float height = (aabb.w - aabb.y) * cullData.pyramidHeight;
+			float pyramidWidth = cullData.pyramid & 0xffff0000;
+			float pyramidHeight = cullData.pyramid >> 16;
+			float width = (aabb.z - aabb.x) * pyramidWidth;
+			float height = (aabb.w - aabb.y) * pyramidHeight;
 
 			float level = floor(log2(max(width, height)));
 
@@ -178,7 +181,8 @@ bool IsVisibleAABB(uint objectIndex)
 void main() 
 {		
 	uint gID = gl_GlobalInvocationID.x;
-	if(gID < cullData.drawCount)
+	uint drawCount = cullData.flags >> 16;
+	if (gID < drawCount)
 	{
 		uint objectID = compactInstanceBuffer.Instances[gID].objectID;
 		bool visible = false;
