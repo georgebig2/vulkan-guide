@@ -268,13 +268,13 @@ void VulkanEngine::draw()
 		postCullBarriers.clear();
 		cullReadyBarriers.clear();
 
-		TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "All Frame");
+		TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "gpu frame");
 		ZoneScopedNC("Render Frame", tracy::Color::White);
 
-		vkutil::VulkanScopeTimer timer(cmd, _profiler, "All Frame");
+		vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu frame");
 
 		{
-			vkutil::VulkanScopeTimer timer2(cmd, _profiler, "Ready Frame");
+			vkutil::VulkanScopeTimer timer2(cmd, _profiler, "gpu ready");
 
 			ready_mesh_draw(cmd);
 
@@ -302,7 +302,7 @@ void VulkanEngine::draw()
 		{
 			if (*CVarSystem::Get()->GetIntCVar("gpu.shadowcast"))
 			{
-				vkutil::VulkanScopeTimer timer2(cmd, _profiler, "Shadow Cull");
+				vkutil::VulkanScopeTimer timer2(cmd, _profiler, "gpu shadow cull");
 
 				CullParams shadowCull;
 				shadowCull.projmat = _mainLight.get_projection();
@@ -379,7 +379,7 @@ void VulkanEngine::draw()
 
 void VulkanEngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 {
-	vkutil::VulkanScopeTimer timer(cmd, _profiler, "Forward Pass");
+	vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu forward pass");
 	vkutil::VulkanPipelineStatRecorder timer2(cmd, _profiler, "Forward Primitives");
 	//clear depth at 0
 	VkClearValue depthClear;
@@ -438,7 +438,7 @@ void VulkanEngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 
 void VulkanEngine::shadow_pass(VkCommandBuffer cmd)
 {
-	vkutil::VulkanScopeTimer timer(cmd, _profiler, "Shadow Pass");
+	vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu shadow pass");
 	vkutil::VulkanPipelineStatRecorder timer2(cmd, _profiler, "Shadow Primitives");
 	if (CVAR_FreezeShadows.Get()) return;
 	if (!*CVarSystem::Get()->GetIntCVar("gpu.shadowcast"))
@@ -634,13 +634,16 @@ void VulkanEngine::run()
 				//const char* name;
 				std::array<float, gsMaxHistory> history;
 				double avg = 0;
+				bool checked = true;
 			};
 			static std::unordered_map<std::string, Graph> graphs;
 
 			{
 				ImGui::Begin("engine", 0, ImGuiWindowFlags_AlwaysAutoResize);
 
-				ImGui::Text("Frametimes: %f", stats.frametime);
+				ImGui::Text("Frame: %f", stats.frametime);
+				graphs["Frame"].history[curFrame] = stats.frametime;
+
 				ImGui::Text("Objects: %d", stats.objects);
 				//ImGui::Text("Drawcalls: %d", stats.drawcalls);
 				ImGui::Text("Batches: %d", stats.draws);
@@ -671,7 +674,7 @@ void VulkanEngine::run()
 				const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 				ImVec2 windowSize = main_viewport->Size;
 				ImVec2 windowPos = { 0, windowSize.y / 2 };
-				windowSize.y /= 3;
+				windowSize.y /= 2.7f;
 				ImGui::SetNextWindowPos(windowPos, ImGuiCond_FirstUseEver);
 				ImGui::SetNextWindowSize(windowSize, ImGuiCond_FirstUseEver);
 				ImGui::SetNextWindowBgAlpha(0.6f);
@@ -704,12 +707,13 @@ void VulkanEngine::run()
 					draw_list->AddLine(ImVec2(wp.x, y4), ImVec2(wp2.x, y4), IM_COL32(180, 180, 180, 255));
 
 					ImU32 colors[] = {
-						IM_COL32(255, 58, 58, 255),
+						IM_COL32(200, 150, 200, 255),
 						IM_COL32(20, 108, 255, 255),
 						IM_COL32(18, 255, 18, 255),
 						IM_COL32(255, 255, 128, 255),
 						IM_COL32(255, 128, 255, 255),
 						IM_COL32(248, 150, 23, 255),
+						IM_COL32(255, 58, 58, 255),
 					};
 
 					std::array<ImVec2, gsMaxHistory> points;
@@ -728,10 +732,10 @@ void VulkanEngine::run()
 						}
 						g.avg /= (gsMaxHistory - 1);
 
-						//if (indicator->checked) {
+						if (g.checked) {
 							draw_list->AddPolyline(&points[0], gsMaxHistory, colors[cIdx], 0, 1.5f);
-						//}
-							cIdx = (cIdx + 1) % (sizeof(colors)/sizeof(colors[0]));
+						}
+						cIdx = (cIdx + 1) % (sizeof(colors) / sizeof(colors[0]));
 					}
 
 					cIdx = 0;
@@ -739,10 +743,10 @@ void VulkanEngine::run()
 					{
 						//if (indicator->unit->IsPrinting())
 						{
-							//ImGui::PushID();
-							//ImGui::Checkbox("", &indicator->checked);
-							//ImGui::PopID();
-							//ImGui::SameLine();
+							ImGui::PushID(cIdx);
+							ImGui::Checkbox("", &g.checked);
+							ImGui::PopID();
+							ImGui::SameLine();
 
 							auto val = g.avg;// *indicator->unit->GetGraphScale();
 							const char* format = "%s %.2f";

@@ -565,7 +565,7 @@ inline uint32_t getGroupCount(uint32_t threadCount, uint32_t localSize)
 
 void VulkanEngine::reduce_depth(VkCommandBuffer cmd)
 {
-	vkutil::VulkanScopeTimer timer(cmd, _profiler, "Depth Reduce");
+	vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu depth reduce");
 
 	VkImageMemoryBarrier depthReadBarriers[] =
 	{
