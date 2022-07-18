@@ -771,7 +771,17 @@ void VulkanEngine::run()
 
 				Handle<RenderObject> h;
 				h.handle = rng;
-				_renderScene.update_object(h);
+
+				auto* obj = _renderScene.get_object(h);
+				auto prev = obj->transformMatrix;
+				//glm::mat4 tr = glm::translate(glm::mat4{ 1.0 }, glm::vec3(0, 15, 0));
+				float scale = sin(start.time_since_epoch().count() / 10000000 + h.handle)*0.0005f + 1.f;
+				glm::mat4 sm = glm::scale(glm::mat4{ 1.0 }, glm::vec3(scale));
+				//glm::mat4 rot = glm::rotate(glm::radians(90.f), glm::vec3{ 1,0,0 });
+				auto newm = prev * sm;
+				_renderScene.update_transform(h, newm);
+
+				//_renderScene.update_object(h);
 			}
 			_camera.bLocked = CVAR_CamLock.Get();
 

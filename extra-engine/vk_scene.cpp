@@ -107,9 +107,7 @@ void RenderScene::update_object(Handle<RenderObject> objectID)
 	
 	if (get_object(objectID)->updateIndex == (uint32_t)-1)
 	{
-
 		get_object(objectID)->updateIndex = static_cast<uint32_t>(dirtyObjects.size());
-
 		dirtyObjects.push_back(objectID);
 	}
 }
