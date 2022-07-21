@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.0)
+cmake_minimum_required (VERSION 3.8)
 PROJECT(NV)
 ENABLE_TESTING()
 
@@ -19,10 +19,10 @@ ADD_SUBDIRECTORY(extern)
 ADD_SUBDIRECTORY(src)
 
 # These files should only be installed when creating packages.
-INSTALL(FILES 
-	LICENSE
-	README.md
-	DESTINATION share/doc/nvtt)
+#INSTALL(FILES 
+#	LICENSE
+#	README.md
+#	DESTINATION share/doc/nvtt)
 
 # Add packaging support
 INCLUDE(InstallRequiredSystemLibraries)

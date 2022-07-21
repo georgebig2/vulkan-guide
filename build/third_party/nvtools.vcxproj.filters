@@ -19,9 +19,6 @@
     <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-build.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
-    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-install.rule">
-      <Filter>CMake Rules</Filter>
-    </CustomBuild>
     <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\fc818bea1c943af68d44f11b5143684b\nvtools-complete.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>

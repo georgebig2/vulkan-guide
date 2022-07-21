@@ -201,48 +201,6 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-configure.rule">
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Performing configure step for 'nvtools'</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-cd E:\Projects\Vulkan\third_party\nvlibs
-if %errorlevel% neq 0 goto :cmEnd
-E:
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=E:/Projects/Vulkan/libs -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=E:/Projects/Vulkan/libs -DCMAKE_CXX_STANDARD=17 "-GVisual Studio 17 2022" "-DCMAKE_GENERATOR_INSTANCE:INTERNAL=C:/Program Files/Microsoft Visual Studio/2022/Enterprise" E:/Projects/Vulkan/third_party/nvidia-texture-tools
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E touch E:/Projects/Vulkan/build/third_party/nvtools-prefix/src/nvtools-stamp/$(Configuration)/nvtools-configure
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Projects\Vulkan\build\third_party\nvtools-prefix\tmp\nvtools-cfgcmd.txt;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-patch;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-configure</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Performing configure step for 'nvtools'</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
-cd E:\Projects\Vulkan\third_party\nvlibs
-if %errorlevel% neq 0 goto :cmEnd
-E:
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=E:/Projects/Vulkan/libs -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=E:/Projects/Vulkan/libs -DCMAKE_CXX_STANDARD=17 "-GVisual Studio 17 2022" "-DCMAKE_GENERATOR_INSTANCE:INTERNAL=C:/Program Files/Microsoft Visual Studio/2022/Enterprise" E:/Projects/Vulkan/third_party/nvidia-texture-tools
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E touch E:/Projects/Vulkan/build/third_party/nvtools-prefix/src/nvtools-stamp/$(Configuration)/nvtools-configure
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Projects\Vulkan\build\third_party\nvtools-prefix\tmp\nvtools-cfgcmd.txt;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-patch;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-configure</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
     <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-build.rule">
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Performing build step for 'nvtools'</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
@@ -285,86 +243,6 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\c52975a1206601aa45c00657dc07dcfc\nvtools-install.rule">
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Performing install step for 'nvtools'</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-cd E:\Projects\Vulkan\third_party\nvlibs
-if %errorlevel% neq 0 goto :cmEnd
-E:
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" --build . --config Debug --target install
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E touch E:/Projects/Vulkan/build/third_party/nvtools-prefix/src/nvtools-stamp/$(Configuration)/nvtools-install
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-build;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-install</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Performing install step for 'nvtools'</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
-cd E:\Projects\Vulkan\third_party\nvlibs
-if %errorlevel% neq 0 goto :cmEnd
-E:
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" --build . --config Release --target install
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E touch E:/Projects/Vulkan/build/third_party/nvtools-prefix/src/nvtools-stamp/$(Configuration)/nvtools-install
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-build;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-install</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\fc818bea1c943af68d44f11b5143684b\nvtools-complete.rule">
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Completed 'nvtools'</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -E make_directory E:/Projects/Vulkan/build/third_party/CMakeFiles/$(Configuration)
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E touch E:/Projects/Vulkan/build/third_party/CMakeFiles/$(Configuration)/nvtools-complete
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E touch E:/Projects/Vulkan/build/third_party/nvtools-prefix/src/nvtools-stamp/$(Configuration)/nvtools-done
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-install;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-mkdir;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-download;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-update;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-patch;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-configure;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-build;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Projects\Vulkan\build\third_party\CMakeFiles\$(Configuration)\nvtools-complete</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Completed 'nvtools'</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -E make_directory E:/Projects/Vulkan/build/third_party/CMakeFiles/$(Configuration)
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E touch E:/Projects/Vulkan/build/third_party/CMakeFiles/$(Configuration)/nvtools-complete
-if %errorlevel% neq 0 goto :cmEnd
-"C:\Program Files\CMake\bin\cmake.exe" -E touch E:/Projects/Vulkan/build/third_party/nvtools-prefix/src/nvtools-stamp/$(Configuration)/nvtools-done
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-install;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-mkdir;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-download;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-update;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-patch;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-configure;E:\Projects\Vulkan\build\third_party\nvtools-prefix\src\nvtools-stamp\$(Configuration)\nvtools-build;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Projects\Vulkan\build\third_party\CMakeFiles\$(Configuration)\nvtools-complete</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
     <CustomBuild Include="E:\Projects\Vulkan\build\CMakeFiles\0f1084ecff4e35d6890ae1e66eff9459\nvtools.rule">
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
       </Message>
@@ -392,37 +270,6 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Projects\Vulkan\build\third_party\CMakeFiles\nvtools</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
       <VerifyInputsAndOutputsExist Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</VerifyInputsAndOutputsExist>
-    </CustomBuild>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="E:\Projects\Vulkan\third_party\CMakeLists.txt">
-      <UseUtf8Encoding>Always</UseUtf8Encoding>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule E:/Projects/Vulkan/third_party/CMakeLists.txt</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SE:/Projects/Vulkan -BE:/Projects/Vulkan/build --check-stamp-file E:/Projects/Vulkan/build/third_party/CMakeFiles/generate.stamp
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-3.23\Modules\ExternalProject.cmake;C:\Program Files\CMake\share\cmake-3.23\Modules\ExternalProject\RepositoryInfo.txt.in;C:\Program Files\CMake\share\cmake-3.23\Modules\ExternalProject\cfgcmd.txt.in;C:\Program Files\CMake\share\cmake-3.23\Modules\ExternalProject\mkdirs.cmake.in;C:\Program Files\CMake\share\cmake-3.23\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.23\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.23\Modules\FindVulkan.cmake;E:\Projects\Vulkan\build\third_party\nvtools-prefix\tmp\nvtools-mkdirs.cmake;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">E:\Projects\Vulkan\build\third_party\CMakeFiles\generate.stamp</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule E:/Projects/Vulkan/third_party/CMakeLists.txt</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SE:/Projects/Vulkan -BE:/Projects/Vulkan/build --check-stamp-file E:/Projects/Vulkan/build/third_party/CMakeFiles/generate.stamp
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files\CMake\share\cmake-3.23\Modules\ExternalProject.cmake;C:\Program Files\CMake\share\cmake-3.23\Modules\ExternalProject\RepositoryInfo.txt.in;C:\Program Files\CMake\share\cmake-3.23\Modules\ExternalProject\cfgcmd.txt.in;C:\Program Files\CMake\share\cmake-3.23\Modules\ExternalProject\mkdirs.cmake.in;C:\Program Files\CMake\share\cmake-3.23\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-3.23\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-3.23\Modules\FindVulkan.cmake;E:\Projects\Vulkan\build\third_party\nvtools-prefix\tmp\nvtools-mkdirs.cmake;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">E:\Projects\Vulkan\build\third_party\CMakeFiles\generate.stamp</Outputs>
-      <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
