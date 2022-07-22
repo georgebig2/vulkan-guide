@@ -11,7 +11,7 @@ find_package(Vulkan REQUIRED)
 add_subdirectory(third_party)
 
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${PROJECT_SOURCE_DIR}/bin/DEBUG")
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${PROJECT_SOURCE_DIR}/bin/RELEASE")
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO  "${PROJECT_SOURCE_DIR}/bin/RelWithDebInfo ")
  
 add_subdirectory(assetlib)
 add_subdirectory(asset-baker)
@@ -38,6 +38,7 @@ foreach(GLSL ${GLSL_SOURCE_FILES})
   add_custom_command(
     OUTPUT ${SPIRV}
     COMMAND ${GLSL_VALIDATOR} -V ${GLSL} -o ${SPIRV}
+    COMMENT "XXXXXXXXXXXXXXXXXXX"
     DEPENDS ${GLSL})
   list(APPEND SPIRV_BINARY_FILES ${SPIRV})
 endforeach(GLSL)
