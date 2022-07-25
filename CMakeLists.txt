@@ -15,6 +15,7 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO  "${PROJECT_SOURCE_DIR}/bin/R
  
 add_subdirectory(assetlib)
 add_subdirectory(asset-baker)
+add_subdirectory(rengine)
 add_subdirectory(extra-engine)
 
 if (${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "AMD64")
@@ -48,3 +49,4 @@ add_custom_target(
     DEPENDS ${SPIRV_BINARY_FILES}
 	SOURCES ${GLSL_SOURCE_FILES}
     )
+    

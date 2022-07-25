@@ -24,6 +24,8 @@
 #include <SDL_events.h>
 #include <frustum_cull.h>
 
+#include "rengine.h"
+
 namespace vkutil { struct Material; }
 
 
@@ -40,25 +42,25 @@ namespace vkutil {
 	class VulkanProfiler;
 }
 
-struct DeletionQueue
-{
-    std::deque<std::function<void()>> deletors;
-
-	template<typename F>
-    void push_function(F&& function) {
-		static_assert(sizeof(F) < 200, "DONT CAPTURE TOO MUCH IN THE LAMBDA");
-        deletors.push_back(function);
-    }
-
-    void flush() {
-        // reverse iterate the deletion queue to execute all the functions
-        for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
-            (*it)(); //call functors
-        }
-
-        deletors.clear();
-    }
-};
+//struct DeletionQueue
+//{
+//    std::deque<std::function<void()>> deletors;
+//
+//	template<typename F>
+//    void push_function(F&& function) {
+//		static_assert(sizeof(F) < 200, "DONT CAPTURE TOO MUCH IN THE LAMBDA");
+//        deletors.push_back(function);
+//    }
+//
+//    void flush() {
+//        // reverse iterate the deletion queue to execute all the functions
+//        for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+//            (*it)(); //call functors
+//        }
+//
+//        deletors.clear();
+//    }
+//};
 
 struct MeshPushConstants {
 	glm::vec4 data;
@@ -111,11 +113,6 @@ struct FrameData {
 	std::vector<std::string> debugDataNames;
 };
 
-
-struct UploadContext {
-	VkFence _uploadFence;
-	VkCommandPool _commandPool;	
-};
 
 struct GPUCameraData{
 	glm::mat4 view;
@@ -215,7 +212,8 @@ struct CullParams {
 };
 constexpr unsigned int FRAME_OVERLAP = 2;
 const int MAX_OBJECTS = 150000;
-class VulkanEngine {
+
+class VulkanEngine : public REngine {
 public:
 
 	bool _isInitialized{ false };
@@ -228,14 +226,14 @@ public:
 
 	VkInstance _instance;
 	VkPhysicalDevice _chosenGPU;
-	VkDevice _device;
+	//VkDevice _device;
 
 	VkPhysicalDeviceProperties _gpuProperties;
 
 	FrameData _frames[FRAME_OVERLAP];
 	
-	VkQueue _graphicsQueue;
-	uint32_t _graphicsQueueFamily;
+	//VkQueue _graphicsQueue;
+	//uint32_t _graphicsQueueFamily;
 	
 	tracy::VkCtx* _graphicsQueueContext;
 
@@ -256,9 +254,9 @@ public:
 	std::vector<VkImage> _swapchainImages;
 	std::vector<VkImageView> _swapchainImageViews;	
 
-    DeletionQueue _mainDeletionQueue;
+    //DeletionQueue _mainDeletionQueue;
 	
-	VmaAllocator _allocator; //vma lib allocator
+//	VmaAllocator _allocator; //vma lib allocator
 
 	//depth resources
 	
@@ -290,7 +288,7 @@ public:
 
 	std::vector<VkBufferMemoryBarrier> postCullBarriers;
 
-	UploadContext _uploadContext;
+	/*UploadContext _uploadContext;*/
 
 	PlayerCamera _camera;
 	DirectionalLight _mainLight;
@@ -360,14 +358,14 @@ public:
 
 	void ready_cull_data(RenderScene::MeshPass& pass, VkCommandBuffer cmd);
 
-	AllocatedBufferUntyped create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
+	//AllocatedBufferUntyped create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
 
 	void reallocate_buffer(AllocatedBufferUntyped&buffer,size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
 
 
 	size_t pad_uniform_buffer_size(size_t originalSize);
 
-	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
+	/*void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);*/
 
 	bool load_prefab(const char* path, glm::mat4 root);
 

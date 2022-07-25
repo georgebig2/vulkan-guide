@@ -17,7 +17,7 @@ target_compile_definitions(extra PUBLIC TRACY_ENABLE)
 target_compile_definitions(extra PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE GLM_FORCE_LEFT_HANDED) 
 
 
-target_precompile_headers(extra PUBLIC "vk_types.h" "<unordered_map>" "<vector>" "<iostream>" "<fstream>" "<string>" )
+target_precompile_headers(extra PUBLIC "<unordered_map>" "<vector>" "<iostream>" "<fstream>" "<string>" )
 target_link_libraries(extra vkbootstrap vma glm tinyobjloader imgui stb_image spirv_reflect)
 
-target_link_libraries(extra Vulkan::Vulkan sdl2 assetlib tracy fmt_lib)
+target_link_libraries(extra Vulkan::Vulkan sdl2 assetlib tracy fmt_lib rengine)

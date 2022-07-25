@@ -6,13 +6,13 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#include <SDL_filesystem.h>
+//#include <SDL_filesystem.h>
 #include "texture_asset.h"
 #include "asset_loader.h"
 #include "Tracy.hpp"
 
 
-bool vkutil::load_image_from_file(VulkanEngine& engine, const char* file, AllocatedImage & outImage)
+bool vkutil::load_image_from_file(REngine& engine, const char* file, AllocatedImage & outImage)
 {
 	int texWidth, texHeight, texChannels;
 
@@ -52,7 +52,7 @@ bool vkutil::load_image_from_file(VulkanEngine& engine, const char* file, Alloca
 }
 
 
-bool vkutil::load_image_from_asset(VulkanEngine& engine, const char* filename, AllocatedImage& outImage)
+bool vkutil::load_image_from_asset(REngine& engine, const char* filename, AllocatedImage& outImage)
 {
 	assets::AssetFile file;
 	bool loaded = assets::load_binaryfile(filename, file);
@@ -104,7 +104,7 @@ bool vkutil::load_image_from_asset(VulkanEngine& engine, const char* filename, A
 	return true;
 }
 
-AllocatedImage vkutil::upload_image(int texWidth, int texHeight, VkFormat image_format, VulkanEngine& engine, AllocatedBufferUntyped& stagingBuffer)
+AllocatedImage vkutil::upload_image(int texWidth, int texHeight, VkFormat image_format, REngine& engine, AllocatedBufferUntyped& stagingBuffer)
 {
 	VkExtent3D imageExtent;
 	imageExtent.width = static_cast<uint32_t>(texWidth);
@@ -188,7 +188,7 @@ AllocatedImage vkutil::upload_image(int texWidth, int texHeight, VkFormat image_
 	return newImage;
 }
 
-AllocatedImage vkutil::upload_image_mipmapped(int texWidth, int texHeight, VkFormat image_format, VulkanEngine& engine, AllocatedBufferUntyped& stagingBuffer, std::vector<MipmapInfo> mips)
+AllocatedImage vkutil::upload_image_mipmapped(int texWidth, int texHeight, VkFormat image_format, REngine& engine, AllocatedBufferUntyped& stagingBuffer, std::vector<MipmapInfo> mips)
 {
 	VkExtent3D imageExtent;
 	imageExtent.width = static_cast<uint32_t>(texWidth);
