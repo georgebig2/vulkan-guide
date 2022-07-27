@@ -9,7 +9,7 @@ target_sources(rengine PRIVATE ${R_FILES})
 
 target_include_directories(rengine PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
-target_link_libraries(rengine PRIVATE json lz4 vma assetlib spirv_reflect stb_image tracy)
+target_link_libraries(rengine PRIVATE vma assetlib spirv_reflect tracy glm)
 
 target_link_libraries(rengine PUBLIC Vulkan::Vulkan)
 
@@ -20,8 +20,8 @@ target_compile_definitions(rengine PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE GLM_FORCE_
 
 
 #both vma and glm and header only libs so we only need the include path
-target_include_directories(vma INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vma" )
+#target_include_directories(vma INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vma" )
 
-target_include_directories(glm INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/glm" )
+#target_include_directories(glm INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/glm" )
 
-target_include_directories(json INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nlohmann_json" )
+#target_include_directories(json INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/nlohmann_json" )
