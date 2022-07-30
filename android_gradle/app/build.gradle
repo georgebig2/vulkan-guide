@@ -1,0 +1,84 @@
+import org.gradle.internal.os.OperatingSystem;
+
+apply plugin: 'com.android.application'
+
+android {
+	compileSdk 32
+
+	defaultConfig {
+		applicationId "com.georgebig2.vulkan"
+		minSdk 25
+		targetSdk 32
+		versionCode 1
+		versionName "1.0"
+
+		externalNativeBuild {
+			cmake {
+				abiFilters.addAll( 'arm64-v8a', /*'armeabi-v7a', 'x86', 'x86_64'*/ )
+				arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_static', '-DVKB_VALIDATION_LAYERS=OFF'
+			}
+		}
+	}
+
+	buildTypes {
+		debug {
+			debuggable true
+			jniDebuggable true
+		}
+
+		release {
+			minifyEnabled false
+			proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+			signingConfig debug.signingConfig
+		}
+		/*applicationVariants.all{variant ->
+			variant.outputs.each{output->
+                def tempName = output.outputFile.name
+                tempName = tempName.replace("app-", "vulkan")
+                output.outputFileName  = tempName
+			}
+        }*/
+	}
+
+	/*compileOptions {
+		sourceCompatibility JavaVersion.VERSION_1_8
+		targetCompatibility JavaVersion.VERSION_1_8
+	}*/
+
+	sourceSets {
+		main {
+			
+			res.srcDirs += [ 'android/res' ]
+			java.srcDirs += [ 'android/java' ]
+			
+			manifest.srcFile 'android/AndroidManifest.xml'
+
+			//jniLibs.srcDirs += ["$ndkDirectory/sources/third_party/vulkan/src/build-android/jniLibs"]
+		}
+	}
+
+	externalNativeBuild {
+		cmake {
+			path '../../CMakeLists.txt'
+			buildStagingDirectory 'build-native'
+		}
+	}
+
+	lintOptions {
+		checkReleaseBuilds false
+		abortOnError false
+	}
+
+	buildFeatures {
+		//viewBinding true
+		prefab true
+	}
+}
+
+dependencies {
+	implementation 'androidx.core:core:1.8.0'
+	implementation 'androidx.appcompat:appcompat:1.4.2'
+	//implementation 'com.google.android.material:material:1.6.1'
+	//implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+	implementation "androidx.games:games-activity:1.2.1"
+}

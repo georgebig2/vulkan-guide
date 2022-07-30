@@ -10,3 +10,4 @@
 *.tlog
 *.obj
 *.log
+/android_gradle/.idea
