@@ -1,5 +1,39 @@
 
 #include <game-activity/native_app_glue/android_native_app_glue.h>
+#include "rengine.h"
+
+#include <iostream>
+#define VK_NO_PROTOTYPES 1
+#include <vulkan/vulkan_android.h>
+//#define VK_USE_PLATFORM_ANDROID_KHR
+//#include <vulkan/vulkan.h>
+extern PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
+
+//we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
+using namespace std;
+#define VK_CHECK(x)                                                 \
+	do                                                              \
+	{                                                               \
+		VkResult err = x;                                           \
+		if (err)                                                    \
+		{                                                           \
+			std::cout <<"Detected Vulkan error: " << err << std::endl; \
+			abort();                                                \
+		}                                                           \
+	} while (0)
+
+class AndroidEngine : public REngine {
+public:
+
+	bool create_surface(VkInstance instance, VkSurfaceKHR* surface) override
+	{
+		VkAndroidSurfaceCreateInfoKHR info{ VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR };
+		//info.window = handle;
+		VK_CHECK(vkCreateAndroidSurfaceKHR(instance, &info, nullptr, surface));
+		return true;
+	}
+
+};
 
 // Implement input event handling function.
 static int32_t engine_handle_input(struct android_app* app)
@@ -148,6 +182,8 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
  */
 void android_main(android_app* app)
 {
+	AndroidEngine engine;
+
     //app->userData = this;
     app->onAppCmd = _handle_cmd_proxy;
     //mApp->onInputEvent = _handle_input_proxy;

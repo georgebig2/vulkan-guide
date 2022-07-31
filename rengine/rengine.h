@@ -3,8 +3,13 @@
 #include <functional>
 #include <deque>
 
-#include <vk_types.h>
+#include <vk_scene.h>
+#include <player_camera.h>
+#include <vk_shaders.h>
 
+//#include "vk_types.h"
+#include <vk_pushbuffer.h>
+#include <vk_descriptors.h>
 
 struct DeletionQueue
 {
@@ -26,18 +31,128 @@ struct DeletionQueue
     }
 };
 
+//forward declarations
+namespace vkutil {
+    class DescriptorLayoutCache;
+    class DescriptorAllocator;
+    class VulkanProfiler;
+}
 
-struct UploadContext {
-    VkFence _uploadFence;
-    VkCommandPool _commandPool;
+struct CullParams {
+    glm::mat4 viewmat;
+    glm::mat4 projmat;
+    bool occlusionCull;
+    bool frustrumCull;
+    float drawDist;
+    bool aabb;
+    glm::vec3 aabbmin;
+    glm::vec3 aabbmax;
 };
 
+struct EngineStats {
+    float frametime;
+    int objects;
+    int drawcalls;
+    int draws;
+    int triangles;
+};
+
+struct MeshObject {
+    Mesh* mesh{ nullptr };
+
+    vkutil::Material* material;
+    uint32_t customSortKey;
+    glm::mat4 transformMatrix;
+
+    RenderBounds bounds;
+
+    uint32_t bDrawForwardPass : 1;
+    uint32_t bDrawShadowPass : 1;
+};
+
+struct GPUObjectData {
+    glm::mat4 modelMatrix;
+    glm::vec4 origin_rad; // bounds
+    glm::vec4 extents;  // bounds
+};
+
+struct /*alignas(16)*/DrawCullData
+{
+    glm::mat4 viewMat;
+    float P00, P11, znear, zfar; // symmetric projection parameters
+    float frustum[4]; // data for left/right/top/bottom frustum planes
+    //float lodBase, lodStep; // lod distance i = base * pow(step, i)
+    //float pyramidWidth, pyramidHeight; // depth pyramid size in texels
+    uint32_t pyramid;
+
+    //uint32_t drawCount;
+
+    uint32_t flags;
+    //	int cullingEnabled;
+        //int lodEnabled;
+    //	int occlusionEnabled;
+    //	int distanceCheck;
+    //	int AABBcheck;
+    float aabbmin_x;
+    float aabbmin_y;
+    float aabbmin_z;
+    float aabbmax_x;
+    float aabbmax_y;
+    float aabbmax_z;
+};
+
+struct GPUCameraData {
+    glm::mat4 view;
+    glm::mat4 proj;
+    glm::mat4 viewproj;
+};
+
+struct DirectionalLight {
+    glm::vec3 lightPosition;
+    glm::vec3 lightDirection;
+    glm::vec3 shadowExtent;
+    glm::mat4 get_projection();
+
+    glm::mat4 get_view();
+};
+
+struct GPUSceneData {
+    glm::vec4 fogColor; // w is for exponent
+    glm::vec4 fogDistances; //x for min, y for max, zw unused.
+    glm::vec4 ambientColor;
+    glm::vec4 sunlightDirection; //w for sun power
+    glm::vec4 sunlightColor;
+    glm::mat4 sunlightShadowMatrix;
+};
+
+constexpr unsigned int FRAME_OVERLAP = 2;
+
+struct FrameData {
+    VkSemaphore _presentSemaphore, _renderSemaphore;
+    VkFence _renderFence;
+
+    DeletionQueue _frameDeletionQueue;
+
+    VkCommandPool _commandPool;
+    VkCommandBuffer _mainCommandBuffer;
+
+    vkutil::PushBuffer dynamicData;
+    //AllocatedBufferUntyped dynamicDataBuffer;
+
+    AllocatedBufferUntyped debugOutputBuffer;
+
+    vkutil::DescriptorAllocator* dynamicDescriptorAllocator;
+
+    std::vector<uint32_t> debugDataOffsets;
+    std::vector<std::string> debugDataNames;
+};
 
 class REngine {
 public:
 
     VkExtent2D _windowExtent{ 1700 * 2 / 3 , 900 * 2 / 3 };
     VkExtent2D _shadowExtent{ 1024 * 4,1024 * 4 };
+    int _frameNumber{ 0 };
 
 
 	AllocatedBufferUntyped create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
@@ -50,13 +165,22 @@ public:
 
     void init_swapchain();
 
+    //draw loop
+    void draw();
+
+    FrameData& get_current_frame();
+    FrameData& get_last_frame();
+
+    static std::string shader_path(std::string_view path);
+
+    PlayerCamera _camera;
+    RenderScene _renderScene;
+
 	VkDevice _device;
 	VmaAllocator _allocator; //vma lib allocator
 
     VkInstance _instance;
     VkPhysicalDevice _chosenGPU;
-
-    UploadContext _uploadContext;
 
     VkQueue _graphicsQueue;
     uint32_t _graphicsQueueFamily;
@@ -89,5 +213,56 @@ public:
 
     VkSampler _depthSampler;
     VkImageView depthPyramidMips[16] = {};
+
+    FrameData _frames[FRAME_OVERLAP];
+
+    void init_commands();
+    void init_sync_structures();
+
+    EngineStats stats;
+
+    ShaderCache _shaderCache;
+
+    VkRenderPass _renderPass;
+    VkRenderPass _shadowPass;
+    VkRenderPass _copyPass;
+
+    vkutil::DescriptorAllocator* _descriptorAllocator;
+    vkutil::DescriptorLayoutCache* _descriptorLayoutCache;
+
+
+    vkutil::VulkanProfiler* _profiler;
+
+    std::vector<VkBufferMemoryBarrier> uploadBarriers;
+    std::vector<VkBufferMemoryBarrier> cullReadyBarriers;
+    std::vector<VkBufferMemoryBarrier> postCullBarriers;
+
+
+    void ready_mesh_draw(VkCommandBuffer cmd);
+    void ready_cull_data(RenderScene::MeshPass& pass, VkCommandBuffer cmd);
+    void execute_compute_cull(VkCommandBuffer cmd, RenderScene::MeshPass& pass, CullParams& params);
+    void reallocate_buffer(AllocatedBufferUntyped& buffer, size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
+    template<typename T>
+    T* map_buffer(AllocatedBuffer<T>& buffer);
+    void unmap_buffer(AllocatedBufferUntyped& buffer);
+    void copy_render_to_swapchain(uint32_t swapchainImageIndex, VkCommandBuffer cmd);
+    void shadow_pass(VkCommandBuffer cmd);
+    void reduce_depth(VkCommandBuffer cmd);
+    void draw_objects_shadow(VkCommandBuffer cmd, RenderScene::MeshPass& pass);
+    void execute_draw_commands(VkCommandBuffer cmd, RenderScene::MeshPass& pass, VkDescriptorSet ObjectDataSet, std::vector<uint32_t> dynamic_offsets, VkDescriptorSet GlobalSet);
+    void forward_pass(VkClearValue clearValue, VkCommandBuffer cmd);
+    void draw_objects_forward(VkCommandBuffer cmd, RenderScene::MeshPass& pass);
+
+    VkPipeline _cullPipeline;
+    VkPipelineLayout _cullLayout;
+    VkPipeline _sparseUploadPipeline;
+    VkPipelineLayout _sparseUploadLayout;
+    VkPipeline _blitPipeline;
+    VkPipelineLayout _blitLayout;
+    VkPipeline _depthReducePipeline;
+    VkPipelineLayout _depthReduceLayout;
+
+    DirectionalLight _mainLight;
+    GPUSceneData _sceneParameters;
 
 };

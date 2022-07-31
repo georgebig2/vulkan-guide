@@ -17,7 +17,7 @@
 #include "vk_textures.h"
 #include "vk_shaders.h"
 
-#define VMA_IMPLEMENTATION
+//#define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
 #include "imgui.h"
@@ -46,11 +46,6 @@ AutoCVar_Int CVAR_OcclusionCullGPU("culling.enableOcclusionGPU", "Perform occlus
 AutoCVar_Int CVAR_CamLock("camera.lock", "Locks the camera", 0, CVarFlags::EditCheckbox);
 AutoCVar_Int CVAR_OutputIndirectToFile("culling.outputIndirectBufferToFile", "output the indirect data to a file. Autoresets", 0, CVarFlags::EditCheckbox);
 
-AutoCVar_Float CVAR_DrawDistance("gpu.drawDistance", "Distance cull", 5000);
-
-AutoCVar_Int CVAR_FreezeShadows("gpu.freezeShadows", "Stop the rendering of shadows", 0, CVarFlags::EditCheckbox);
-
-
 constexpr bool bUseValidationLayers = false;
 
 //we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
@@ -66,6 +61,84 @@ using namespace std;
 		}                                                           \
 	} while (0)
 
+
+#include "SDL.h"
+void process_input_event(PlayerCamera& camera, SDL_Event * ev)
+{
+	if (ev->type == SDL_KEYDOWN)
+	{
+		switch (ev->key.keysym.sym)
+		{
+		case SDLK_UP:
+		case SDLK_w:
+			camera.inputAxis.x += 1.f;
+			break;
+		case SDLK_DOWN:
+		case SDLK_s:
+			camera.inputAxis.x -= 1.f;
+			break;
+		case SDLK_LEFT:
+		case SDLK_a:
+			camera.inputAxis.y -= 1.f;
+			break;
+		case SDLK_RIGHT:
+		case SDLK_d:
+			camera.inputAxis.y += 1.f;
+			break;
+		case SDLK_q:
+			camera.inputAxis.z -= 1.f;
+			break;
+
+		case SDLK_e:
+			camera.inputAxis.z += 1.f;
+			break;
+		case SDLK_LSHIFT:
+			camera.bSprint = true;
+			break;
+		}
+	}
+	else if (ev->type == SDL_KEYUP)
+	{
+		switch (ev->key.keysym.sym)
+		{
+		case SDLK_UP:
+		case SDLK_w:
+			camera.inputAxis.x -= 1.f;
+			break;
+		case SDLK_DOWN:
+		case SDLK_s:
+			camera.inputAxis.x += 1.f;
+			break;
+		case SDLK_LEFT:
+		case SDLK_a:
+			camera.inputAxis.y += 1.f;
+			break;
+		case SDLK_RIGHT:
+		case SDLK_d:
+			camera.inputAxis.y -= 1.f;
+			break;
+		case SDLK_q:
+			camera.inputAxis.z += 1.f;
+			break;
+
+		case SDLK_e:
+			camera.inputAxis.z -= 1.f;
+			break;
+		case SDLK_LSHIFT:
+			camera.bSprint = false;
+			break;
+		}
+	}
+	else if (ev->type == SDL_MOUSEMOTION) {
+		if (!camera.bLocked)
+		{
+			camera.pitch -= ev->motion.yrel * 0.003f;
+			camera.yaw -= ev->motion.xrel * 0.003f;
+		}
+	}
+
+	camera.inputAxis = glm::clamp(camera.inputAxis, { -1.0,-1.0,-1.0 }, { 1.0,1.0,1.0 });
+}
 
 
 
@@ -170,363 +243,7 @@ void VulkanEngine::cleanup()
 	}
 }
 
-void VulkanEngine::draw()
-{
-	ZoneScopedN("Engine Draw");
 
-	stats.drawcalls = 0;
-	stats.draws = 0;
-	stats.objects = 0;
-	stats.triangles = 0;
-
-
-	ImGui::Render();
-
-	{
-		ZoneScopedN("Fence Wait");
-		//wait until the gpu has finished rendering the last frame. Timeout of 1 second
-		VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, 1000000000));
-		VK_CHECK(vkResetFences(_device, 1, &get_current_frame()._renderFence));
-
-		get_current_frame().dynamicData.reset();
-
-		_renderScene.build_batches();
-
-		//check the debug data
-		void* data;
-		vmaMapMemory(_allocator, get_current_frame().debugOutputBuffer._allocation, &data);
-		for (int i = 1; i < get_current_frame().debugDataNames.size(); i++)
-		{
-			uint32_t begin = get_current_frame().debugDataOffsets[i - 1];
-			uint32_t end = get_current_frame().debugDataOffsets[i];
-
-			auto name = get_current_frame().debugDataNames[i];
-			if (name.compare("Cull Indirect Output") == 0)
-			{
-				void* buffer = malloc(end - begin);
-				memcpy(buffer, (uint8_t*)data + begin, end - begin);
-
-				GPUIndirectObject* objects = (GPUIndirectObject*)buffer;
-				int objectCount = (end - begin) / sizeof(GPUIndirectObject);
-
-				std::string filename = fmt::format("{}_CULLDATA_{}.txt", _frameNumber, i);
-
-				auto out = fmt::output_file(filename);
-				for (int o = 0; o < objectCount; o++)
-				{
-					out.print("DRAW: {} ------------ \n", o);
-					out.print("	OG Count: {} \n", _renderScene._forwardPass.batches[o].count);
-					out.print("	Visible Count: {} \n", objects[o].command.instanceCount);
-					out.print("	First: {} \n", objects[o].command.firstInstance);
-					out.print("	Indices: {} \n", objects[o].command.indexCount);
-				}
-
-				free(buffer);
-			}
-		}
-
-		vmaUnmapMemory(_allocator, get_current_frame().debugOutputBuffer._allocation);
-		get_current_frame().debugDataNames.clear();
-		get_current_frame().debugDataOffsets.clear();
-
-		get_current_frame().debugDataNames.push_back("");
-		get_current_frame().debugDataOffsets.push_back(0);
-	}
-	get_current_frame()._frameDeletionQueue.flush();
-	get_current_frame().dynamicDescriptorAllocator->reset_pools();
-
-	//now that we are sure that the commands finished executing, we can safely reset the command buffer to begin recording again.
-	VK_CHECK(vkResetCommandBuffer(get_current_frame()._mainCommandBuffer, 0));
-	uint32_t swapchainImageIndex;
-	{
-		ZoneScopedN("Aquire Image");
-		//request image from the swapchain
-		VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, -1, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex));
-	}
-
-	//naming it cmd for shorter writing
-	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
-
-	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
-	VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
-	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
-
-	//make a clear-color from frame number. This will flash with a 120 frame period.
-	VkClearValue clearValue;
-	float flash = abs(sin(_frameNumber / 120.f));
-	clearValue.color = { { 0.1f, 0.1f, 0.1f, 1.0f } };
-
-	_profiler->grab_queries(cmd);
-
-	{
-		postCullBarriers.clear();
-		cullReadyBarriers.clear();
-
-		TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "gpu frame");
-		ZoneScopedNC("Render Frame", tracy::Color::White);
-
-		vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu frame");
-
-		{
-			vkutil::VulkanScopeTimer timer2(cmd, _profiler, "gpu ready");
-
-			ready_mesh_draw(cmd);
-
-			ready_cull_data(_renderScene._forwardPass, cmd);
-			ready_cull_data(_renderScene._transparentForwardPass, cmd);
-			ready_cull_data(_renderScene._shadowPass, cmd);
-
-			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, cullReadyBarriers.size(), cullReadyBarriers.data(), 0, nullptr);
-		}
-
-		{
-			CullParams forwardCull;
-			forwardCull.projmat = _camera.get_projection_matrix(true);
-			forwardCull.viewmat = _camera.get_view_matrix();
-			forwardCull.frustrumCull = true;
-			forwardCull.occlusionCull = true;
-			forwardCull.drawDist = CVAR_DrawDistance.Get();
-			forwardCull.aabb = false;
-			execute_compute_cull(cmd, _renderScene._forwardPass, forwardCull);
-			execute_compute_cull(cmd, _renderScene._transparentForwardPass, forwardCull);
-		}
-
-		//glm::vec3 extent = _mainLight.shadowExtent * 10.f;
-		//glm::mat4 projection = glm::orthoLH_ZO(-extent.x, extent.x, -extent.y, extent.y, -extent.z, extent.z);
-		{
-			if (*CVarSystem::Get()->GetIntCVar("gpu.shadowcast"))
-			{
-				vkutil::VulkanScopeTimer timer2(cmd, _profiler, "gpu shadow cull");
-
-				CullParams shadowCull;
-				shadowCull.projmat = _mainLight.get_projection();
-				shadowCull.viewmat = _mainLight.get_view();
-				shadowCull.frustrumCull = true;
-				shadowCull.occlusionCull = false;
-				shadowCull.drawDist = 9999999;
-				shadowCull.aabb = true;
-
-				glm::vec3 aabbcenter = _mainLight.lightPosition;
-				glm::vec3 aabbextent = _mainLight.shadowExtent * 1.5f;
-				shadowCull.aabbmax = aabbcenter + aabbextent;
-				shadowCull.aabbmin = aabbcenter - aabbextent;
-				execute_compute_cull(cmd, _renderScene._shadowPass, shadowCull);
-			}
-		}
-
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, postCullBarriers.size(), postCullBarriers.data(), 0, nullptr);
-
-		shadow_pass(cmd);
-		forward_pass(clearValue, cmd);
-
-		reduce_depth(cmd);
-
-		copy_render_to_swapchain(swapchainImageIndex, cmd);
-	}
-
-	TracyVkCollect(_graphicsQueueContext, get_current_frame()._mainCommandBuffer);
-
-	//finalize the command buffer (we can no longer add commands, but it can now be executed)
-	VK_CHECK(vkEndCommandBuffer(cmd));
-
-	//prepare the submission to the queue. 
-	//we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
-	//we will signal the _renderSemaphore, to signal that rendering has finished
-	{
-		ZoneScopedN("Queue Submit");
-		VkSubmitInfo submit = vkinit::submit_info(&cmd);
-		VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-		submit.pWaitDstStageMask = &waitStage;
-
-		submit.waitSemaphoreCount = 1;
-		submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
-
-		submit.signalSemaphoreCount = 1;
-		submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
-		//submit command buffer to the queue and execute it.
-		// _renderFence will now block until the graphic commands finish execution
-		VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, get_current_frame()._renderFence));
-	}
-	//prepare present
-	// this will put the image we just rendered to into the visible window.
-	// we want to wait on the _renderSemaphore for that, 
-	// as its necessary that drawing commands have finished before the image is displayed to the user
-	{
-		ZoneScopedN("Queue Present");
-		VkPresentInfoKHR presentInfo = vkinit::present_info();
-
-		presentInfo.pSwapchains = &_swapchain;
-		presentInfo.swapchainCount = 1;
-
-		presentInfo.pWaitSemaphores = &get_current_frame()._renderSemaphore;
-		presentInfo.waitSemaphoreCount = 1;
-
-		presentInfo.pImageIndices = &swapchainImageIndex;
-		VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
-	}
-
-	//increase the number of frames drawn
-	_frameNumber++;
-}
-
-
-void VulkanEngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
-{
-	vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu forward pass");
-	vkutil::VulkanPipelineStatRecorder timer2(cmd, _profiler, "Forward Primitives");
-	//clear depth at 0
-	VkClearValue depthClear;
-	depthClear.depthStencil.depth = 0.f;
-
-	//start the main renderpass. 
-	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _forwardFramebuffer/*_framebuffers[swapchainImageIndex]*/);
-
-	//connect clear values
-	rpInfo.clearValueCount = 2;
-
-	VkClearValue clearValues[] = { clearValue, depthClear };
-
-	rpInfo.pClearValues = &clearValues[0];
-	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	VkViewport viewport;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)_windowExtent.width;
-	viewport.height = (float)_windowExtent.height;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-
-	VkRect2D scissor;
-	scissor.offset = { 0, 0 };
-	scissor.extent = _windowExtent;
-
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
-	vkCmdSetDepthBias(cmd, 0, 0, 0);
-
-
-	//stats.drawcalls = 0;
-	//stats.draws = 0;
-	//stats.objects = 0;
-	//stats.triangles = 0;
-
-	{
-		TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Forward Pass");
-		draw_objects_forward(cmd, _renderScene._forwardPass);
-		draw_objects_forward(cmd, _renderScene._transparentForwardPass);
-	}
-
-
-	{
-		TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Imgui Draw");
-		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
-	}
-
-	//finalize the render pass
-	vkCmdEndRenderPass(cmd);
-}
-
-
-void VulkanEngine::shadow_pass(VkCommandBuffer cmd)
-{
-	vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu shadow pass");
-	vkutil::VulkanPipelineStatRecorder timer2(cmd, _profiler, "Shadow Primitives");
-	if (CVAR_FreezeShadows.Get()) return;
-	if (!*CVarSystem::Get()->GetIntCVar("gpu.shadowcast"))
-	{
-		return;
-	}
-
-	//clear depth at 1
-	VkClearValue depthClear;
-	depthClear.depthStencil.depth = 1.f;
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_shadowPass, _shadowExtent, _shadowFramebuffer);
-
-	//connect clear values
-	rpInfo.clearValueCount = 1;
-
-	VkClearValue clearValues[] = { depthClear };
-
-	rpInfo.pClearValues = &clearValues[0];
-	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	VkViewport viewport;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)_shadowExtent.width;
-	viewport.height = (float)_shadowExtent.height;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-
-	VkRect2D scissor;
-	scissor.offset = { 0, 0 };
-	scissor.extent = _shadowExtent;
-
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
-
-
-
-	if (_renderScene._shadowPass.batches.size() > 0)
-	{
-		TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Shadow  Pass");
-		draw_objects_shadow(cmd, _renderScene._shadowPass);
-	}
-
-	//finalize the render pass
-	vkCmdEndRenderPass(cmd);
-}
-
-void VulkanEngine::copy_render_to_swapchain(uint32_t swapchainImageIndex, VkCommandBuffer cmd)
-{
-	//start the main renderpass. 
-	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo copyRP = vkinit::renderpass_begin_info(_copyPass, _windowExtent, _framebuffers[swapchainImageIndex]);
-
-
-	vkCmdBeginRenderPass(cmd, &copyRP, VK_SUBPASS_CONTENTS_INLINE);
-
-	VkViewport viewport;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)_windowExtent.width;
-	viewport.height = (float)_windowExtent.height;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-
-	VkRect2D scissor;
-	scissor.offset = { 0, 0 };
-	scissor.extent = _windowExtent;
-
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
-
-	vkCmdSetDepthBias(cmd, 0, 0, 0);
-
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _blitPipeline);
-
-	VkDescriptorImageInfo sourceImage;
-	sourceImage.sampler = _smoothSampler;
-
-	sourceImage.imageView = _rawRenderImage._defaultView;
-	sourceImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	VkDescriptorSet blitSet;
-	vkutil::DescriptorBuilder::begin(_descriptorLayoutCache, get_current_frame().dynamicDescriptorAllocator)
-		.bind_image(0, &sourceImage, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(blitSet);
-
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _blitLayout, 0, 1, &blitSet, 0, nullptr);
-
-	vkCmdDraw(cmd, 3, 1, 0, 0);
-
-
-	vkCmdEndRenderPass(cmd);
-}
 
 void VulkanEngine::run()
 {
@@ -557,7 +274,7 @@ void VulkanEngine::run()
 			{
 
 				ImGui_ImplSDL2_ProcessEvent(&e);
-				_camera.process_input_event(&e);
+				process_input_event(_camera, &e);
 
 
 				//close the window when user alt-f4s or clicks the X button			
@@ -789,59 +506,47 @@ void VulkanEngine::run()
 	}
 }
 
-FrameData& VulkanEngine::get_current_frame()
-{
-	return _frames[_frameNumber % FRAME_OVERLAP];
-}
-
-
-FrameData& VulkanEngine::get_last_frame()
-{
-	return _frames[(_frameNumber - 1) % 2];
-}
-
-
-void VulkanEngine::process_input_event(SDL_Event* ev)
-{
-	if (ev->type == SDL_KEYDOWN)
-	{
-		switch (ev->key.keysym.sym)
-		{
-
-		}
-	}
-	else if (ev->type == SDL_KEYUP)
-	{
-		switch (ev->key.keysym.sym)
-		{
-		case SDLK_UP:
-		case SDLK_w:
-			_camera.inputAxis.x -= 1.f;
-			break;
-		case SDLK_DOWN:
-		case SDLK_s:
-			_camera.inputAxis.x += 1.f;
-			break;
-		case SDLK_LEFT:
-		case SDLK_a:
-			_camera.inputAxis.y += 1.f;
-			break;
-		case SDLK_RIGHT:
-		case SDLK_d:
-			_camera.inputAxis.y -= 1.f;
-			break;
-		}
-	}
-	else if (ev->type == SDL_MOUSEMOTION) {
-		if (!CVAR_CamLock.Get())
-		{
-			_camera.pitch -= ev->motion.yrel * 0.003f;
-			_camera.yaw -= ev->motion.xrel * 0.003f;
-		}
-	}
-
-	_camera.inputAxis = glm::clamp(_camera.inputAxis, { -1.0,-1.0,-1.0 }, { 1.0,1.0,1.0 });
-}
+//void VulkanEngine::process_input_event(SDL_Event* ev)
+//{
+//	if (ev->type == SDL_KEYDOWN)
+//	{
+//		switch (ev->key.keysym.sym)
+//		{
+//
+//		}
+//	}
+//	else if (ev->type == SDL_KEYUP)
+//	{
+//		switch (ev->key.keysym.sym)
+//		{
+//		case SDLK_UP:
+//		case SDLK_w:
+//			_camera.inputAxis.x -= 1.f;
+//			break;
+//		case SDLK_DOWN:
+//		case SDLK_s:
+//			_camera.inputAxis.x += 1.f;
+//			break;
+//		case SDLK_LEFT:
+//		case SDLK_a:
+//			_camera.inputAxis.y += 1.f;
+//			break;
+//		case SDLK_RIGHT:
+//		case SDLK_d:
+//			_camera.inputAxis.y -= 1.f;
+//			break;
+//		}
+//	}
+//	else if (ev->type == SDL_MOUSEMOTION) {
+//		if (!CVAR_CamLock.Get())
+//		{
+//			_camera.pitch -= ev->motion.yrel * 0.003f;
+//			_camera.yaw -= ev->motion.xrel * 0.003f;
+//		}
+//	}
+//
+//	_camera.inputAxis = glm::clamp(_camera.inputAxis, { -1.0,-1.0,-1.0 }, { 1.0,1.0,1.0 });
+//}
 
 bool VulkanEngine::create_surface(VkInstance instance, VkSurfaceKHR* surface)
 {
@@ -853,71 +558,8 @@ bool VulkanEngine::create_surface(VkInstance instance, VkSurfaceKHR* surface)
 void VulkanEngine::init_vulkan()
 {
 	REngine::init_vulkan();
-
-	//vkb::InstanceBuilder builder;
-	////make the vulkan instance, with basic debug features
-	//auto inst_ret = builder.set_app_name("Example Vulkan Application")
-
-	//	.request_validation_layers(bUseValidationLayers)
-	//	.use_default_debug_messenger()
-	//	.build();
-
-
 	LOG_SUCCESS("Vulkan Instance initialized");
-
-	//vkb::Instance vkb_inst = inst_ret.value();
-
-	//grab the instance 
-	//_instance = vkb_inst.instance;
-	//create_surface(_instance, &_surface);
-
-	//use vkbootstrap to select a gpu. 
-	//We want a gpu that can write to the SDL surface and supports vulkan 1.2
-	//vkb::PhysicalDeviceSelector selector{ vkb_inst };
-	//VkPhysicalDeviceFeatures feats{};
-
-	//feats.pipelineStatisticsQuery = true;
-	//feats.multiDrawIndirect = true;
-	//feats.drawIndirectFirstInstance = true;
-	//feats.samplerAnisotropy = true;
-	//selector.set_required_features(feats);
-
-	//vkb::PhysicalDevice physicalDevice = selector
-	//	.set_minimum_version(1, 1)
-	//	.set_surface(_surface)
-	//	.add_required_extension(VK_EXT_SAMPLER_FILTER_MINMAX_EXTENSION_NAME)
-	//	
-	//	.select()
-	//	.value();
-
 	LOG_SUCCESS("GPU found");
-
-	//create the final vulkan device
-
-	//vkb::DeviceBuilder deviceBuilder{ physicalDevice };
-
-	//vkb::Device vkbDevice = deviceBuilder.build().value();
-	//
-	//// Get the VkDevice handle used in the rest of a vulkan application
-	//_device = vkbDevice.device;
-	//_chosenGPU = physicalDevice.physical_device;
-
-	//// use vkbootstrap to get a Graphics queue
-	//_graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
-
-	//_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
-
-	////initialize the memory allocator
-	//VmaAllocatorCreateInfo allocatorInfo = {};
-	//allocatorInfo.physicalDevice = _chosenGPU;
-	//allocatorInfo.device = _device;
-	//allocatorInfo.instance = _instance;
-	//vmaCreateAllocator(&allocatorInfo, &_allocator);
-
-
-	//
-	//vkGetPhysicalDeviceProperties(_chosenGPU, &_gpuProperties);
-
 	LOG_INFO("The gpu has a minimum buffer alignement of {}", _gpuProperties.limits.minUniformBufferOffsetAlignment);
 }
 
@@ -1139,80 +781,6 @@ void VulkanEngine::init_framebuffers()
 			vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
 			});
 	}
-}
-
-void VulkanEngine::init_commands()
-{
-	//create a command pool for commands submitted to the graphics queue.
-	//we also want the pool to allow for resetting of individual command buffers
-	VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-
-
-	for (int i = 0; i < FRAME_OVERLAP; i++) {
-
-
-		VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_frames[i]._commandPool));
-
-		//allocate the default command buffer that we will use for rendering
-		VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1);
-
-		VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_frames[i]._mainCommandBuffer));
-
-		_mainDeletionQueue.push_function([=]() {
-			vkDestroyCommandPool(_device, _frames[i]._commandPool, nullptr);
-			});
-
-
-	}
-	_graphicsQueueContext = TracyVkContext(_chosenGPU, _device, _graphicsQueue, _frames[0]._mainCommandBuffer);
-
-
-	VkCommandPoolCreateInfo uploadCommandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily);
-	//create pool for upload context
-	VK_CHECK(vkCreateCommandPool(_device, &uploadCommandPoolInfo, nullptr, &_uploadContext._commandPool));
-
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyCommandPool(_device, _uploadContext._commandPool, nullptr);
-		});
-}
-
-void VulkanEngine::init_sync_structures()
-{
-	//create syncronization structures
-	//one fence to control when the gpu has finished rendering the frame,
-	//and 2 semaphores to syncronize rendering with swapchain
-	//we want the fence to start signalled so we can wait on it on the first frame
-	VkFenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(VK_FENCE_CREATE_SIGNALED_BIT);
-
-	VkSemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
-
-	for (int i = 0; i < FRAME_OVERLAP; i++) {
-
-		VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_frames[i]._renderFence));
-
-		//enqueue the destruction of the fence
-		_mainDeletionQueue.push_function([=]() {
-			vkDestroyFence(_device, _frames[i]._renderFence, nullptr);
-			});
-
-
-		VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_frames[i]._presentSemaphore));
-		VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_frames[i]._renderSemaphore));
-
-		//enqueue the destruction of semaphores
-		_mainDeletionQueue.push_function([=]() {
-			vkDestroySemaphore(_device, _frames[i]._presentSemaphore, nullptr);
-			vkDestroySemaphore(_device, _frames[i]._renderSemaphore, nullptr);
-			});
-	}
-
-
-	VkFenceCreateInfo uploadFenceCreateInfo = vkinit::fence_create_info();
-
-	VK_CHECK(vkCreateFence(_device, &uploadFenceCreateInfo, nullptr, &_uploadContext._uploadFence));
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyFence(_device, _uploadContext._uploadFence, nullptr);
-		});
 }
 
 
@@ -1548,24 +1116,6 @@ void VulkanEngine::init_scene()
 }
 
 
-void VulkanEngine::ready_cull_data(RenderScene::MeshPass& pass, VkCommandBuffer cmd)
-{
-	//copy from the cleared indirect buffer into the one we will use on rendering. This one happens every frame
-	VkBufferCopy indirectCopy;
-	indirectCopy.dstOffset = 0;
-	indirectCopy.size = pass.batches.size() * sizeof(GPUIndirectObject);
-	indirectCopy.srcOffset = 0;
-	vkCmdCopyBuffer(cmd, pass.clearIndirectBuffer._buffer, pass.drawIndirectBuffer._buffer, 1, &indirectCopy);
-
-	{
-		VkBufferMemoryBarrier barrier = vkinit::buffer_barrier(pass.drawIndirectBuffer._buffer, _graphicsQueueFamily);
-		barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		cullReadyBarriers.push_back(barrier);
-		//vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
-	}
-}
 
 //AllocatedBufferUntyped VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags)
 //{
@@ -1594,18 +1144,6 @@ void VulkanEngine::ready_cull_data(RenderScene::MeshPass& pass, VkCommandBuffer 
 //}
 
 
-void VulkanEngine::reallocate_buffer(AllocatedBufferUntyped& buffer, size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags /*= 0*/)
-{
-	AllocatedBufferUntyped newBuffer = create_buffer(allocSize, usage, memoryUsage, required_flags);
-
-	get_current_frame()._frameDeletionQueue.push_function([=]() {
-
-		vmaDestroyBuffer(_allocator, buffer._buffer, buffer._allocation);
-		});
-
-	buffer = newBuffer;
-}
-
 size_t VulkanEngine::pad_uniform_buffer_size(size_t originalSize)
 {
 	// Calculate required alignment based on minimum device offset alignment
@@ -1616,42 +1154,6 @@ size_t VulkanEngine::pad_uniform_buffer_size(size_t originalSize)
 	}
 	return alignedSize;
 }
-
-
-//void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
-//{
-//	
-//	ZoneScopedNC("Inmediate Submit", tracy::Color::White);
-//
-//	VkCommandBuffer cmd;
-//
-//	//allocate the default command buffer that we will use for rendering
-//	VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_uploadContext._commandPool, 1);
-//
-//	VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &cmd));
-//
-//	//begin the command buffer recording. We will use this command buffer exactly once, so we want to let vulkan know that
-//	VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-//
-//	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
-//
-//	function(cmd);
-//	
-//
-//	VK_CHECK(vkEndCommandBuffer(cmd));
-//
-//	VkSubmitInfo submit = vkinit::submit_info(&cmd);
-//
-//
-//	//submit command buffer to the queue and execute it.
-//	// _renderFence will now block until the graphic commands finish execution
-//	VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, _uploadContext._uploadFence));
-//
-//	vkWaitForFences(_device, 1, &_uploadContext._uploadFence, true, 9999999999);
-//	vkResetFences(_device, 1, &_uploadContext._uploadFence);
-//
-//	vkResetCommandPool(_device, _uploadContext._commandPool, 0);
-//}
 
 
 bool VulkanEngine::load_prefab(const char* path, glm::mat4 root)
@@ -1855,12 +1357,6 @@ std::string VulkanEngine::asset_path(std::string_view path)
 }
 
 
-
-std::string VulkanEngine::shader_path(std::string_view path)
-{
-	return "../../shaders/" + std::string(path);
-}
-
 void VulkanEngine::refresh_renderbounds(MeshObject* object)
 {
 	//dont try to update invalid bounds
@@ -1915,11 +1411,6 @@ void VulkanEngine::refresh_renderbounds(MeshObject* object)
 	object->bounds.valid = true;
 }
 
-
-void VulkanEngine::unmap_buffer(AllocatedBufferUntyped& buffer)
-{
-	vmaUnmapMemory(_allocator, buffer._allocation);
-}
 
 void VulkanEngine::init_descriptors()
 {

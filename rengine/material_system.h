@@ -11,6 +11,8 @@
 
 #include <vk_mesh.h>
 
+class REngine;
+
 class PipelineBuilder {
 public:
 
@@ -135,7 +137,7 @@ namespace vkutil {
 
 	class MaterialSystem {
 	public:
-		void init(VulkanEngine* owner);
+		void init(REngine* owner);
 		void cleanup();
 
 		void build_default_templates();
@@ -164,7 +166,7 @@ namespace vkutil {
 		std::unordered_map<std::string, EffectTemplate> templateCache;
 		std::unordered_map<std::string, Material*> materials;
 		std::unordered_map<MaterialData, Material*, MaterialInfoHash> materialCache;
-		VulkanEngine* engine;
+		REngine* engine;
 	};
 }
 

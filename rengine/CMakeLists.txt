@@ -10,7 +10,7 @@ target_sources(rengine PRIVATE ${R_FILES})
 
 target_include_directories(rengine PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
-target_link_libraries(rengine PRIVATE vkbootstrap vma assetlib spirv_reflect tracy glm)
+target_link_libraries(rengine PRIVATE vma vkbootstrap assetlib spirv_reflect tracy glm imgui fmt_lib)
 
 target_link_libraries(rengine PUBLIC Vulkan::Vulkan)
 
@@ -18,7 +18,6 @@ target_link_libraries(rengine PUBLIC Vulkan::Vulkan)
  
 target_compile_definitions(rengine PUBLIC TRACY_ENABLE)
 target_compile_definitions(rengine PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE GLM_FORCE_LEFT_HANDED) 
-
 
 #both vma and glm and header only libs so we only need the include path
 #target_include_directories(vma INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/vma" )

@@ -6,6 +6,7 @@
 #include <vk_types.h>
 #include <vector>
 #include <array>
+#include <string>
 #include <unordered_map>
 
 #include <vk_descriptors.h>

@@ -1,6 +1,4 @@
 set(CMAKE_CXX_STANDARD 17)
-# Add source to this project's executable.
-
 
 
 file(GLOB ENGINE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/*.h")

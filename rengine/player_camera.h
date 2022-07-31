@@ -20,9 +20,7 @@ struct PlayerCamera {
 	bool bSprint = false;
 	bool bLocked;
 
-	void process_input_event(SDL_Event* ev);
 	void update_camera(float deltaSeconds);
-
 
 	glm::mat4 get_view_matrix();
 	glm::mat4 get_projection_matrix(bool bReverse = true);

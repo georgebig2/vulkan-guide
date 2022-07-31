@@ -9,7 +9,9 @@ project ("vulkan_guide")
 find_package(Vulkan REQUIRED)
 
 if(ANDROID)
-    find_package(game-activity REQUIRED CONFIG)
+    #include_directories(rengine)
+
+#[[    find_package(game-activity REQUIRED CONFIG)
     # Retrieve module passes.
     get_target_property(game-activity-include game-activity::game-activity INTERFACE_INCLUDE_DIRECTORIES)
     add_library(${PROJECT_NAME} SHARED
@@ -29,9 +31,12 @@ if(ANDROID)
     set(CMAKE_SHARED_LINKER_FLAGS
             "${CMAKE_SHARED_LINKER_FLAGS} -u GameActivity_onCreate")
 
-    target_link_libraries(vulkan_guide android log game-activity::game-activity)
+    target_link_libraries(vulkan_guide android log game-activity::game-activity rengine)]]
 
+    add_subdirectory(third_party)
+    add_subdirectory(assetlib)
     add_subdirectory(rengine)
+    add_subdirectory(android_gradle/app)
 
 else()
     set (CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${PROJECT_SOURCE_DIR}/bin/DEBUG")

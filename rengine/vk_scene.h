@@ -154,7 +154,7 @@ public:
 
 	void build_batches();
 
-	void merge_meshes(class VulkanEngine* engine);
+	void merge_meshes(class REngine* engine);
 
 	void refresh_pass(MeshPass* pass);
 
