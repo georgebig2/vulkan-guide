@@ -48,7 +48,10 @@ set(TRACY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tracy" CACHE FILEPATH "Path to Tracy"
 add_library(tracy OBJECT "${TRACY_DIR}/TracyClient.cpp")
 target_include_directories(tracy PUBLIC "${TRACY_DIR}")
 target_compile_definitions(tracy PUBLIC TRACY_ENABLE)
+
+#add_subdirectory(vkbootstrap)
 target_sources(vkbootstrap PRIVATE 
+    "${CMAKE_CURRENT_SOURCE_DIR}/vkbootstrap/VkBootstrapDispatch.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/vkbootstrap/VkBootstrap.h"
     "${CMAKE_CURRENT_SOURCE_DIR}/vkbootstrap/VkBootstrap.cpp"
 )

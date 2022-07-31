@@ -101,7 +101,7 @@ struct FrameData {
 
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
-	
+
 	vkutil::PushBuffer dynamicData;
 	//AllocatedBufferUntyped dynamicDataBuffer;
 
@@ -114,7 +114,7 @@ struct FrameData {
 };
 
 
-struct GPUCameraData{
+struct GPUCameraData {
 	glm::mat4 view;
 	glm::mat4 proj;
 	glm::mat4 viewproj;
@@ -168,11 +168,11 @@ struct /*alignas(16)*/DrawCullData
 	//uint32_t drawCount;
 
 	uint32_t flags;
-//	int cullingEnabled;
-	//int lodEnabled;
-//	int occlusionEnabled;
-//	int distanceCheck;
-//	int AABBcheck;
+	//	int cullingEnabled;
+		//int lodEnabled;
+	//	int occlusionEnabled;
+	//	int distanceCheck;
+	//	int AABBcheck;
 	float aabbmin_x;
 	float aabbmin_y;
 	float aabbmin_z;
@@ -217,62 +217,46 @@ class VulkanEngine : public REngine {
 public:
 
 	bool _isInitialized{ false };
-	int _frameNumber {0};
+	int _frameNumber{ 0 };
 	int _selectedShader{ 0 };
-
-	VkExtent2D _windowExtent{ 1700*2/3 , 900*2/3 };
 
 	struct SDL_Window* _window{ nullptr };
 
-	VkInstance _instance;
-	VkPhysicalDevice _chosenGPU;
+	//VkInstance _instance;
+	//VkPhysicalDevice _chosenGPU;
 	//VkDevice _device;
 
-	VkPhysicalDeviceProperties _gpuProperties;
+	/*VkPhysicalDeviceProperties _gpuProperties;*/
 
 	FrameData _frames[FRAME_OVERLAP];
-	
+
 	//VkQueue _graphicsQueue;
 	//uint32_t _graphicsQueueFamily;
-	
+
 	tracy::VkCtx* _graphicsQueueContext;
 
 	VkRenderPass _renderPass;
 	VkRenderPass _shadowPass;
 	VkRenderPass _copyPass;
 
-	VkSurfaceKHR _surface;
-	VkSwapchainKHR _swapchain;
-	VkFormat _swachainImageFormat;
+	//VkSurfaceKHR _surface;
+	//VkSwapchainKHR _swapchain;
+	//VkFormat _swachainImageFormat;
 
-	VkFormat _renderFormat;
-	AllocatedImage _rawRenderImage;
-	VkSampler _smoothSampler;
-	VkFramebuffer _forwardFramebuffer;
-	VkFramebuffer _shadowFramebuffer;
-	std::vector<VkFramebuffer> _framebuffers;
-	std::vector<VkImage> _swapchainImages;
-	std::vector<VkImageView> _swapchainImageViews;	
+	//DeletionQueue _mainDeletionQueue;
 
-    //DeletionQueue _mainDeletionQueue;
-	
 //	VmaAllocator _allocator; //vma lib allocator
 
 	//depth resources
-	
-	AllocatedImage _depthImage;
-	AllocatedImage _depthPyramid;
-	VkSampler _shadowSampler;
-	AllocatedImage _shadowImage;
+
+
 	//VkExtent2D _shadowExtent{1024,1024};
-	VkExtent2D _shadowExtent{ 1024*4,1024*4 };
-	int depthPyramidWidth ;
-	int depthPyramidHeight;
-	int depthPyramidLevels;
-	
+	//VkExtent2D _shadowExtent{ 1024 * 4,1024 * 4 };
+
+
 	//the format for the depth image
-	VkFormat _depthFormat;
-	
+	//VkFormat _depthFormat;
+
 	vkutil::DescriptorAllocator* _descriptorAllocator;
 	vkutil::DescriptorLayoutCache* _descriptorLayoutCache;
 	vkutil::VulkanProfiler* _profiler;
@@ -305,8 +289,6 @@ public:
 	VkPipeline _blitPipeline;
 	VkPipelineLayout _blitLayout;
 
-	VkSampler _depthSampler;
-	VkImageView depthPyramidMips[16] = {};
 
 	MeshDrawCommands currentCommands;
 	RenderScene _renderScene;
@@ -314,7 +296,7 @@ public:
 	//EngineConfig _config;
 
 	void ready_mesh_draw(VkCommandBuffer cmd);
-	
+
 	//initializes everything in the engine
 	void init();
 
@@ -327,11 +309,11 @@ public:
 	void forward_pass(VkClearValue clearValue, VkCommandBuffer cmd);
 
 	void shadow_pass(VkCommandBuffer cmd);
-	
+
 
 	//run main loop
 	void run();
-	
+
 	FrameData& get_current_frame();
 	FrameData& get_last_frame();
 
@@ -351,16 +333,16 @@ public:
 	void execute_draw_commands(VkCommandBuffer cmd, RenderScene::MeshPass& pass, VkDescriptorSet ObjectDataSet, std::vector<uint32_t> dynamic_offsets, VkDescriptorSet GlobalSet);
 
 	void draw_objects_shadow(VkCommandBuffer cmd, RenderScene::MeshPass& pass);
-	
+
 	void reduce_depth(VkCommandBuffer cmd);
 
-	void execute_compute_cull(VkCommandBuffer cmd, RenderScene::MeshPass& pass,CullParams& params);
+	void execute_compute_cull(VkCommandBuffer cmd, RenderScene::MeshPass& pass, CullParams& params);
 
 	void ready_cull_data(RenderScene::MeshPass& pass, VkCommandBuffer cmd);
 
 	//AllocatedBufferUntyped create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
 
-	void reallocate_buffer(AllocatedBufferUntyped&buffer,size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
+	void reallocate_buffer(AllocatedBufferUntyped& buffer, size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
 
 
 	size_t pad_uniform_buffer_size(size_t originalSize);
@@ -370,23 +352,25 @@ public:
 	bool load_prefab(const char* path, glm::mat4 root);
 
 	static std::string asset_path(std::string_view path);
-	
+
 	static std::string shader_path(std::string_view path);
 	void refresh_renderbounds(MeshObject* object);
 
 	template<typename T>
-	T* map_buffer(AllocatedBuffer<T> &buffer);
-	
+	T* map_buffer(AllocatedBuffer<T>& buffer);
+
 	void unmap_buffer(AllocatedBufferUntyped& buffer);
 
 	bool load_compute_shader(const char* shaderPath, VkPipeline& pipeline, VkPipelineLayout& layout);
+
+	bool create_surface(VkInstance instance, VkSurfaceKHR* surface) override;
+
 private:
 	EngineStats stats;
 	void process_input_event(SDL_Event* ev);
 
-	void init_vulkan();
+	void init_vulkan() override;
 
-	void init_swapchain();
 
 	void init_forward_renderpass();
 
@@ -406,7 +390,7 @@ private:
 
 	void init_descriptors();
 
-	void init_imgui();	
+	void init_imgui();
 
 	void load_meshes();
 
