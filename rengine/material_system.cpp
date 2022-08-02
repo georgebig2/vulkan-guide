@@ -141,10 +141,10 @@ ShaderEffect* build_effect(REngine* eng,std::string_view vertexShader, std::stri
 	//textured defaultlit shader
 	ShaderEffect* effect = new ShaderEffect();
 	
-	effect->add_stage(eng->_shaderCache.get_shader(REngine::shader_path(vertexShader)), VK_SHADER_STAGE_VERTEX_BIT);
+	effect->add_stage(eng->get_shader_cache()->get_shader(REngine::shader_path(vertexShader)), VK_SHADER_STAGE_VERTEX_BIT);
 	if (fragmentShader.size() > 2)
 	{
-		effect->add_stage(eng->_shaderCache.get_shader(REngine::shader_path(fragmentShader)), VK_SHADER_STAGE_FRAGMENT_BIT);
+		effect->add_stage(eng->get_shader_cache()->get_shader(REngine::shader_path(fragmentShader)), VK_SHADER_STAGE_FRAGMENT_BIT);
 	}
 	
 
@@ -260,7 +260,7 @@ vkutil::Material* vkutil::MaterialSystem::build_material(const std::string& mate
 
 
 	
-		auto& db = vkutil::DescriptorBuilder::begin(engine->_descriptorLayoutCache, engine->_descriptorAllocator);
+		auto db = vkutil::DescriptorBuilder::begin(engine->_descriptorLayoutCache, engine->_descriptorAllocator);
 
 		for (int i = 0; i < info.textures.size(); i++)
 		{

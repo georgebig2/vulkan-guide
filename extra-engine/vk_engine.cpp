@@ -1,14 +1,16 @@
 ﻿
+//#define VMA_IMPLEMENTATION
+#include "vk.h"
+#include <vk_types.h>
+#include <vk_initializers.h>
+#include <vk_descriptors.h>
+
 #include "vk_engine.h"
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
 
-#include <vk_types.h>
-#include <vk_initializers.h>
-#include <vk_descriptors.h>
 
-#include "VkBootstrap.h"
 
 #include <iostream>
 #include <fstream>
@@ -17,8 +19,6 @@
 #include "vk_textures.h"
 #include "vk_shaders.h"
 
-//#define VMA_IMPLEMENTATION
-#include "vk_mem_alloc.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -38,7 +38,7 @@
 #include "logger.h"
 #include "cvars.h"
 
-
+#include "vk_scene.h"
 
 AutoCVar_Int CVAR_OcclusionCullGPU("culling.enableOcclusionGPU", "Perform occlusion culling in gpu", 1, CVarFlags::EditCheckbox);
 
@@ -173,8 +173,7 @@ void VulkanEngine::init()
 	_profiler = new vkutil::VulkanProfiler();
 	_profiler->init(_device, _gpuProperties.limits.timestampPeriod);
 
-	_shaderCache.init(_device);
-	_renderScene.init();
+	get_render_scene()->init();
 
 	init_forward_renderpass();
 	init_copy_renderpass();
@@ -186,7 +185,6 @@ void VulkanEngine::init()
 
 	init_sync_structures();
 
-	init_descriptors();
 
 	init_pipelines();
 
@@ -201,8 +199,8 @@ void VulkanEngine::init()
 
 	init_imgui();
 
-	_renderScene.build_batches();
-	_renderScene.merge_meshes(this);
+	get_render_scene()->build_batches();
+	get_render_scene()->merge_meshes(this);
 
 	_isInitialized = true;
 
@@ -213,36 +211,15 @@ void VulkanEngine::init()
 	_mainLight.lightDirection = glm::vec3(0.3, -1, 0.3);
 	_mainLight.shadowExtent = { 700 ,700 ,700 };
 }
+
 void VulkanEngine::cleanup()
 {
 	if (_isInitialized) {
 
-		//make sure the gpu has stopped doing its things
-		for (auto& frame : _frames)
-		{
-			vkWaitForFences(_device, 1, &frame._renderFence, true, 1000000000);
-		}
-
-		_mainDeletionQueue.flush();
-
-		for (auto& frame : _frames)
-		{
-			frame.dynamicDescriptorAllocator->cleanup();
-		}
-
-		_descriptorAllocator->cleanup();
-		_descriptorLayoutCache->cleanup();
-
-
-		vkDestroySurfaceKHR(_instance, _surface, nullptr);
-
-		vkDestroyDevice(_device, nullptr);
-		vkDestroyInstance(_instance, nullptr);
-
+		REngine::cleanup();
 		SDL_DestroyWindow(_window);
 	}
 }
-
 
 
 void VulkanEngine::run()
@@ -353,7 +330,7 @@ void VulkanEngine::run()
 			{
 				ImGui::Begin("engine", 0, ImGuiWindowFlags_AlwaysAutoResize);
 
-				ImGui::Text("Frame: %f", stats.frametime);
+				ImGui::Text("Frame: %.2f ms", stats.frametime);
 				graphs["Frame"].history[curFrame] = stats.frametime;
 
 				ImGui::Text("Objects: %d", stats.objects);
@@ -479,19 +456,19 @@ void VulkanEngine::run()
 			int N_changes = 1000;
 			for (int i = 0; i < N_changes; i++)
 			{
-				int rng = rand() % _renderScene.renderables.size();
+				int rng = rand() % get_render_scene()->renderables.size();
 
 				Handle<RenderObject> h;
 				h.handle = rng;
 
-				auto* obj = _renderScene.get_object(h);
+				auto* obj = get_render_scene()->get_object(h);
 				auto prev = obj->transformMatrix;
 				//glm::mat4 tr = glm::translate(glm::mat4{ 1.0 }, glm::vec3(0, 15, 0));
 				float scale = sin(start.time_since_epoch().count() / 10000000 + h.handle) * 0.0005f + 1.f;
 				glm::mat4 sm = glm::scale(glm::mat4{ 1.0 }, glm::vec3(scale));
 				//glm::mat4 rot = glm::rotate(glm::radians(90.f), glm::vec3{ 1,0,0 });
 				auto newm = prev * sm;
-				_renderScene.update_transform(h, newm);
+				get_render_scene()->update_transform(h, newm);
 
 				//_renderScene.update_object(h);
 			}
@@ -506,47 +483,6 @@ void VulkanEngine::run()
 	}
 }
 
-//void VulkanEngine::process_input_event(SDL_Event* ev)
-//{
-//	if (ev->type == SDL_KEYDOWN)
-//	{
-//		switch (ev->key.keysym.sym)
-//		{
-//
-//		}
-//	}
-//	else if (ev->type == SDL_KEYUP)
-//	{
-//		switch (ev->key.keysym.sym)
-//		{
-//		case SDLK_UP:
-//		case SDLK_w:
-//			_camera.inputAxis.x -= 1.f;
-//			break;
-//		case SDLK_DOWN:
-//		case SDLK_s:
-//			_camera.inputAxis.x += 1.f;
-//			break;
-//		case SDLK_LEFT:
-//		case SDLK_a:
-//			_camera.inputAxis.y += 1.f;
-//			break;
-//		case SDLK_RIGHT:
-//		case SDLK_d:
-//			_camera.inputAxis.y -= 1.f;
-//			break;
-//		}
-//	}
-//	else if (ev->type == SDL_MOUSEMOTION) {
-//		if (!CVAR_CamLock.Get())
-//		{
-//			_camera.pitch -= ev->motion.yrel * 0.003f;
-//			_camera.yaw -= ev->motion.xrel * 0.003f;
-//		}
-//	}
-//
-//	_camera.inputAxis = glm::clamp(_camera.inputAxis, { -1.0,-1.0,-1.0 }, { 1.0,1.0,1.0 });
-//}
 
 bool VulkanEngine::create_surface(VkInstance instance, VkSurfaceKHR* surface)
 {
@@ -747,8 +683,6 @@ void VulkanEngine::init_shadow_renderpass()
 
 void VulkanEngine::init_framebuffers()
 {
-
-
 	const uint32_t swapchain_imagecount = static_cast<uint32_t>(_swapchainImages.size());
 	_framebuffers = std::vector<VkFramebuffer>(swapchain_imagecount);
 
@@ -792,8 +726,8 @@ void VulkanEngine::init_pipelines()
 
 	//fullscreen triangle pipeline for blits
 	ShaderEffect* blitEffect = new ShaderEffect();
-	blitEffect->add_stage(_shaderCache.get_shader(shader_path("fullscreen.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
-	blitEffect->add_stage(_shaderCache.get_shader(shader_path("blit.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
+	blitEffect->add_stage(get_shader_cache()->get_shader(shader_path("fullscreen.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
+	blitEffect->add_stage(get_shader_cache()->get_shader(shader_path("blit.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
 	blitEffect->reflect_layout(_device, nullptr, 0);
 
 
@@ -874,8 +808,6 @@ bool VulkanEngine::load_compute_shader(const char* shaderPath, VkPipeline& pipel
 }
 
 
-
-
 void VulkanEngine::load_meshes()
 {
 	Mesh triMesh{};
@@ -934,7 +866,6 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 {
 	ZoneScopedNC("Upload Mesh", tracy::Color::Orange);
 
-
 	const size_t vertex_buffer_size = mesh._vertices.size() * sizeof(Vertex);
 	const size_t index_buffer_size = mesh._indices.size() * sizeof(uint32_t);
 	const size_t bufferSize = vertex_buffer_size + index_buffer_size;
@@ -970,9 +901,7 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 	//copy vertex data
 	char* data;
 	vmaMapMemory(_allocator, mesh._vertexBuffer._allocation, (void**)&data);
-
 	memcpy(data, mesh._vertices.data(), vertex_buffer_size);
-
 	vmaUnmapMemory(_allocator, mesh._vertexBuffer._allocation);
 
 	if (index_buffer_size != 0)
@@ -983,9 +912,7 @@ void VulkanEngine::upload_mesh(Mesh& mesh)
 			&mesh._indexBuffer._allocation,
 			nullptr));
 		vmaMapMemory(_allocator, mesh._indexBuffer._allocation, (void**)&data);
-
 		memcpy(data, mesh._indices.data(), index_buffer_size);
-
 		vmaUnmapMemory(_allocator, mesh._indexBuffer._allocation);
 	}
 }
@@ -1115,45 +1042,6 @@ void VulkanEngine::init_scene()
 	//}
 }
 
-
-
-//AllocatedBufferUntyped VulkanEngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags)
-//{
-//	//allocate vertex buffer
-//	VkBufferCreateInfo bufferInfo = {};
-//	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-//	bufferInfo.pNext = nullptr;
-//	bufferInfo.size = allocSize;
-//
-//	bufferInfo.usage = usage;
-//
-//
-//	//let the VMA library know that this data should be writeable by CPU, but also readable by GPU
-//	VmaAllocationCreateInfo vmaallocInfo = {};
-//	vmaallocInfo.usage = memoryUsage;
-//	vmaallocInfo.requiredFlags = required_flags;
-//	AllocatedBufferUntyped newBuffer;
-//
-//	//allocate the buffer
-//	VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo,
-//		&newBuffer._buffer,
-//		&newBuffer._allocation,
-//		nullptr));
-//	newBuffer._size = allocSize;
-//	return newBuffer;
-//}
-
-
-size_t VulkanEngine::pad_uniform_buffer_size(size_t originalSize)
-{
-	// Calculate required alignment based on minimum device offset alignment
-	size_t minUboAlignment = _gpuProperties.limits.minUniformBufferOffsetAlignment;
-	size_t alignedSize = originalSize;
-	if (minUboAlignment > 0) {
-		alignedSize = (alignedSize + minUboAlignment - 1) & ~(minUboAlignment - 1);
-	}
-	return alignedSize;
-}
 
 
 bool VulkanEngine::load_prefab(const char* path, glm::mat4 root)
@@ -1343,10 +1231,7 @@ bool VulkanEngine::load_prefab(const char* path, glm::mat4 root)
 		//_renderables.push_back(loadmesh);
 	}
 
-	_renderScene.register_object_batch(prefab_renderables.data(), static_cast<uint32_t>(prefab_renderables.size()));
-
-
-
+	get_render_scene()->register_object_batch(prefab_renderables.data(), static_cast<uint32_t>(prefab_renderables.size()));
 	return true;
 }
 
@@ -1412,44 +1297,6 @@ void VulkanEngine::refresh_renderbounds(MeshObject* object)
 }
 
 
-void VulkanEngine::init_descriptors()
-{
-	_descriptorAllocator = new vkutil::DescriptorAllocator{};
-	_descriptorAllocator->init(_device);
-
-	_descriptorLayoutCache = new vkutil::DescriptorLayoutCache{};
-	_descriptorLayoutCache->init(_device);
-
-
-	VkDescriptorSetLayoutBinding textureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
-
-	VkDescriptorSetLayoutCreateInfo set3info = {};
-	set3info.bindingCount = 1;
-	set3info.flags = 0;
-	set3info.pNext = nullptr;
-	set3info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	set3info.pBindings = &textureBind;
-
-	_singleTextureSetLayout = _descriptorLayoutCache->create_descriptor_layout(&set3info);
-
-
-	const size_t sceneParamBufferSize = FRAME_OVERLAP * pad_uniform_buffer_size(sizeof(GPUSceneData));
-
-
-	for (int i = 0; i < FRAME_OVERLAP; i++)
-	{
-		_frames[i].dynamicDescriptorAllocator = new vkutil::DescriptorAllocator{};
-		_frames[i].dynamicDescriptorAllocator->init(_device);
-
-		//1 megabyte of dynamic data buffer
-		auto dynamicDataBuffer = create_buffer(1000000, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-		_frames[i].dynamicData.init(_allocator, dynamicDataBuffer, _gpuProperties.limits.minUniformBufferOffsetAlignment);
-
-		//20 megabyte of debug output
-		_frames[i].debugOutputBuffer = create_buffer(200000000, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU);
-	}
-}
-
 void VulkanEngine::init_imgui()
 {
 	//1: create descriptor pool for IMGUI
@@ -1511,25 +1358,10 @@ void VulkanEngine::init_imgui()
 
 	//add the destroy the imgui created structures
 	_mainDeletionQueue.push_function([=]() {
-
 		vkDestroyDescriptorPool(_device, imguiPool, nullptr);
 		ImGui_ImplVulkan_Shutdown();
-		});
+	});
 }
 
 
-glm::mat4 DirectionalLight::get_projection()
-{
-	glm::mat4 projection = glm::orthoLH_ZO(-shadowExtent.x, shadowExtent.x, -shadowExtent.y, shadowExtent.y, -shadowExtent.z, shadowExtent.z);
-	return projection;
-}
 
-glm::mat4 DirectionalLight::get_view()
-{
-	glm::vec3 camPos = lightPosition;
-
-	glm::vec3 camFwd = lightDirection;
-
-	glm::mat4 view = glm::lookAt(camPos, camPos + camFwd, glm::vec3(1, 0, 0));
-	return view;
-}

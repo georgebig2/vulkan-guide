@@ -4,6 +4,7 @@
 
 #find_package(Vulkan REQUIRED)
 find_package(game-activity REQUIRED CONFIG)
+#find_library(vulkan_guide android)
 
 # Retrieve module passes.
 get_target_property(game-activity-include game-activity::game-activity INTERFACE_INCLUDE_DIRECTORIES)
@@ -23,7 +24,7 @@ set_source_files_properties(${game-activity-include}/game-activity/GameActivity.
 set(CMAKE_SHARED_LINKER_FLAGS
         "${CMAKE_SHARED_LINKER_FLAGS} -u GameActivity_onCreate")
 
-target_link_libraries(vulkan_guide android log game-activity::game-activity rengine vkbootstrap vma assetlib)
+target_link_libraries(vulkan_guide android rengine game-activity::game-activity glm log)
 
 #add_subdirectory(third_party)
 #add_subdirectory(assetlib)

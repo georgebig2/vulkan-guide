@@ -1,5 +1,5 @@
 ﻿#define VMA_IMPLEMENTATION
-#include "vk_mem_alloc.h"
+#include "vk.h"
 
 #include "rengine.h"
 
@@ -13,11 +13,11 @@
 
 #include "Tracy.hpp"
 #include "TracyVulkan.hpp"
+
 //#include "vk_profiler.h"
 #include <vk_types.h>
 #include <vk_initializers.h>
 #include <vk_descriptors.h>
-#include "VkBootstrap.h"
 
 //#include <vulkan/vulkan.h>
 
@@ -30,6 +30,8 @@
 #include "vk_profiler.h"
 #include "logger.h"
 #include "cvars.h"
+#include <vk_shaders.h>
+#include <vk_scene.h>
 
 
 constexpr bool bUseValidationLayers = false;
@@ -54,6 +56,31 @@ using namespace std;
 			abort();                                                \
 		}                                                           \
 	} while (0)
+
+
+struct FrameData {
+	VkSemaphore _presentSemaphore, _renderSemaphore;
+	VkFence _renderFence;
+
+	DeletionQueue _frameDeletionQueue;
+
+	VkCommandPool _commandPool;
+	VkCommandBuffer _mainCommandBuffer;
+
+	vkutil::PushBuffer dynamicData;
+	//AllocatedBufferUntyped dynamicDataBuffer;
+
+	AllocatedBufferUntyped debugOutputBuffer;
+
+	vkutil::DescriptorAllocator* dynamicDescriptorAllocator;
+
+	std::vector<uint32_t> debugDataOffsets;
+	std::vector<std::string> debugDataNames;
+};
+FrameData _frames[FRAME_OVERLAP];
+
+ShaderCache _shaderCache;
+RenderScene _renderScene;
 
 
 struct UploadContext {
@@ -120,18 +147,82 @@ void REngine::init_vulkan()
 	_graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
 
 	//initialize the memory allocator
+
+	VmaVulkanFunctions vma_vulkan_func{};
+	//vma_vulkan_func.vkGetInstanceProcAddr = &vkGetInstanceProcAddr;
+	//vma_vulkan_func.vkGetDeviceProcAddr = &vkGetDeviceProcAddr;
+	//vma_vulkan_func.vkAllocateMemory = vkAllocateMemory;
+	//vma_vulkan_func.vkBindBufferMemory = vkBindBufferMemory;
+	//vma_vulkan_func.vkBindImageMemory = vkBindImageMemory;
+	//vma_vulkan_func.vkCreateBuffer = vkCreateBuffer;
+	//vma_vulkan_func.vkCreateImage = vkCreateImage;
+	//vma_vulkan_func.vkDestroyBuffer = vkDestroyBuffer;
+	//vma_vulkan_func.vkDestroyImage = vkDestroyImage;
+	//vma_vulkan_func.vkFlushMappedMemoryRanges = vkFlushMappedMemoryRanges;
+	//vma_vulkan_func.vkFreeMemory = vkFreeMemory;
+	//vma_vulkan_func.vkGetBufferMemoryRequirements = vkGetBufferMemoryRequirements;
+	//vma_vulkan_func.vkGetImageMemoryRequirements = vkGetImageMemoryRequirements;
+	//vma_vulkan_func.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties;
+	//vma_vulkan_func.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
+	//vma_vulkan_func.vkInvalidateMappedMemoryRanges = vkInvalidateMappedMemoryRanges;
+	//vma_vulkan_func.vkMapMemory = vkMapMemory;
+	//vma_vulkan_func.vkUnmapMemory = vkUnmapMemory;
+	//vma_vulkan_func.vkCmdCopyBuffer = vkCmdCopyBuffer;
+
 	VmaAllocatorCreateInfo allocatorInfo = {};
 	allocatorInfo.physicalDevice = _chosenGPU;
 	allocatorInfo.device = _device;
 	allocatorInfo.instance = _instance;
+	allocatorInfo.pVulkanFunctions = &vma_vulkan_func;
+	
 	vmaCreateAllocator(&allocatorInfo, &_allocator);
+
 
 	vkGetPhysicalDeviceProperties(_chosenGPU, &_gpuProperties);
 	//LOG_INFO("The gpu has a minimum buffer alignement of {}", _gpuProperties.limits.minUniformBufferOffsetAlignment);
 
+	_shaderCache.init(_device);
 	init_swapchain();
+	init_descriptors();
 }
 
+ShaderCache* REngine::get_shader_cache()
+{
+	return &_shaderCache;
+}
+
+RenderScene* REngine::get_render_scene()
+{
+	return &_renderScene;
+}
+
+void REngine::cleanup()
+{
+	if (_isInitialized) {
+
+		//make sure the gpu has stopped doing its things
+		for (auto& frame : _frames)
+		{
+			vkWaitForFences(_device, 1, &frame._renderFence, true, 1000000000);
+		}
+
+		_mainDeletionQueue.flush();
+
+		for (auto& frame : _frames)
+		{
+			frame.dynamicDescriptorAllocator->cleanup();
+		}
+
+		_descriptorAllocator->cleanup();
+		_descriptorLayoutCache->cleanup();
+
+
+		vkDestroySurfaceKHR(_instance, _surface, nullptr);
+
+		vkDestroyDevice(_device, nullptr);
+		vkDestroyInstance(_instance, nullptr);
+	}
+}
 
 std::string REngine::shader_path(std::string_view path)
 {
@@ -161,6 +252,22 @@ uint32_t getImageMipLevels(uint32_t width, uint32_t height)
 	}
 
 	return result;
+}
+
+glm::mat4 DirectionalLight::get_projection()
+{
+	glm::mat4 projection = glm::orthoLH_ZO(-shadowExtent.x, shadowExtent.x, -shadowExtent.y, shadowExtent.y, -shadowExtent.z, shadowExtent.z);
+	return projection;
+}
+
+glm::mat4 DirectionalLight::get_view()
+{
+	glm::vec3 camPos = lightPosition;
+
+	glm::vec3 camFwd = lightDirection;
+
+	glm::mat4 view = glm::lookAt(camPos, camPos + camFwd, glm::vec3(1, 0, 0));
+	return view;
 }
 
 void REngine::init_swapchain()
@@ -328,7 +435,7 @@ void REngine::init_swapchain()
 }
 
 
-AllocatedBufferUntyped REngine::create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags)
+AllocatedBufferUntyped create_buffer(REngine* engine, size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0)
 {
 	//allocate vertex buffer
 	VkBufferCreateInfo bufferInfo = {};
@@ -346,7 +453,7 @@ AllocatedBufferUntyped REngine::create_buffer(size_t allocSize, VkBufferUsageFla
 	AllocatedBufferUntyped newBuffer;
 
 	//allocate the buffer
-	VK_CHECK(vmaCreateBuffer(_allocator, &bufferInfo, &vmaallocInfo,
+	VK_CHECK(vmaCreateBuffer(engine->_allocator, &bufferInfo, &vmaallocInfo,
 		&newBuffer._buffer,
 		&newBuffer._allocation,
 		nullptr));
@@ -467,6 +574,53 @@ void REngine::init_sync_structures()
 		});
 }
 
+size_t REngine::pad_uniform_buffer_size(size_t originalSize)
+{
+	// Calculate required alignment based on minimum device offset alignment
+	size_t minUboAlignment = _gpuProperties.limits.minUniformBufferOffsetAlignment;
+	size_t alignedSize = originalSize;
+	if (minUboAlignment > 0) {
+		alignedSize = (alignedSize + minUboAlignment - 1) & ~(minUboAlignment - 1);
+	}
+	return alignedSize;
+}
+
+void REngine::init_descriptors()
+{
+	_descriptorAllocator = new vkutil::DescriptorAllocator{};
+	_descriptorAllocator->init(_device);
+
+	_descriptorLayoutCache = new vkutil::DescriptorLayoutCache{};
+	_descriptorLayoutCache->init(_device);
+
+
+	VkDescriptorSetLayoutBinding textureBind = vkinit::descriptorset_layout_binding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+
+	VkDescriptorSetLayoutCreateInfo set3info = {};
+	set3info.bindingCount = 1;
+	set3info.flags = 0;
+	set3info.pNext = nullptr;
+	set3info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	set3info.pBindings = &textureBind;
+
+	_singleTextureSetLayout = _descriptorLayoutCache->create_descriptor_layout(&set3info);
+
+	const size_t sceneParamBufferSize = FRAME_OVERLAP * pad_uniform_buffer_size(sizeof(GPUSceneData));
+
+
+	for (int i = 0; i < FRAME_OVERLAP; i++)
+	{
+		_frames[i].dynamicDescriptorAllocator = new vkutil::DescriptorAllocator{};
+		_frames[i].dynamicDescriptorAllocator->init(_device);
+
+		//1 megabyte of dynamic data buffer
+		auto dynamicDataBuffer = create_buffer(this, 1000000, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+		_frames[i].dynamicData.init(_allocator, dynamicDataBuffer, _gpuProperties.limits.minUniformBufferOffsetAlignment);
+
+		//20 megabyte of debug output
+		_frames[i].debugOutputBuffer = create_buffer(this, 200000000, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU);
+	}
+}
 
 void REngine::draw()
 {
@@ -671,7 +825,7 @@ void REngine::draw()
 
 void REngine::reallocate_buffer(AllocatedBufferUntyped& buffer, size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags /*= 0*/)
 {
-	AllocatedBufferUntyped newBuffer = create_buffer(allocSize, usage, memoryUsage, required_flags);
+	AllocatedBufferUntyped newBuffer = create_buffer(this, allocSize, usage, memoryUsage, required_flags);
 
 	get_current_frame()._frameDeletionQueue.push_function([=]() {
 
@@ -708,7 +862,7 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 		//if 80% of the objects are dirty, then just reupload the whole thing
 		if (_renderScene.dirtyObjects.size() >= _renderScene.renderables.size() * 0.8)
 		{
-			AllocatedBuffer<GPUObjectData> newBuffer = create_buffer(copySize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			AllocatedBuffer<GPUObjectData> newBuffer = create_buffer(this, copySize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
 			GPUObjectData* objectSSBO = map_buffer(newBuffer);
 			_renderScene.fill_objectData(objectSSBO);
@@ -738,8 +892,8 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 			uint64_t intsize = sizeof(uint32_t);
 			uint64_t wordsize = sizeof(GPUObjectData) / sizeof(uint32_t);
 			uint64_t uploadSize = _renderScene.dirtyObjects.size() * wordsize * intsize;
-			AllocatedBuffer<GPUObjectData> newBuffer = create_buffer(buffersize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-			AllocatedBuffer<uint32_t> targetBuffer = create_buffer(uploadSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			AllocatedBuffer<GPUObjectData> newBuffer = create_buffer(this, buffersize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			AllocatedBuffer<uint32_t> targetBuffer = create_buffer(this, uploadSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
 			get_current_frame()._frameDeletionQueue.push_function([=]() {
 
@@ -798,7 +952,7 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 		_renderScene.clear_dirty_objects();
 	}
 
-	RenderScene::MeshPass* passes[3] = { &_renderScene._forwardPass,&_renderScene._transparentForwardPass,&_renderScene._shadowPass };
+	MeshPass* passes[3] = { &_renderScene._forwardPass,&_renderScene._transparentForwardPass,&_renderScene._shadowPass };
 	for (int p = 0; p < 3; p++)
 	{
 		auto& pass = *passes[p];
@@ -826,8 +980,8 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 
 	for (int p = 0; p < 3; p++)
 	{
-		RenderScene::MeshPass& pass = *passes[p];
-		RenderScene::MeshPass* ppass = passes[p];
+		MeshPass& pass = *passes[p];
+		MeshPass* ppass = passes[p];
 
 		RenderScene* pScene = &_renderScene;
 		//if the pass has changed the batches, need to reupload them
@@ -835,7 +989,7 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 		{
 			ZoneScopedNC("Refresh Indirect Buffer", tracy::Color::Red);
 
-			AllocatedBuffer<GPUIndirectObject> newBuffer = create_buffer(sizeof(GPUIndirectObject) * pass.batches.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			AllocatedBuffer<GPUIndirectObject> newBuffer = create_buffer(this, sizeof(GPUIndirectObject) * pass.batches.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 			GPUIndirectObject* indirect = map_buffer(newBuffer);
 
 			async_calls.push_back(std::async(std::launch::async, [=] {
@@ -865,7 +1019,7 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 		{
 			ZoneScopedNC("Refresh Instancing Buffer", tracy::Color::Red);
 
-			AllocatedBuffer<GPUInstance> newBuffer = create_buffer(sizeof(GPUInstance) * pass.flat_batches.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			AllocatedBuffer<GPUInstance> newBuffer = create_buffer(this, sizeof(GPUInstance) * pass.flat_batches.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 
 			GPUInstance* instanceData = map_buffer(newBuffer);
 			async_calls.push_back(std::async(std::launch::async, [=] {
@@ -909,7 +1063,7 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 }
 
 
-void REngine::ready_cull_data(RenderScene::MeshPass& pass, VkCommandBuffer cmd)
+void REngine::ready_cull_data(MeshPass& pass, VkCommandBuffer cmd)
 {
 	//copy from the cleared indirect buffer into the one we will use on rendering. This one happens every frame
 	VkBufferCopy indirectCopy;
@@ -933,7 +1087,7 @@ glm::vec4 normalizePlane(glm::vec4 p)
 	return p / glm::length(glm::vec3(p));
 }
 
-void REngine::execute_compute_cull(VkCommandBuffer cmd, RenderScene::MeshPass& pass, CullParams& params)
+void REngine::execute_compute_cull(VkCommandBuffer cmd, MeshPass& pass, CullParams& params)
 {
 	if (CVAR_FreezeCull.Get())
 		return;
@@ -1202,7 +1356,7 @@ void REngine::reduce_depth(VkCommandBuffer cmd)
 	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthWriteBarrier);
 }
 
-void REngine::draw_objects_shadow(VkCommandBuffer cmd, RenderScene::MeshPass& pass)
+void REngine::draw_objects_shadow(VkCommandBuffer cmd, MeshPass& pass)
 {
 	ZoneScopedNC("DrawObjects", tracy::Color::Blue);
 
@@ -1247,7 +1401,7 @@ void REngine::draw_objects_shadow(VkCommandBuffer cmd, RenderScene::MeshPass& pa
 }
 
 
-void REngine::execute_draw_commands(VkCommandBuffer cmd, RenderScene::MeshPass& pass, VkDescriptorSet ObjectDataSet, std::vector<uint32_t> dynamic_offsets, VkDescriptorSet GlobalSet)
+void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescriptorSet ObjectDataSet, std::vector<uint32_t> dynamic_offsets, VkDescriptorSet GlobalSet)
 {
 	if (pass.batches.size() > 0)
 	{
@@ -1382,14 +1536,14 @@ void REngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 
 	{
 		//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Imgui Draw");
-		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+		//ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 	}
 
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd);
 }
 
-void REngine::draw_objects_forward(VkCommandBuffer cmd, RenderScene::MeshPass& pass)
+void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
 {
 	ZoneScopedNC("DrawObjects", tracy::Color::Blue);
 	//make a model view matrix for rendering the object

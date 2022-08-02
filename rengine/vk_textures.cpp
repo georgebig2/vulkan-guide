@@ -1,4 +1,5 @@
-﻿#include <vk_textures.h>
+﻿#include "vk_types.h"
+#include <vk_textures.h>
 #include <iostream>
 
 #include <vk_initializers.h>
@@ -51,6 +52,8 @@
 //	return true;
 //}
 
+AllocatedBufferUntyped create_buffer(REngine*, size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
+
 
 bool vkutil::load_image_from_asset(REngine& engine, const char* filename, AllocatedImage& outImage)
 {
@@ -75,7 +78,7 @@ bool vkutil::load_image_from_asset(REngine& engine, const char* filename, Alloca
 		return false;
 	}
 
-	AllocatedBufferUntyped stagingBuffer = engine.create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_UNKNOWN, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+	AllocatedBufferUntyped stagingBuffer = create_buffer(&engine, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_UNKNOWN, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
 	
 	std::vector<MipmapInfo> mips;
 

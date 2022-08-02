@@ -1266,14 +1266,6 @@ int main(int argc, char* argv[])
 			return -1;
 		}
 	}
-	//VulkanEngine engine;
-	//
-	//engine.init();
-	//
-	//engine.run();
-	//
-	//engine.cleanup();
-	//
 	return 0;
 }
 

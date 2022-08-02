@@ -5,6 +5,8 @@
 
 #include <array>
 #include <algorithm>
+#include <vector>
+//#include <string>
 #include "imgui.h"
 #include "imgui_stdlib.h"
 #include "imgui_internal.h"
@@ -530,7 +532,7 @@ void Label(const char* label, float textWidth)
 
 	ImVec2 startPos = ImGui::GetCursorScreenPos();
 
-	ImGui::Text(label);
+	ImGui::TextUnformatted(label);
 
 	ImVec2 finalPos = { startPos.x + fullWidth, startPos.y };
 
@@ -609,7 +611,7 @@ void CVarSystemImpl::EditParameter(CVarParameter* p, float textWidth)
 		{
 			std::string displayFormat = p->name + "= %s";
 			ImGui::PushID(p->name.c_str());
-			ImGui::Text(displayFormat.c_str(), GetCVarArray<std::string>()->GetCurrent(p->arrayIndex));
+			ImGui::Text(displayFormat.c_str(), GetCVarArray<std::string>()->GetCurrent(p->arrayIndex).c_str());
 
 			ImGui::PopID();
 		}
@@ -628,6 +630,6 @@ void CVarSystemImpl::EditParameter(CVarParameter* p, float textWidth)
 
 	if (ImGui::IsItemHovered())
 	{
-		ImGui::SetTooltip(p->description.c_str());
+		ImGui::SetTooltip("%s", p->description.c_str());
 	}
 }

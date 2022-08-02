@@ -7,6 +7,7 @@
 #include <vector>
 #include <array>
 #include <unordered_map>
+#include <string>
 
 namespace vkutil {
 	class VulkanProfiler;

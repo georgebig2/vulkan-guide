@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "common.h"
 #include <vk_types.h>
 #include <vector>
 #include <glm/vec3.hpp>
@@ -29,12 +30,7 @@ struct Vertex {
 	void pack_normal(glm::vec3 n);
 	void pack_color(glm::vec3 c);
 };
-struct RenderBounds {
-	glm::vec3 origin;
-	float radius;
-	glm::vec3 extents;
-	bool valid;
-};
+
 struct Mesh {
 	std::vector<Vertex> _vertices;
 	std::vector<uint32_t> _indices;

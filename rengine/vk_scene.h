@@ -65,76 +65,79 @@ struct GPUInstance {
 	uint32_t batchID;
 };
 
+struct PassMaterial {
+	VkDescriptorSet materialSet;
+	vkutil::ShaderPass* shaderPass;
+
+	bool operator==(const PassMaterial& other) const
+	{
+		return materialSet == other.materialSet && shaderPass == other.shaderPass;
+	}
+};
+
+struct PassObject {
+	PassMaterial material;
+	Handle<DrawMesh> meshID;
+	Handle<RenderObject> original;
+	int32_t builtbatch;
+	uint32_t customKey;
+};
+struct RenderBatch {
+	Handle<PassObject> object;
+	uint64_t sortKey;
+
+	bool operator==(const RenderBatch& other) const
+	{
+		return object.handle == other.object.handle && sortKey == other.sortKey;
+	}
+};
+struct IndirectBatch {
+	Handle<DrawMesh> meshID;
+	PassMaterial material;
+	uint32_t first;
+	uint32_t count;
+};
+
+struct Multibatch {
+	uint32_t first;
+	uint32_t count;
+};
+
+
+struct MeshPass {
+
+	std::vector<Multibatch> multibatches;
+
+	std::vector<IndirectBatch> batches;
+
+	std::vector<Handle<RenderObject>> unbatchedObjects;
+
+	std::vector<RenderBatch> flat_batches;
+
+	std::vector<PassObject> objects;
+
+	std::vector<Handle<PassObject>> reusableObjects;
+
+	std::vector<Handle<PassObject>> objectsToDelete;
+
+
+	AllocatedBuffer<uint32_t> compactedInstanceBuffer;
+	AllocatedBuffer<GPUInstance> passObjectsBuffer;
+
+	AllocatedBuffer<GPUIndirectObject> drawIndirectBuffer;
+	AllocatedBuffer<GPUIndirectObject> clearIndirectBuffer;
+
+	PassObject* get(Handle<PassObject> handle);
+
+	MeshpassType type;
+
+	bool needsIndirectRefresh = true;
+	bool needsInstanceRefresh = true;
+};
+
 
 class RenderScene {
 public:
-	struct PassMaterial {
-		VkDescriptorSet materialSet;
-		vkutil::ShaderPass* shaderPass;
-
-		bool operator==(const PassMaterial& other) const
-		{
-			return materialSet == other.materialSet && shaderPass == other.shaderPass;
-		}
-	};
-	struct PassObject {
-		PassMaterial material;
-		Handle<DrawMesh> meshID;
-		Handle<RenderObject> original;
-		int32_t builtbatch;
-		uint32_t customKey;
-	};
-	struct RenderBatch {
-		Handle<PassObject> object;
-		uint64_t sortKey;
-
-		bool operator==(const RenderBatch& other) const
-		{
-			return object.handle == other.object.handle && sortKey == other.sortKey;
-		}
-	};
-	struct IndirectBatch {
-		Handle<DrawMesh> meshID;
-		PassMaterial material;
-		uint32_t first;
-		uint32_t count;
-	};
-	
-	struct Multibatch {
-		uint32_t first;
-		uint32_t count;
-	};
-	struct MeshPass {
-
-		std::vector<RenderScene::Multibatch> multibatches;
-
-		std::vector<RenderScene::IndirectBatch> batches;
-
-		std::vector<Handle<RenderObject>> unbatchedObjects;
-
-		std::vector<RenderScene::RenderBatch> flat_batches;
-
-		std::vector<PassObject> objects;
-
-		std::vector<Handle<PassObject>> reusableObjects;
-
-		std::vector<Handle<PassObject>> objectsToDelete;
-
-		
-		AllocatedBuffer<uint32_t> compactedInstanceBuffer;
-		AllocatedBuffer<GPUInstance> passObjectsBuffer;
-
-		AllocatedBuffer<GPUIndirectObject> drawIndirectBuffer;
-		AllocatedBuffer<GPUIndirectObject> clearIndirectBuffer;
-
-		PassObject* get(Handle<PassObject> handle);
-
-		MeshpassType type;
-
-		bool needsIndirectRefresh = true;
-		bool needsInstanceRefresh = true;
-	};
-
 	void init();
 
 	Handle<RenderObject> register_object(MeshObject* object);
@@ -158,7 +161,7 @@ public:
 
 	void refresh_pass(MeshPass* pass);
 
-	void build_indirect_batches(MeshPass* pass, std::vector<IndirectBatch>& outbatches, const std::vector<RenderScene::RenderBatch>& inobjects);
+	void build_indirect_batches(MeshPass* pass, std::vector<IndirectBatch>& outbatches, const std::vector<RenderBatch>& inobjects);
 	RenderObject* get_object(Handle<RenderObject> objectID);
 	DrawMesh* get_mesh(Handle<DrawMesh> objectID);
 

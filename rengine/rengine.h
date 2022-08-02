@@ -1,15 +1,13 @@
 ﻿#pragma once
+
 #include <vector>
 #include <functional>
 #include <deque>
+#include <string_view>
 
-#include <vk_scene.h>
+#include "common.h"
 #include <player_camera.h>
-#include <vk_shaders.h>
-
-//#include "vk_types.h"
-#include <vk_pushbuffer.h>
-#include <vk_descriptors.h>
+#include "vk_types.h"
 
 struct DeletionQueue
 {
@@ -56,7 +54,11 @@ struct EngineStats {
     int draws;
     int triangles;
 };
-
+struct Mesh;
+namespace vkutil
+{
+    struct Material;
+}
 struct MeshObject {
     Mesh* mesh{ nullptr };
 
@@ -126,26 +128,10 @@ struct GPUSceneData {
 };
 
 constexpr unsigned int FRAME_OVERLAP = 2;
-
-struct FrameData {
-    VkSemaphore _presentSemaphore, _renderSemaphore;
-    VkFence _renderFence;
-
-    DeletionQueue _frameDeletionQueue;
-
-    VkCommandPool _commandPool;
-    VkCommandBuffer _mainCommandBuffer;
-
-    vkutil::PushBuffer dynamicData;
-    //AllocatedBufferUntyped dynamicDataBuffer;
-
-    AllocatedBufferUntyped debugOutputBuffer;
-
-    vkutil::DescriptorAllocator* dynamicDescriptorAllocator;
-
-    std::vector<uint32_t> debugDataOffsets;
-    std::vector<std::string> debugDataNames;
-};
+struct FrameData;
+class RenderScene;
+class ShaderCache;
+struct MeshPass;
 
 class REngine {
 public:
@@ -153,14 +139,15 @@ public:
     VkExtent2D _windowExtent{ 1700 * 2 / 3 , 900 * 2 / 3 };
     VkExtent2D _shadowExtent{ 1024 * 4,1024 * 4 };
     int _frameNumber{ 0 };
+    bool _isInitialized{ false };
 
 
-	AllocatedBufferUntyped create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
+	//AllocatedBufferUntyped create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
 	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 	DeletionQueue _mainDeletionQueue;
 
     virtual void init_vulkan();
-    
+    virtual void cleanup();
     virtual bool create_surface(VkInstance instance, VkSurfaceKHR* surface) = 0;
 
     void init_swapchain();
@@ -171,10 +158,12 @@ public:
     FrameData& get_current_frame();
     FrameData& get_last_frame();
 
+    ShaderCache* get_shader_cache();
+    RenderScene* get_render_scene();
+
     static std::string shader_path(std::string_view path);
 
     PlayerCamera _camera;
-    RenderScene _renderScene;
 
 	VkDevice _device;
 	VmaAllocator _allocator; //vma lib allocator
@@ -214,14 +203,12 @@ public:
     VkSampler _depthSampler;
     VkImageView depthPyramidMips[16] = {};
 
-    FrameData _frames[FRAME_OVERLAP];
-
     void init_commands();
     void init_sync_structures();
 
     EngineStats stats;
 
-    ShaderCache _shaderCache;
+    //ShaderCache _shaderCache;
 
     VkRenderPass _renderPass;
     VkRenderPass _shadowPass;
@@ -238,9 +225,13 @@ public:
     std::vector<VkBufferMemoryBarrier> postCullBarriers;
 
 
+    void draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass);
+    void ready_cull_data(MeshPass& pass, VkCommandBuffer cmd);
+    void draw_objects_shadow(VkCommandBuffer cmd, MeshPass& pass);
+    void execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescriptorSet ObjectDataSet, std::vector<uint32_t> dynamic_offsets, VkDescriptorSet GlobalSet);
+    void execute_compute_cull(VkCommandBuffer cmd, MeshPass& pass, CullParams& params);
+
     void ready_mesh_draw(VkCommandBuffer cmd);
-    void ready_cull_data(RenderScene::MeshPass& pass, VkCommandBuffer cmd);
-    void execute_compute_cull(VkCommandBuffer cmd, RenderScene::MeshPass& pass, CullParams& params);
     void reallocate_buffer(AllocatedBufferUntyped& buffer, size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
     template<typename T>
     T* map_buffer(AllocatedBuffer<T>& buffer);
@@ -248,10 +239,10 @@ public:
     void copy_render_to_swapchain(uint32_t swapchainImageIndex, VkCommandBuffer cmd);
     void shadow_pass(VkCommandBuffer cmd);
     void reduce_depth(VkCommandBuffer cmd);
-    void draw_objects_shadow(VkCommandBuffer cmd, RenderScene::MeshPass& pass);
-    void execute_draw_commands(VkCommandBuffer cmd, RenderScene::MeshPass& pass, VkDescriptorSet ObjectDataSet, std::vector<uint32_t> dynamic_offsets, VkDescriptorSet GlobalSet);
     void forward_pass(VkClearValue clearValue, VkCommandBuffer cmd);
-    void draw_objects_forward(VkCommandBuffer cmd, RenderScene::MeshPass& pass);
+    void init_descriptors();
+    size_t pad_uniform_buffer_size(size_t originalSize);
+
 
     VkPipeline _cullPipeline;
     VkPipelineLayout _cullLayout;
@@ -261,6 +252,7 @@ public:
     VkPipelineLayout _blitLayout;
     VkPipeline _depthReducePipeline;
     VkPipelineLayout _depthReduceLayout;
+    VkDescriptorSetLayout _singleTextureSetLayout;
 
     DirectionalLight _mainLight;
     GPUSceneData _sceneParameters;

@@ -54,6 +54,8 @@ assets::AssetFile assets::pack_material(MaterialInfo* info)
 	case TransparencyMode::Masked:
 		material_metadata["transparency"] = "masked";
 		break;
+		default:
+			break;
 	}
 
 	

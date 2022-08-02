@@ -7,8 +7,8 @@ android {
 
 	defaultConfig {
 		applicationId "com.georgebig2.vulkan"
-		minSdk 25
 		targetSdk 32
+		minSdk 24
 		versionCode 1
 		versionName "1.0"
 
@@ -16,6 +16,7 @@ android {
 			cmake {
 				abiFilters.addAll( 'arm64-v8a', /*'armeabi-v7a', 'x86', 'x86_64'*/ )
 				arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_static', '-DVKB_VALIDATION_LAYERS=OFF'
+				//cppFlags "-fno-rtti -std=c++14"
 			}
 		}
 	}

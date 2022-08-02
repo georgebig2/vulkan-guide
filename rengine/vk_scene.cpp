@@ -1,4 +1,5 @@
-﻿#include <vk_scene.h>
+﻿#include "vk_types.h"
+#include <vk_scene.h>
 #include <rengine.h>
 #include "Tracy.hpp"
 #include "logger.h"
@@ -199,6 +200,8 @@ void RenderScene::build_batches()
 	
 }
 
+AllocatedBufferUntyped create_buffer(REngine*, size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
+
 void RenderScene::merge_meshes(REngine* engine)
 {
 	ZoneScopedNC("Mesh Merge", tracy::Color::Magenta)
@@ -216,10 +219,10 @@ void RenderScene::merge_meshes(REngine* engine)
 		m.isMerged = true;
 	}
 
-	mergedVertexBuffer = engine->create_buffer(total_vertices * sizeof(Vertex), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+	mergedVertexBuffer = create_buffer(engine, total_vertices * sizeof(Vertex), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VMA_MEMORY_USAGE_GPU_ONLY);
 
-	mergedIndexBuffer = engine->create_buffer(total_indices * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+	mergedIndexBuffer = create_buffer(engine, total_indices * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 		VMA_MEMORY_USAGE_GPU_ONLY);
 
 	engine->immediate_submit([&](VkCommandBuffer cmd)
@@ -258,13 +261,13 @@ void RenderScene::refresh_pass(MeshPass* pass)
 
 		//create the render batches so that then we can do the deletion on the flat-array directly
 
-		std::vector<RenderScene::RenderBatch> deletion_batches;
+		std::vector<RenderBatch> deletion_batches;
 		deletion_batches.reserve(new_objects.size());
 		
 	
 		for (auto i : pass->objectsToDelete) {
 			pass->reusableObjects.push_back(i);
-			RenderScene::RenderBatch newCommand;
+			RenderBatch newCommand;
 
 			auto obj = pass->objects[i.handle];
 			newCommand.object= i;
@@ -290,7 +293,7 @@ void RenderScene::refresh_pass(MeshPass* pass)
 		pass->objectsToDelete.clear();
 		{
 			ZoneScopedNC("Deletion Sort", tracy::Color::Blue1);
-			std::sort(deletion_batches.begin(), deletion_batches.end(), [](const RenderScene::RenderBatch& A, const RenderScene::RenderBatch& B) {
+			std::sort(deletion_batches.begin(), deletion_batches.end(), [](const RenderBatch& A, const RenderBatch& B) {
 				if (A.sortKey < B.sortKey) { return true; }
 				else if (A.sortKey == B.sortKey) { return A.object.handle < B.object.handle; }
 				else { return false; }
@@ -299,13 +302,13 @@ void RenderScene::refresh_pass(MeshPass* pass)
 		{
 			ZoneScopedNC("removal", tracy::Color::Blue1);
 
-			std::vector<RenderScene::RenderBatch> newbatches;
+			std::vector<RenderBatch> newbatches;
 			newbatches.reserve(pass->flat_batches.size());
 
 			{
 				ZoneScopedNC("Set Difference", tracy::Color::Red);
 
-				std::set_difference(pass->flat_batches.begin(), pass->flat_batches.end(), deletion_batches.begin(), deletion_batches.end(), std::back_inserter(newbatches), [](const RenderScene::RenderBatch& A, const RenderScene::RenderBatch& B) {
+				std::set_difference(pass->flat_batches.begin(), pass->flat_batches.end(), deletion_batches.begin(), deletion_batches.end(), std::back_inserter(newbatches), [](const RenderBatch& A, const RenderBatch& B) {
 					if (A.sortKey < B.sortKey) { return true; }
 					else if (A.sortKey == B.sortKey) { return A.object.handle < B.object.handle; }
 					else { return false; }
@@ -320,7 +323,7 @@ void RenderScene::refresh_pass(MeshPass* pass)
 		new_objects.reserve(pass->unbatchedObjects.size());
 		for (auto o : pass->unbatchedObjects)
 		{
-			RenderScene::PassObject newObject;
+			PassObject newObject;
 
 			newObject.original = o;
 			newObject.meshID = get_object(o)->meshID;
@@ -354,7 +357,7 @@ void RenderScene::refresh_pass(MeshPass* pass)
 		pass->unbatchedObjects.clear();
 	}
 
-	std::vector<RenderScene::RenderBatch> new_batches;
+	std::vector<RenderBatch> new_batches;
 	new_batches.reserve(new_objects.size());
 
 	{
@@ -362,7 +365,7 @@ void RenderScene::refresh_pass(MeshPass* pass)
 		
 		for (auto i : new_objects) {
 			{
-				RenderScene::RenderBatch newCommand;
+				RenderBatch newCommand;
 
 				auto obj = pass->objects[i];
 				newCommand.object.handle = i;
@@ -384,7 +387,7 @@ void RenderScene::refresh_pass(MeshPass* pass)
 
 	{
 		ZoneScopedNC("Draw Sort", tracy::Color::Blue1);
-		std::sort(new_batches.begin(), new_batches.end(), [](const RenderScene::RenderBatch& A, const RenderScene::RenderBatch& B) {
+		std::sort(new_batches.begin(), new_batches.end(), [](const RenderBatch& A, const RenderBatch& B) {
 			if (A.sortKey < B.sortKey) { return true; }
 			else if (A.sortKey == B.sortKey) { return A.object.handle < B.object.handle; }
 			else { return false; }
@@ -405,13 +408,13 @@ void RenderScene::refresh_pass(MeshPass* pass)
 				pass->flat_batches.push_back(b);
 			}
 
-			RenderScene::RenderBatch* begin = pass->flat_batches.data();
-			RenderScene::RenderBatch* mid = begin + index;
-			RenderScene::RenderBatch* end = begin + pass->flat_batches.size();
+			RenderBatch* begin = pass->flat_batches.data();
+			RenderBatch* mid = begin + index;
+			RenderBatch* end = begin + pass->flat_batches.size();
 			//std::sort(pass->flat_batches.begin(), pass->flat_batches.end(), [](const RenderScene::RenderBatch& A, const RenderScene::RenderBatch& B) {
 			//	return A.sortKey < B.sortKey;
 			//	});
-			std::inplace_merge(begin, mid, end, [](const RenderScene::RenderBatch& A, const RenderScene::RenderBatch& B) {
+			std::inplace_merge(begin, mid, end, [](const RenderBatch& A, const RenderBatch& B) {
 				if (A.sortKey < B.sortKey) { return true; }
 				else if (A.sortKey == B.sortKey) { return A.object.handle < B.object.handle; }
 				else { return false; }
@@ -477,13 +480,13 @@ void RenderScene::refresh_pass(MeshPass* pass)
 	}
 }
 
-void RenderScene::build_indirect_batches(MeshPass* pass, std::vector<IndirectBatch>& outbatches, const std::vector<RenderScene::RenderBatch>& inobjects)
+void RenderScene::build_indirect_batches(MeshPass* pass, std::vector<IndirectBatch>& outbatches, const std::vector<RenderBatch>& inobjects)
 {
 	if (inobjects.size() == 0) return;
 
 	ZoneScopedNC("Build Indirect Batches", tracy::Color::Blue);
 
-	RenderScene::IndirectBatch newBatch;
+	IndirectBatch newBatch;
 	newBatch.first = 0;
 	newBatch.count = 0;
 
@@ -491,9 +494,9 @@ void RenderScene::build_indirect_batches(MeshPass* pass, std::vector<IndirectBat
 	newBatch.meshID = pass->get(inobjects[0].object)->meshID;
 
 	outbatches.push_back(newBatch);
-	RenderScene::IndirectBatch* back = &pass->batches.back();
+	IndirectBatch* back = &pass->batches.back();
 
-	RenderScene::PassMaterial lastMat = pass->get(inobjects[0].object)->material;
+	PassMaterial lastMat = pass->get(inobjects[0].object)->material;
 	for (int i = 0; i < inobjects.size(); i++)
 	{
 		PassObject* obj = pass->get(inobjects[i].object);
@@ -545,7 +548,7 @@ vkutil::Material* RenderScene::get_material(Handle<vkutil::Material> objectID)
 	return materials[objectID.handle];
 }
 
-RenderScene::MeshPass* RenderScene::get_mesh_pass(MeshpassType name)
+MeshPass* RenderScene::get_mesh_pass(MeshpassType name)
 {
 	switch (name)
 	{	
@@ -557,6 +560,8 @@ RenderScene::MeshPass* RenderScene::get_mesh_pass(MeshpassType name)
 		break;
 	case MeshpassType::DirectionalShadow:
 		return &_shadowPass;
+		break;
+	default:
 		break;
 	}
 	return nullptr;
@@ -606,7 +611,7 @@ Handle<DrawMesh> RenderScene::getMeshHandle(Mesh* m)
 	return handle;
 }
 
-RenderScene::PassObject* RenderScene::MeshPass::get(Handle<PassObject> handle)
+PassObject* MeshPass::get(Handle<PassObject> handle)
 {
 	return &objects[handle.handle];
 }

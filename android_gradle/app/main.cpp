@@ -1,13 +1,15 @@
 
+#include <iostream>
+
 #include <game-activity/native_app_glue/android_native_app_glue.h>
+#define VK_USE_PLATFORM_ANDROID_KHR
+//#define VK_NO_PROTOTYPES 1
 #include "rengine.h"
 
-#include <iostream>
-#define VK_NO_PROTOTYPES 1
-#include <vulkan/vulkan_android.h>
+//#include <vulkan/vulkan_android.h>
 //#define VK_USE_PLATFORM_ANDROID_KHR
 //#include <vulkan/vulkan.h>
-extern PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
+//extern PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
 
 //we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
 using namespace std;

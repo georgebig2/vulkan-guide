@@ -14,8 +14,8 @@
 
 
 
-#include <glm/glm.hpp>
-#include <glm/gtx/transform.hpp>
+//#include <glm/glm.hpp>
+//#include <glm/gtx/transform.hpp>
 
 #include <SDL_events.h>
 #include <frustum_cull.h>
@@ -30,33 +30,11 @@ namespace tracy { class VkCtx; }
 
 namespace assets { struct PrefabInfo; }
 
-
-//forward declarations
 namespace vkutil {
 	class DescriptorLayoutCache;
 	class DescriptorAllocator;
 	class VulkanProfiler;
 }
-
-//struct DeletionQueue
-//{
-//    std::deque<std::function<void()>> deletors;
-//
-//	template<typename F>
-//    void push_function(F&& function) {
-//		static_assert(sizeof(F) < 200, "DONT CAPTURE TOO MUCH IN THE LAMBDA");
-//        deletors.push_back(function);
-//    }
-//
-//    void flush() {
-//        // reverse iterate the deletion queue to execute all the functions
-//        for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
-//            (*it)(); //call functors
-//        }
-//
-//        deletors.clear();
-//    }
-//};
 
 struct MeshPushConstants {
 	glm::vec4 data;
@@ -73,10 +51,6 @@ struct Texture {
 	VkImageView imageView;
 };
 
-
-
-
-
 struct MeshDrawCommands {
 	struct RenderBatch {
 		MeshObject* object;
@@ -87,46 +61,23 @@ struct MeshDrawCommands {
 	std::vector<RenderBatch> batch;
 };
 
-//struct EngineConfig {
-//	//float drawDistance{5000};
-//	//float shadowBias{ 5.25f };
-//	//float shadowBiasslope{4.75f };
-//	//bool occlusionCullGPU{ true };
-//	//bool frustrumCullCPU{ true };
-//	//bool outputIndirectBufferToFile{false};
-//	//bool freezeCulling{ false };
-//	//bool mouseLook{ true };
-//};
-
 
 const int MAX_OBJECTS = 150000;
 
 class VulkanEngine : public REngine {
 public:
 
-	bool _isInitialized{ false };
 	int _selectedShader{ 0 };
-
 	struct SDL_Window* _window{ nullptr };
 
 	tracy::VkCtx* _graphicsQueueContext;
-
 	vkutil::MaterialSystem* _materialSystem;
-
-	VkDescriptorSetLayout _singleTextureSetLayout;
-
-
 	MeshDrawCommands currentCommands;
 
-	
 	//initializes everything in the engine
 	void init();
+	virtual void cleanup();
 
-	//shuts down the engine
-	void cleanup();
-
-	
-	
 	//run main loop
 	void run();
 
@@ -137,56 +88,28 @@ public:
 
 	//returns nullptr if it cant be found
 	Mesh* get_mesh(const std::string& name);
-
-	//our draw function
-	
-
-	
-	size_t pad_uniform_buffer_size(size_t originalSize);
-
-
 	bool load_prefab(const char* path, glm::mat4 root);
 
 	static std::string asset_path(std::string_view path);
 
 	void refresh_renderbounds(MeshObject* object);
 
-
-	
-
 	bool load_compute_shader(const char* shaderPath, VkPipeline& pipeline, VkPipelineLayout& layout);
 
 	bool create_surface(VkInstance instance, VkSurfaceKHR* surface) override;
 
 private:
-	//void process_input_event(SDL_Event* ev);
-
 	void init_vulkan() override;
-
-
 	void init_forward_renderpass();
-
 	void init_copy_renderpass();
-
 	void init_shadow_renderpass();
-
 	void init_framebuffers();
-
 	void init_pipelines();
-
 	void init_scene();
-
-	void init_descriptors();
-
 	void init_imgui();
-
 	void load_meshes();
-
 	void load_images();
-
 	bool load_image_to_cache(const char* name, const char* path);
-
 	void upload_mesh(Mesh& mesh);
-
 };
 

@@ -1,6 +1,7 @@
 ﻿#include <player_camera.h>
-
+//VKBP_DISABLE_WARNINGS()
 #include <glm/gtx/transform.hpp>
+//VKBP_ENABLE_WARNINGS()
 
 void PlayerCamera::update_camera(float deltaSeconds)
 {
@@ -36,7 +37,7 @@ glm::mat4 PlayerCamera::get_view_matrix()
 	return view;
 }
 
-glm::mat4 PlayerCamera::get_projection_matrix(bool bReverse /*= true*/)
+glm::mat4 PlayerCamera::get_projection_matrix(bool bReverse)
 {
 	if (bReverse)
 	{

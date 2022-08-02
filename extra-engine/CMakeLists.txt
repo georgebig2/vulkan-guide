@@ -16,6 +16,6 @@ target_compile_definitions(extra PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE GLM_FORCE_LE
 
 
 target_precompile_headers(extra PUBLIC "<unordered_map>" "<vector>" "<iostream>" "<fstream>" "<string>" )
-target_link_libraries(extra vkbootstrap vma glm tinyobjloader imgui stb_image spirv_reflect)
+target_link_libraries(extra glm tinyobjloader imgui stb_image spirv_reflect)
 
-target_link_libraries(extra Vulkan::Vulkan sdl2 assetlib tracy fmt_lib rengine)
+target_link_libraries(extra rengine sdl2 assetlib tracy fmt_lib vkbootstrap vma)

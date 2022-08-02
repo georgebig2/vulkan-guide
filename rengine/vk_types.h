@@ -3,8 +3,7 @@
 
 #pragma once
 
-#include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
+#include "vk.h"
 
 struct AllocatedBufferUntyped {
 	VkBuffer _buffer{};
@@ -21,6 +20,11 @@ struct AllocatedBuffer : public AllocatedBufferUntyped {
 		_size = other._size;
 	}
 	AllocatedBuffer(AllocatedBufferUntyped& other) {
+		_buffer = other._buffer;
+		_allocation = other._allocation;
+		_size = other._size;
+	}
+	AllocatedBuffer(AllocatedBufferUntyped other) {
 		_buffer = other._buffer;
 		_allocation = other._allocation;
 		_size = other._size;
