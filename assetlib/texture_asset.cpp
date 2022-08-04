@@ -3,7 +3,7 @@
 #include <lz4.h>
 #include <iostream>
 
-assets::TextureFormat parse_format(const char* f) {
+static assets::TextureFormat parse_format(const char* f) {
 
 	if (strcmp(f, "RGBA8") == 0)
 	{

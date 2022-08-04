@@ -24,7 +24,7 @@ set_source_files_properties(${game-activity-include}/game-activity/GameActivity.
 set(CMAKE_SHARED_LINKER_FLAGS
         "${CMAKE_SHARED_LINKER_FLAGS} -u GameActivity_onCreate")
 
-target_link_libraries(vulkan_guide android rengine game-activity::game-activity glm log)
+target_link_libraries(vulkan_guide android rengine game-activity::game-activity glm imgui log)
 
 #add_subdirectory(third_party)
 #add_subdirectory(assetlib)

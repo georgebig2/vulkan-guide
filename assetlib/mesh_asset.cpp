@@ -3,7 +3,7 @@
 #include "lz4.h"
 
 
-assets::VertexFormat parse_format(const char* f) {
+static assets::VertexFormat parse_format(const char* f) {
 
 	if (strcmp(f, "PNCV_F32") == 0)
 	{

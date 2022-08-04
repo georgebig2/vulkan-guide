@@ -119,7 +119,7 @@ endif()
 
 add_library(imgui STATIC)
 target_include_directories(imgui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/imgui")
-target_sources(imgui PRIVATE 
+target_sources(imgui PUBLIC 
 "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui.h"
 "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui.cpp"
 "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_stdlib.h"
@@ -129,10 +129,10 @@ target_sources(imgui PRIVATE
 "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_widgets.cpp"
 "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_tables.cpp"
 "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_widgets.cpp"
+"${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_vulkan.cpp"
 )
 if(NOT ANDROID)
 target_sources(imgui PRIVATE 
-"${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_vulkan.cpp"
 "${CMAKE_CURRENT_SOURCE_DIR}/imgui/imgui_impl_sdl.cpp"
 )
 endif()

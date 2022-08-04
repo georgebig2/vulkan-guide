@@ -24,8 +24,8 @@ target_sources(rengine PRIVATE ${R_FILES})
 
 target_include_directories(rengine PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
-target_link_libraries(rengine PUBLIC Vulkan::Vulkan vkbootstrap vma)
-target_link_libraries(rengine PRIVATE assetlib spirv_reflect tracy glm imgui fmt_lib)
+target_link_libraries(rengine PUBLIC Vulkan::Vulkan vkbootstrap vma assetlib)
+target_link_libraries(rengine PRIVATE spirv_reflect tracy glm imgui fmt_lib)
 
 
 

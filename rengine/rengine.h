@@ -4,6 +4,7 @@
 #include <functional>
 #include <deque>
 #include <string_view>
+//#include <unordered_map>
 
 #include "common.h"
 #include <player_camera.h>
@@ -34,6 +35,7 @@ namespace vkutil {
     class DescriptorLayoutCache;
     class DescriptorAllocator;
     class VulkanProfiler;
+    class MaterialSystem;
 }
 
 struct CullParams {
@@ -127,6 +129,11 @@ struct GPUSceneData {
     glm::mat4 sunlightShadowMatrix;
 };
 
+struct Texture {
+    AllocatedImage image;
+    VkImageView imageView;
+};
+
 constexpr unsigned int FRAME_OVERLAP = 2;
 struct FrameData;
 class RenderScene;
@@ -146,9 +153,12 @@ public:
 	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 	DeletionQueue _mainDeletionQueue;
 
-    virtual void init_vulkan();
+    virtual void init();
+    virtual void update();
     virtual void cleanup();
     virtual bool create_surface(VkInstance instance, VkSurfaceKHR* surface) = 0;
+
+    //void init_vulkan();
 
     void init_swapchain();
 
@@ -205,6 +215,24 @@ public:
 
     void init_commands();
     void init_sync_structures();
+    void init_framebuffers();
+    void init_forward_renderpass();
+    void init_copy_renderpass();
+    void init_shadow_renderpass();
+    void init_pipelines();
+    void init_imgui();
+    
+    void load_meshes();
+    bool load_compute_shader(const char* shaderPath, VkPipeline& pipeline, VkPipelineLayout& layout);
+    void upload_mesh(Mesh& mesh);
+    Mesh* get_mesh(const std::string& name);
+    bool load_prefab(const char* path, glm::mat4 root);
+
+    static std::string asset_path(std::string_view path);
+    void refresh_renderbounds(MeshObject* object);
+    bool load_image_to_cache(const char* name, const char* path);
+
+    vkutil::MaterialSystem* _materialSystem;
 
     EngineStats stats;
 
@@ -242,7 +270,7 @@ public:
     void forward_pass(VkClearValue clearValue, VkCommandBuffer cmd);
     void init_descriptors();
     size_t pad_uniform_buffer_size(size_t originalSize);
-
+    void init_scene();
 
     VkPipeline _cullPipeline;
     VkPipelineLayout _cullLayout;

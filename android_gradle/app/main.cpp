@@ -185,6 +185,7 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 void android_main(android_app* app)
 {
 	AndroidEngine engine;
+	engine.init();
 
     //app->userData = this;
     app->onAppCmd = _handle_cmd_proxy;
@@ -200,7 +201,8 @@ void android_main(android_app* app)
 	android_app_set_key_event_filter(app, NULL);
 	android_app_set_motion_event_filter(app, NULL);
 
-	while (1) {
+	while (1)
+	{
 		// Read all pending events.
 		int events;
 		struct android_poll_source* source;
@@ -220,14 +222,17 @@ void android_main(android_app* app)
 			// Check if app is exiting.
 			if (app->destroyRequested) {
 				//engine_term_display(&engine);
+				engine.cleanup();
 				return;
 			}
 		}
 		// Process input events if there are any.
 		engine_handle_input(app);
 
+		engine.update();
 		//if (engine.animating) {
 			// Draw a game frame.
 		//}
 	}
+
 }
