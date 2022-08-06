@@ -1,9 +1,11 @@
-﻿#include <vk_mesh.h>
+﻿#include "rengine.h"
+
+#include <vk_mesh.h>
 #include <iostream>
 #include <asset_loader.h>
 #include <mesh_asset.h>
-#include "glm/common.hpp"
-#include "glm/detail/func_geometric.inl"
+//#include "glm/common.hpp"
+//#include "glm/detail/func_geometric.inl"
 //#include "logger.h"
 
 VertexInputDescription Vertex::get_vertex_description()
@@ -109,10 +111,10 @@ void Vertex::pack_color(glm::vec3 c)
 	color.b = static_cast<uint8_t>(c.z * 255);
 }
 
-bool Mesh::load_from_meshasset(const char* filename)
+bool Mesh::load_from_meshasset(REngine* engine, const char* filename)
 {
 	static assets::AssetFile file;
-	bool loaded = assets::load_binaryfile(filename, file);
+	bool loaded = engine->load_asset(filename, file);
 
 	if (!loaded) {
 		std::cout << "Error when loading mesh " << filename << std::endl;;

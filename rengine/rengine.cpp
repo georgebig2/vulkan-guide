@@ -83,6 +83,8 @@ T* REngine::map_buffer(AllocatedBuffer<T>& buffer)
 
 void REngine::update()
 {
+	ImGuiIO& io = ImGui::GetIO();
+	io.DisplaySize = ImVec2(_windowExtent.width , _windowExtent.height);
 	ImGui_ImplVulkan_NewFrame();
 	ImGui::NewFrame();
 	if (ImGui::BeginMainMenuBar())
@@ -140,7 +142,7 @@ void REngine::init_scene()
 
 	{
 		glm::mat4 sponzaMatrix = glm::scale(glm::mat4{ 1.0 }, glm::vec3(1));;
-		load_prefab(asset_path("Sponza.pfb").c_str(), sponzaMatrix);
+		load_prefab(asset_path("Sponza_GLTF/Sponza.pfb").c_str(), sponzaMatrix);
 	}
 
 	//glm::mat4 unrealFixRotation = glm::rotate(glm::radians(-90.f), glm::vec3{ 1,0,0 });
@@ -184,8 +186,8 @@ void REngine::init()
 {
 	vkb::InstanceBuilder builder;
 	auto inst_ret = builder.set_app_name("REngine")
-		.request_validation_layers(bUseValidationLayers)
-		.use_default_debug_messenger()
+		//.request_validation_layers(bUseValidationLayers)
+		//.use_default_debug_messenger()
 		.build();
 	//LOG_SUCCESS("Vulkan Instance initialized");
 
@@ -267,7 +269,7 @@ void REngine::init()
 	init_imgui();
 	load_meshes();
 
-	load_image_to_cache("white", asset_path("Sponza/white.tx").c_str());
+	//load_image_to_cache("white", asset_path("Sponza/white.tx").c_str());
 
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_NEAREST);
 
@@ -330,7 +332,22 @@ void REngine::init()
 	_mainLight.lightPosition = { 0,50,0 };
 	_mainLight.lightDirection = glm::vec3(0.3, -1, 0.3);
 	_mainLight.shadowExtent = { 700 ,700 ,700 };
+
+	_profiler = new vkutil::VulkanProfiler();
+	_profiler->init(_device, _gpuProperties.limits.timestampPeriod);
+
 }
+
+void REngine::resize_window(int w, int h)
+{
+	_windowExtent.width = w;
+	_windowExtent.height = h;
+	if (_isInitialized)
+	{
+		//ImGui_ImplVulkanH_CreateOrResizeWindow(_instance, _chosenGPU, _device, ImGui_ImplVulkanH_Window * wnd, _graphicsQueue, const VkAllocationCallbacks * allocator, w, h, 3);
+	}
+}
+
 
 Mesh* REngine::get_mesh(const std::string& name)
 {
@@ -345,7 +362,7 @@ Mesh* REngine::get_mesh(const std::string& name)
 
 std::string REngine::asset_path(std::string_view path)
 {
-	return "../../assets_export/" + std::string(path);
+	return "assets_export/" + std::string(path);
 }
 
 void REngine::refresh_renderbounds(MeshObject* object)
@@ -428,6 +445,32 @@ bool REngine::load_image_to_cache(const char* name, const char* path)
 	return true;
 }
 
+std::vector<uint32_t> REngine::load_file(const char* path)
+{
+	//open the file. With cursor at the end
+	std::vector<uint32_t> buffer;
+	std::ifstream file(path, std::ios::ate | std::ios::binary);
+	if (!file.is_open()) {
+		return std::move(buffer);
+	}
+	//find what the size of the file is by looking up the location of the cursor
+	//because the cursor is at the end, it gives the size directly in bytes
+	size_t fileSize = (size_t)file.tellg();
+
+	//spirv expects the buffer to be on uint32, so make sure to reserve a int vector big enough for the entire file
+	buffer.resize(fileSize / sizeof(uint32_t));
+	file.seekg(0);
+	file.read((char*)buffer.data(), fileSize);
+	file.close();
+
+	return std::move(buffer);
+}
+
+bool REngine::load_asset(const  char* path, assets::AssetFile& outputFile)
+{
+	return assets::load_binaryfile(path, outputFile);
+}
+
 bool REngine::load_prefab(const char* path, glm::mat4 root)
 {
 	int rng = rand();
@@ -438,7 +481,7 @@ bool REngine::load_prefab(const char* path, glm::mat4 root)
 	if (pf == _prefabCache.end())
 	{
 		assets::AssetFile file;
-		bool loaded = assets::load_binaryfile(path, file);
+		bool loaded = load_asset(path, file);
 
 		if (!loaded) {
 			LOG_FATAL("Error When loading prefab file at path {}", path);
@@ -518,9 +561,11 @@ bool REngine::load_prefab(const char* path, glm::mat4 root)
 		if (!get_mesh(v.mesh_path.c_str()))
 		{
 			Mesh mesh{};
-			mesh.load_from_meshasset(asset_path(v.mesh_path).c_str());
-			upload_mesh(mesh);
-			_meshes[v.mesh_path.c_str()] = mesh;
+			if (mesh.load_from_meshasset(this, asset_path(v.mesh_path).c_str()))
+			{
+				upload_mesh(mesh);
+				_meshes[v.mesh_path.c_str()] = mesh;
+			}
 		}
 
 		//load material
@@ -529,7 +574,7 @@ bool REngine::load_prefab(const char* path, glm::mat4 root)
 		if (!objectMaterial)
 		{
 			assets::AssetFile materialFile;
-			bool loaded = assets::load_binaryfile(asset_path(materialName).c_str(), materialFile);
+			bool loaded = load_asset(asset_path(materialName).c_str(), materialFile);
 
 			if (loaded)
 			{
@@ -706,8 +751,8 @@ void REngine::init_pipelines()
 
 	//fullscreen triangle pipeline for blits
 	ShaderEffect* blitEffect = new ShaderEffect();
-	blitEffect->add_stage(get_shader_cache()->get_shader(shader_path("fullscreen.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
-	blitEffect->add_stage(get_shader_cache()->get_shader(shader_path("blit.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
+	blitEffect->add_stage(get_shader_cache()->get_shader(this, shader_path("fullscreen.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
+	blitEffect->add_stage(get_shader_cache()->get_shader(this, shader_path("blit.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
 	blitEffect->reflect_layout(_device, nullptr, 0);
 
 
@@ -757,9 +802,7 @@ void REngine::init_pipelines()
 bool REngine::load_compute_shader(const char* shaderPath, VkPipeline& pipeline, VkPipelineLayout& layout)
 {
 	ShaderModule computeModule;
-	if (!vkutil::load_shader_module(_device, shaderPath, &computeModule))
-
-	{
+	if (!vkutil::load_shader_module(this, _device, shaderPath, &computeModule)) {
 		std::cout << "Error when building compute shader shader module" << std::endl;
 		return false;
 	}
@@ -928,12 +971,14 @@ void REngine::cleanup()
 
 		vkDestroyDevice(_device, nullptr);
 		vkDestroyInstance(_instance, nullptr);
+
+		//ImGui_ImplVulkan_Shutdown();
 	}
 }
 
 std::string REngine::shader_path(std::string_view path)
 {
-	return "../../shaders/" + std::string(path);
+	return "shaders/" + std::string(path);
 }
 
 

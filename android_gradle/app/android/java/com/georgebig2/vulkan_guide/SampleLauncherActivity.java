@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package com.georgebig2.vulkan;
+package com.georgebig2.vulkan_guide;
 
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
@@ -26,6 +26,7 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.google.androidgamesdk.GameActivity;
+import android.content.pm.ActivityInfo;
 
 import android.widget.Toast;
 
@@ -72,6 +73,7 @@ public class SampleLauncherActivity extends GameActivity  {
         // When true, the app will fit inside any system UI windows.
         // When false, we render behind any system UI windows.
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        //setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         //hideSystemUI();
         super.onCreate(savedInstanceState);
 

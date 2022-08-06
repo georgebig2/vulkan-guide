@@ -133,7 +133,8 @@ void vkutil::MaterialSystem::cleanup()
 
 }
 
-ShaderEffect* build_effect(REngine* eng,std::string_view vertexShader, std::string_view fragmentShader) {
+ShaderEffect* build_effect(REngine* eng,std::string_view vertexShader, std::string_view fragmentShader)
+{
 	ShaderEffect::ReflectionOverrides overrides[] = {
 		{"sceneData", VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC},
 		{"cameraData", VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC}
@@ -141,15 +142,12 @@ ShaderEffect* build_effect(REngine* eng,std::string_view vertexShader, std::stri
 	//textured defaultlit shader
 	ShaderEffect* effect = new ShaderEffect();
 	
-	effect->add_stage(eng->get_shader_cache()->get_shader(REngine::shader_path(vertexShader)), VK_SHADER_STAGE_VERTEX_BIT);
+	effect->add_stage(eng->get_shader_cache()->get_shader(eng, eng->shader_path(vertexShader)), VK_SHADER_STAGE_VERTEX_BIT);
 	if (fragmentShader.size() > 2)
 	{
-		effect->add_stage(eng->get_shader_cache()->get_shader(REngine::shader_path(fragmentShader)), VK_SHADER_STAGE_FRAGMENT_BIT);
+		effect->add_stage(eng->get_shader_cache()->get_shader(eng, eng->shader_path(fragmentShader)), VK_SHADER_STAGE_FRAGMENT_BIT);
 	}
-	
-
 	effect->reflect_layout(eng->_device, overrides, 2);
-
 	return effect; 
 }
 

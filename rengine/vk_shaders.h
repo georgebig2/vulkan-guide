@@ -15,11 +15,13 @@ struct ShaderModule {
 	std::vector<uint32_t> code;
 	VkShaderModule module;
 };
+
+class REngine;
+
 namespace vkutil {
-	
 
 	//loads a shader module from a spir-v file. Returns false if it errors	
-	bool load_shader_module(VkDevice device, const char* filePath, ShaderModule* outShaderModule);
+	bool load_shader_module(REngine* engine, VkDevice device, const char* filePath, ShaderModule* outShaderModule);
 
 	uint32_t hash_descriptor_layout_info(VkDescriptorSetLayoutCreateInfo* info);
 }
@@ -97,7 +99,7 @@ class ShaderCache {
 
 public:
 
-	ShaderModule* get_shader(const std::string& path);
+	ShaderModule* get_shader(REngine* engine, const std::string& path);
 
 	void init(VkDevice device) { _device = device; };
 private:

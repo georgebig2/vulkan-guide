@@ -507,7 +507,7 @@ void REngine::execute_compute_cull(VkCommandBuffer cmd, MeshPass& pass, CullPara
 		postCullBarriers.push_back(barrier2);
 
 	}
-	if (*CVarSystem::Get()->GetIntCVar("culling.outputIndirectBufferToFile"))
+	/*if (*CVarSystem::Get()->GetIntCVar("culling.outputIndirectBufferToFile"))
 	{
 		uint32_t offset = get_current_frame().debugDataOffsets.back();
 		VkBufferCopy debugCopy;
@@ -517,7 +517,7 @@ void REngine::execute_compute_cull(VkCommandBuffer cmd, MeshPass& pass, CullPara
 		vkCmdCopyBuffer(cmd, pass.drawIndirectBuffer._buffer, get_current_frame().debugOutputBuffer._buffer, 1, &debugCopy);
 		get_current_frame().debugDataOffsets.push_back(offset + static_cast<uint32_t>(debugCopy.size));
 		get_current_frame().debugDataNames.push_back("Cull Indirect Output");
-	}
+	}*/
 }
 
 

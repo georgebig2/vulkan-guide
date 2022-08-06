@@ -140,7 +140,15 @@ void process_input_event(PlayerCamera& camera, SDL_Event * ev)
 	camera.inputAxis = glm::clamp(camera.inputAxis, { -1.0,-1.0,-1.0 }, { 1.0,1.0,1.0 });
 }
 
+std::string VulkanEngine::asset_path(std::string_view path)
+{
+	return "../../assets_export/" + std::string(path);
+}
 
+std::string VulkanEngine::shader_path(std::string_view path)
+{
+	return "../../shaders/" + std::string(path);
+}
 
 void VulkanEngine::init()
 {
@@ -167,9 +175,6 @@ void VulkanEngine::init()
 	//_renderables.reserve(10000);
 
 	REngine::init();
-
-	_profiler = new vkutil::VulkanProfiler();
-	_profiler->init(_device, _gpuProperties.limits.timestampPeriod);
 
 	//this initializes imgui for SDL
 	ImGui_ImplSDL2_InitForVulkan(_window);

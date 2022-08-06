@@ -58,7 +58,7 @@ AllocatedBufferUntyped create_buffer(REngine*, size_t allocSize, VkBufferUsageFl
 bool vkutil::load_image_from_asset(REngine& engine, const char* filename, AllocatedImage& outImage)
 {
 	assets::AssetFile file;
-	bool loaded = assets::load_binaryfile(filename, file);
+	bool loaded = engine.load_asset(filename, file);
 
 	if (!loaded) {
 		std::cout << "Error when loading texture " << filename << std::endl;

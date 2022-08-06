@@ -80,6 +80,10 @@ struct GPUObjectData {
     glm::vec4 extents;  // bounds
 };
 
+namespace assets {
+    struct AssetFile;
+}
+
 struct /*alignas(16)*/DrawCullData
 {
     glm::mat4 viewMat;
@@ -157,6 +161,7 @@ public:
     virtual void update();
     virtual void cleanup();
     virtual bool create_surface(VkInstance instance, VkSurfaceKHR* surface) = 0;
+    virtual void resize_window(int w, int h);
 
     //void init_vulkan();
 
@@ -171,7 +176,12 @@ public:
     ShaderCache* get_shader_cache();
     RenderScene* get_render_scene();
 
-    static std::string shader_path(std::string_view path);
+    virtual std::string asset_path(std::string_view path);
+    virtual std::string shader_path(std::string_view path);
+
+    virtual bool load_asset(const char* path, assets::AssetFile& outputFile);
+    virtual std::vector<uint32_t> load_file(const char* path);
+
 
     PlayerCamera _camera;
 
@@ -184,7 +194,7 @@ public:
     VkQueue _graphicsQueue;
     uint32_t _graphicsQueueFamily;
 
-    VkSurfaceKHR _surface;
+    VkSurfaceKHR _surface{};
     VkSwapchainKHR _swapchain;
     VkFormat _swachainImageFormat;
     VkFormat _depthFormat;
@@ -228,7 +238,6 @@ public:
     Mesh* get_mesh(const std::string& name);
     bool load_prefab(const char* path, glm::mat4 root);
 
-    static std::string asset_path(std::string_view path);
     void refresh_renderbounds(MeshObject* object);
     bool load_image_to_cache(const char* name, const char* path);
 

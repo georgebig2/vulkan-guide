@@ -19,5 +19,7 @@ public:
 	void run();
 
 	bool create_surface(VkInstance instance, VkSurfaceKHR* surface) override;
+	std::string asset_path(std::string_view path) override;
+	std::string shader_path(std::string_view path) override;
 };
 

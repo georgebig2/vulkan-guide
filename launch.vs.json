@@ -8,7 +8,7 @@
       "project": "CMakeLists.txt",
       "exe": "${workspaceFolder}\\bin\\debug\\baker.exe",
       "name": "Baker debug",
-      "args": [ "..\\..\\assets\\FlightHelmet" ]
+      "args": [ "../../assets/Sponza" ]
     }
   ]
 }

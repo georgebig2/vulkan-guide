@@ -9,31 +9,13 @@
 
 #include <sstream>
 #include <iostream>
-bool vkutil::load_shader_module(VkDevice device,const char* filePath, ShaderModule* outShaderModule)
+#include "rengine.h"
+
+bool vkutil::load_shader_module(REngine* engine, VkDevice device,const char* filePath, ShaderModule* outShaderModule)
 {
-
-	//open the file. With cursor at the end
-	std::ifstream file(filePath, std::ios::ate | std::ios::binary);
-
-	if (!file.is_open()) {
+	auto buffer = engine->load_file(filePath);
+	if (buffer.empty())
 		return false;
-	}
-
-	//find what the size of the file is by looking up the location of the cursor
-	//because the cursor is at the end, it gives the size directly in bytes
-	size_t fileSize = (size_t)file.tellg();
-
-	//spirv expects the buffer to be on uint32, so make sure to reserve a int vector big enough for the entire file
-	std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
-
-	//put file cursor at beggining
-	file.seekg(0);
-
-	//load the entire file into the buffer
-	file.read((char*)buffer.data(), fileSize);
-
-	//now that the file is loaded into the buffer, we can close it
-	file.close();
 
 	//create a new shader module, using the buffer we loaded
 	VkShaderModuleCreateInfo createInfo = {};
@@ -103,7 +85,8 @@ void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* override
 
 		SpvReflectShaderModule spvmodule;
 		SpvReflectResult result = spvReflectCreateShaderModule(s.shaderModule->code.size() * sizeof(uint32_t), s.shaderModule->code.data(), &spvmodule);
-	
+		assert(result == SPV_REFLECT_RESULT_SUCCESS);
+
 		uint32_t count = 0;
 		result = spvReflectEnumerateDescriptorSets(&spvmodule, &count, NULL);
 		assert(result == SPV_REFLECT_RESULT_SUCCESS);
@@ -406,14 +389,14 @@ void ShaderDescriptorBinder::set_shader(ShaderEffect* newShader)
 	shaders = newShader;
 }
 
-ShaderModule* ShaderCache::get_shader(const std::string& path)
+ShaderModule* ShaderCache::get_shader(REngine* engine, const std::string& path)
 {
 	auto it = module_cache.find(path);
 	if (it == module_cache.end())
 	{	
 		ShaderModule newShader;
 
-		bool result = vkutil::load_shader_module(_device, path.c_str(), &newShader);
+		bool result = vkutil::load_shader_module(engine, _device, path.c_str(), &newShader);
 		if (!result)
 		{
 			std::cout << "Error when compiling shader " << path << std::endl;

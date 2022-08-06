@@ -3,39 +3,75 @@
 
 #include <game-activity/native_app_glue/android_native_app_glue.h>
 #define VK_USE_PLATFORM_ANDROID_KHR
-//#define VK_NO_PROTOTYPES 1
 #include "rengine.h"
+#include <asset_loader.h>
+#include <android/asset_manager.h>
 
-//#include <vulkan/vulkan_android.h>
-//#define VK_USE_PLATFORM_ANDROID_KHR
-//#include <vulkan/vulkan.h>
-//extern PFN_vkCreateAndroidSurfaceKHR vkCreateAndroidSurfaceKHR;
-
-//we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
-using namespace std;
-#define VK_CHECK(x)                                                 \
-	do                                                              \
-	{                                                               \
-		VkResult err = x;                                           \
-		if (err)                                                    \
-		{                                                           \
-			std::cout <<"Detected Vulkan error: " << err << std::endl; \
-			abort();                                                \
-		}                                                           \
-	} while (0)
 
 class AndroidEngine : public REngine {
 public:
 
+	AndroidEngine( ANativeWindow *&window_, AAssetManager* assetsMgr_) : window{window_}, assetsMgr(assetsMgr_){}
+	ANativeWindow *&window;
+	AAssetManager* assetsMgr;
+
 	bool create_surface(VkInstance instance, VkSurfaceKHR* surface) override
 	{
 		VkAndroidSurfaceCreateInfoKHR info{ VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR };
-		//info.window = handle;
+		info.window = window;
 		VK_CHECK(vkCreateAndroidSurfaceKHR(instance, &info, nullptr, surface));
 		return true;
 	}
 
+	std::vector<uint32_t> load_file(const char* path) override
+	{
+		AAsset* infile = AAssetManager_open(assetsMgr, path, AASSET_MODE_BUFFER);
+		if (!infile)
+			return std::move(std::vector<uint32_t>());
+
+		auto len = AAsset_getLength(infile) / sizeof(uint32_t);
+		auto buf = (uint32_t*)AAsset_getBuffer(infile);
+
+		auto buffer = std::vector<uint32_t>(buf, buf+len);
+		return std::move(buffer);
+	}
+
+	bool load_asset(const char* path, assets::AssetFile& outputFile) override
+	{
+		AAsset* infile = AAssetManager_open(assetsMgr, path, AASSET_MODE_STREAMING);
+		if (!infile)
+			return false;
+
+		AAsset_read(infile, &outputFile.type, 4);
+		AAsset_read(infile, &outputFile.version, sizeof(uint32_t));
+
+		uint32_t jsonlen = 0;
+		AAsset_read(infile, &jsonlen, sizeof(uint32_t));
+
+		uint32_t bloblen = 0;
+		AAsset_read(infile, &bloblen, sizeof(uint32_t));
+
+		outputFile.json.resize(jsonlen);
+		AAsset_read(infile, (void*)outputFile.json.data(), jsonlen);
+
+		outputFile.binaryBlob.resize(bloblen);
+		AAsset_read(infile, outputFile.binaryBlob.data(), bloblen);
+
+		return true;
+	}
+
+	std::string asset_path(std::string_view path) override
+	{
+		return "assets_export/" + std::string(path);
+	}
+	std::string shader_path(std::string_view path) override
+	{
+		return "shaders/" + std::string(path);
+	}
+
 };
+
+static AndroidEngine* engine = 0;
 
 // Implement input event handling function.
 static int32_t engine_handle_input(struct android_app* app)
@@ -98,8 +134,11 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 		case APP_CMD_INIT_WINDOW:
 			// We have a window!
 			//VLOGD("NativeEngine: APP_CMD_INIT_WINDOW");
-			if (app->window != NULL)
+			if (!engine && app->window != NULL)
 			{
+				engine = new AndroidEngine(app->window, app->activity->assetManager);
+				engine->resize_window(ANativeWindow_getWidth(app->window), ANativeWindow_getHeight(app->window));
+				engine->init();
 				//mHasWindow = true;
 /*				if (app->savedStateSize == sizeof(mState) && app->savedState != nullptr) {
 					mState = *((NativeEngineSavedState *) mApp->savedState);
@@ -113,6 +152,12 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 			//VLOGD("HandleCommand(%d): hasWindow = %d, hasFocus = %d", cmd, mHasWindow ? 1 : 0, mHasFocus ? 1 : 0);
 			break;
 		case APP_CMD_TERM_WINDOW:
+			if (engine)
+			{
+                engine->cleanup();
+				delete engine;
+				engine = 0;
+			}
 			// The window is going away -- kill the surface
 			//VLOGD("NativeEngine: APP_CMD_TERM_WINDOW");
 			//KillSurface();
@@ -148,6 +193,7 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 			break;
 		case APP_CMD_WINDOW_RESIZED:
 		case APP_CMD_CONFIG_CHANGED:
+			engine->resize_window(ANativeWindow_getWidth(app->window), ANativeWindow_getHeight(app->window));
 			//VLOGD("NativeEngine: %s", cmd == APP_CMD_WINDOW_RESIZED ?
 			//						  "APP_CMD_WINDOW_RESIZED" : "APP_CMD_CONFIG_CHANGED");
 			// Window was resized or some other configuration changed.
@@ -184,8 +230,8 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
  */
 void android_main(android_app* app)
 {
-	AndroidEngine engine;
-	engine.init();
+	//AndroidEngine engine(app->window);
+	//engine.init();
 
     //app->userData = this;
     app->onAppCmd = _handle_cmd_proxy;
@@ -222,17 +268,23 @@ void android_main(android_app* app)
 			// Check if app is exiting.
 			if (app->destroyRequested) {
 				//engine_term_display(&engine);
-				engine.cleanup();
+				if (engine) {
+					engine->cleanup();
+					delete engine;
+					engine = 0;
+				}
 				return;
 			}
 		}
 		// Process input events if there are any.
 		engine_handle_input(app);
 
-		engine.update();
-		//if (engine.animating) {
-			// Draw a game frame.
-		//}
+		if (engine) {
+			engine->update();
+			//if (engine.animating) {
+				// Draw a game frame.
+			//}
+		}
 	}
 
 }

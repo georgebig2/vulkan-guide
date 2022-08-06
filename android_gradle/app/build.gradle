@@ -6,7 +6,7 @@ android {
 	compileSdk 32
 
 	defaultConfig {
-		applicationId "com.georgebig2.vulkan"
+		applicationId "com.georgebig2.vulkan_guide"
 		targetSdk 32
 		minSdk 24
 		versionCode 1
@@ -51,7 +51,7 @@ android {
 			
 			res.srcDirs += [ 'android/res' ]
 			java.srcDirs += [ 'android/java' ]
-			
+			assets.srcDirs += [ 'android/assets' ]
 			manifest.srcFile 'android/AndroidManifest.xml'
 
 			//jniLibs.srcDirs += ["$ndkDirectory/sources/third_party/vulkan/src/build-android/jniLibs"]

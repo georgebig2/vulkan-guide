@@ -19,7 +19,7 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
 	xmlns:tools="http://schemas.android.com/tools"
-	package="com.georgebig2.vulkan"
+	package="com.georgebig2.vulkan_guide"
 	android:versionCode="1"
 	android:versionName="1.0">
 
@@ -32,8 +32,10 @@
 		android:theme="@style/AppTheme"
 		tools:ignore="GoogleAppIndexingWarning,HardcodedDebugMode">
 
-		<activity android:name="com.georgebig2.vulkan.SampleLauncherActivity"
-			android:exported="true">
+		<activity android:name="com.georgebig2.vulkan_guide.SampleLauncherActivity"
+			android:exported="true"
+      		android:screenOrientation="landscape"
+			>
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />

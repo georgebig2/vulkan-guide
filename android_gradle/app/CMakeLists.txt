@@ -1,6 +1,6 @@
 
-#cmake_minimum_required (VERSION 3.8)
-#project ("vulkan_guide")
+cmake_minimum_required(VERSION 3.12)
+#include(android_package)
 
 #find_package(Vulkan REQUIRED)
 find_package(game-activity REQUIRED CONFIG)
@@ -26,10 +26,33 @@ set(CMAKE_SHARED_LINKER_FLAGS
 
 target_link_libraries(vulkan_guide android rengine game-activity::game-activity glm imgui log)
 
-#add_subdirectory(third_party)
-#add_subdirectory(assetlib)
-#add_subdirectory(asset-baker)
-#add_subdirectory("../../rengine")
-#add_subdirectory(extra-engine)
+function(android_sync_folder)
+    set(options)
+    set(oneValueArgs PATH)
+    set(multiValueArgs)
+
+    cmake_parse_arguments(PARSE_ARGV 0 TARGET "${options}" "${oneValueArgs}" "${multiValueArgs}")
+    get_filename_component(FOLDER_NAME "${TARGET_PATH}" NAME)
+
+    set(SYNC_COMMAND ${CMAKE_COMMAND}
+            -DCMAKE_MODULE_PATH=${CMAKE_MODULE_PATH}
+            -DFOLDER_DIR=${TARGET_PATH}/.
+            -DDEVICE_DIR=/sdcard/com.georgebig2.${PROJECT_NAME}/${FOLDER_NAME}/
+            -P "android_sync_folder.cmake")
+
+    add_custom_target(
+            sync.${FOLDER_NAME}.stamp
+            COMMAND
+            ${SYNC_COMMAND}
+            COMMENT
+            "Update ${FOLDER_NAME} in external storage"
+            VERBATIM)
+
+    add_dependencies(${PROJECT_NAME} sync.${FOLDER_NAME}.stamp)
+endfunction()
+
+# Sync assets and shaders
+#android_sync_folder(PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../assets_export)
+#android_sync_folder(PATH ${CMAKE_CURRENT_SOURCE_DIR}/../../shaders)
 
 

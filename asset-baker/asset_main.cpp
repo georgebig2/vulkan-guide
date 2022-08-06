@@ -519,14 +519,10 @@ bool extract_gltf_meshes(tinygltf::Model& model, const fs::path& input, const fs
 			meshinfo.indexBuferSize = _indices.size() * sizeof(uint32_t);
 			meshinfo.indexSize = sizeof(uint32_t);
 			meshinfo.originalFile = input.string();
-
 			meshinfo.bounds = assets::calculateBounds(_vertices.data(), _vertices.size());
 
 			assets::AssetFile newFile = assets::pack_mesh(&meshinfo, (char*)_vertices.data(), (char*)_indices.data());
-
-			fs::path meshpath = outputFolder / (meshname + ".mesh");
-
-			//save to disk
+			auto meshpath = outputFolder; meshpath += "/"; meshpath += (meshname + ".mesh");
 			save_binaryfile(meshpath.string().c_str(), newFile);
 		}
 	}
@@ -564,26 +560,18 @@ void extract_gltf_materials(tinygltf::Model& model, const fs::path& input, const
 			}
 			auto baseColor = model.textures[pbr.baseColorTexture.index];
 			auto baseImage = model.images[baseColor.source];
-
-			fs::path baseColorPath = outputFolder.parent_path() / baseImage.uri;
-
+			auto baseColorPath = outputFolder.parent_path(); baseColorPath += "/"; baseColorPath += baseImage.uri;
 			baseColorPath.replace_extension(".tx");
-
 			baseColorPath = convState.convert_to_export_relative(baseColorPath);
-
 			newMaterial.textures["baseColor"] = baseColorPath.string();
 		}
 		if (pbr.metallicRoughnessTexture.index >= 0)
 		{			
 			auto image = model.textures[pbr.metallicRoughnessTexture.index];
 			auto baseImage = model.images[image.source];
-
-			fs::path baseColorPath = outputFolder.parent_path() / baseImage.uri;
-
+			auto baseColorPath = outputFolder.parent_path(); baseColorPath += "/"; baseColorPath += baseImage.uri;
 			baseColorPath.replace_extension(".tx");
-
 			baseColorPath = convState.convert_to_export_relative(baseColorPath);
-
 			newMaterial.textures["metallicRoughness"] = baseColorPath.string();
 		}
 
@@ -591,13 +579,9 @@ void extract_gltf_materials(tinygltf::Model& model, const fs::path& input, const
 		{
 			auto image = model.textures[glmat.normalTexture.index];
 			auto baseImage = model.images[image.source];
-
-			fs::path baseColorPath = outputFolder.parent_path() / baseImage.uri;
-
+			auto baseColorPath = outputFolder.parent_path(); baseColorPath += "/"; baseColorPath += baseImage.uri;
 			baseColorPath.replace_extension(".tx");
-
 			baseColorPath = convState.convert_to_export_relative(baseColorPath);
-
 			newMaterial.textures["normals"] = baseColorPath.string();
 		}
 
@@ -605,13 +589,9 @@ void extract_gltf_materials(tinygltf::Model& model, const fs::path& input, const
 		{
 			auto image = model.textures[glmat.occlusionTexture.index];
 			auto baseImage = model.images[image.source];
-
-			fs::path baseColorPath = outputFolder.parent_path() / baseImage.uri;
-
+			auto baseColorPath = outputFolder.parent_path(); baseColorPath += "/"; baseColorPath += baseImage.uri;
 			baseColorPath.replace_extension(".tx");
-
 			baseColorPath = convState.convert_to_export_relative(baseColorPath);
-
 			newMaterial.textures["occlusion"] = baseColorPath.string();
 		}
 
@@ -619,19 +599,13 @@ void extract_gltf_materials(tinygltf::Model& model, const fs::path& input, const
 		{
 			auto image = model.textures[glmat.emissiveTexture.index];
 			auto baseImage = model.images[image.source];
-
-			fs::path baseColorPath = outputFolder.parent_path() / baseImage.uri;
-
+			auto baseColorPath = outputFolder.parent_path(); baseColorPath += "/"; baseColorPath += baseImage.uri;
 			baseColorPath.replace_extension(".tx");
-
 			baseColorPath = convState.convert_to_export_relative(baseColorPath);
-
 			newMaterial.textures["emissive"] = baseColorPath.string();
 		}
 
-
-		fs::path materialPath = outputFolder / (matname + ".mat");
-
+		auto materialPath = outputFolder; materialPath += "/"; materialPath += (matname + ".mat");
 		if (glmat.alphaMode.compare("BLEND") == 0)
 		{
 			newMaterial.transparency = TransparencyMode::Transparent;
@@ -641,8 +615,6 @@ void extract_gltf_materials(tinygltf::Model& model, const fs::path& input, const
 		}
 
 		assets::AssetFile newFile = assets::pack_material(&newMaterial);
-
-		//save to disk
 		save_binaryfile(materialPath.string().c_str(), newFile);
 	}
 }
@@ -725,13 +697,11 @@ void extract_gltf_nodes(tinygltf::Model& model, const fs::path& input, const fs:
 				auto primitive = mesh.primitives[0];
 				std::string meshname = calculate_gltf_mesh_name(model, node.mesh, 0);
 				
-				fs::path meshpath = outputFolder / (meshname + ".mesh");
-
+				auto meshpath = outputFolder; meshpath += "/"; meshpath += (meshname + ".mesh");
 				int material = primitive.material;
 
 				std::string matname = calculate_gltf_material_name(model, material);
-
-				fs::path materialpath = outputFolder / (matname + ".mat");
+				auto materialpath = outputFolder; materialpath += "/"; materialpath += (matname + ".mat");
 
 				assets::PrefabInfo::NodeMesh nmesh;
 				nmesh.mesh_path = convState.convert_to_export_relative(meshpath).string();
@@ -813,8 +783,8 @@ void extract_gltf_nodes(tinygltf::Model& model, const fs::path& input, const fs:
 			std::string matname = calculate_gltf_material_name(model, material);
 			std::string meshname = calculate_gltf_mesh_name(model, node.mesh, primindex);
 
-			fs::path materialpath = outputFolder / (matname + ".mat");
-			fs::path meshpath = outputFolder / (meshname + ".mesh");
+			auto materialpath = outputFolder; materialpath += "/"; materialpath += (matname + ".mat");
+			auto meshpath = outputFolder; meshpath += "/"; meshpath += (meshname + ".mesh");
 
 			assets::PrefabInfo::NodeMesh nmesh;
 			nmesh.mesh_path = convState.convert_to_export_relative(meshpath).string();
@@ -825,14 +795,10 @@ void extract_gltf_nodes(tinygltf::Model& model, const fs::path& input, const fs:
 		
 	}
 
-
 	assets::AssetFile newFile = assets::pack_prefab(prefab);
-
-	fs::path scenefilepath = (outputFolder.parent_path()) / input.stem();
-
+	auto scenefilepath = (outputFolder.parent_path()); scenefilepath += "/"; scenefilepath += input.stem();
 	scenefilepath.replace_extension(".pfb");
 
-	//save to disk
 	save_binaryfile(scenefilepath.string().c_str(), newFile);
 }
 std::string calculate_assimp_mesh_name(const aiScene* scene, int meshIndex)
@@ -919,21 +885,13 @@ void extract_assimp_materials(const aiScene* scene, const fs::path& input, const
 		else {
 			texPath = "Default";
 		}
-		fs::path baseColorPath = outputFolder.parent_path() / texPath;
-
+		auto baseColorPath = outputFolder.parent_path(); baseColorPath += "/"; baseColorPath += texPath;
 		baseColorPath.replace_extension(".tx");
-
 		baseColorPath = convState.convert_to_export_relative(baseColorPath);
-
 		newMaterial.textures["baseColor"] = baseColorPath.string();
 
-		fs::path materialPath = outputFolder / (matname + ".mat");
-
-
-
+		auto materialPath = outputFolder; materialPath += "/"; materialPath += (matname + ".mat");
 		assets::AssetFile newFile = assets::pack_material(&newMaterial);
-
-		//save to disk
 		save_binaryfile(materialPath.string().c_str(), newFile);
 	}
 }
@@ -1031,14 +989,10 @@ void extract_assimp_meshes(const aiScene* scene, const fs::path& input, const fs
 		meshinfo.indexBuferSize = _indices.size() * sizeof(uint32_t);
 		meshinfo.indexSize = sizeof(uint32_t);
 		meshinfo.originalFile = input.string();
-
 		meshinfo.bounds = assets::calculateBounds(_vertices.data(), _vertices.size());
 
 		assets::AssetFile newFile = assets::pack_mesh(&meshinfo, (char*)_vertices.data(), (char*)_indices.data());
-
-		fs::path meshpath = outputFolder / (meshname + ".mesh");
-
-		//save to disk
+		auto meshpath = outputFolder; meshpath += "/"; meshpath += (meshname + ".mesh");
 		save_binaryfile(meshpath.string().c_str(), newFile);		
 	}	
 }
@@ -1099,8 +1053,8 @@ void extract_assimp_nodes(const aiScene* scene, const fs::path& input, const fs:
 			std::string matname = calculate_assimp_material_name(scene, scene->mMeshes[mesh_index]->mMaterialIndex);
 			meshname = calculate_assimp_mesh_name(scene ,mesh_index);
 
-			fs::path materialpath = outputFolder / (matname + ".mat");
-			fs::path meshpath = outputFolder / (meshname + ".mesh");
+			auto materialpath = outputFolder; materialpath += "/"; materialpath += (matname + ".mat");
+			auto meshpath = outputFolder; meshpath += "/"; meshpath += (meshname + ".mesh");
 
 			assets::PrefabInfo::NodeMesh nmesh;
 			nmesh.mesh_path = convState.convert_to_export_relative(meshpath).string();
@@ -1134,12 +1088,8 @@ void extract_assimp_nodes(const aiScene* scene, const fs::path& input, const fs:
 	process_node(scene->mRootNode, mat,0);
 
 	assets::AssetFile newFile = assets::pack_prefab(prefab);
-
-	fs::path scenefilepath = (outputFolder.parent_path()) / input.stem();
-
+	auto scenefilepath = (outputFolder.parent_path()); scenefilepath += "/"; scenefilepath += input.stem();
 	scenefilepath.replace_extension(".pfb");
-
-	//save to disk
 	save_binaryfile(scenefilepath.string().c_str(), newFile);
 }
 
@@ -1152,12 +1102,10 @@ int main(int argc, char* argv[])
 	}
 	else {
 		
-		fs::path path{ argv[1] };
-	
-		fs::path directory = path;
-		
-		fs::path exported_dir = path.parent_path() / "assets_export";
+		auto path = fs::path(argv[1], fs::path::generic_format);
+		auto exported_dir = path.parent_path(); exported_dir += "/assets_export";
 
+		fs::path directory = path;
 		std::cout << "loaded asset directory at " << directory << std::endl;
 
 		ConverterState convstate;
@@ -1168,9 +1116,10 @@ int main(int argc, char* argv[])
 		{
 			std::cout << "File: " << p << std::endl;
 
-			auto relative = p.path().lexically_proximate(directory);
+			auto relative = p.path().lexically_proximate(directory).generic_string();
+			std::replace(relative.begin(), relative.end(), '\\', '/');
 
-			auto export_path = exported_dir / relative;			
+			auto export_path = exported_dir; export_path += "/"; export_path += relative;
 
 			if (!fs::is_directory(export_path.parent_path()))
 			{
@@ -1217,7 +1166,7 @@ int main(int argc, char* argv[])
 					return -1;
 				}
 				else {
-					auto folder = export_path.parent_path() / (p.path().stem().string() + "_GLTF");
+					auto folder = export_path.parent_path(); folder += "/"; folder += (p.path().stem().string() + "_GLTF");
 					fs::create_directory(folder);
 			
 					extract_gltf_meshes(model, p.path(), folder, convstate);
@@ -1227,7 +1176,7 @@ int main(int argc, char* argv[])
 					extract_gltf_nodes(model, p.path(), folder, convstate);
 				}
 			}
-			if (false){//p.path().extension() == ".fbx") {
+			if (0){//p.path().extension() == ".fbx") {
 				const aiScene* scene;
 				{
 					Assimp::Importer importer;
@@ -1271,5 +1220,7 @@ int main(int argc, char* argv[])
 
 fs::path ConverterState::convert_to_export_relative(fs::path path) const
 {
-	return path.lexically_proximate(export_path);
+	auto relative = path.lexically_proximate(export_path).generic_string();
+	std::replace(relative.begin(), relative.end(), '\\', '/');
+	return relative;
 }

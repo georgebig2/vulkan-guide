@@ -39,14 +39,11 @@ bool assets::load_binaryfile(const  char* path, AssetFile& outputFile)
 {
 	std::ifstream infile;
 	infile.open(path, std::ios::binary);
-
-	if (!infile.is_open()) return false;
+	if (!infile.is_open())
+		return false;
 
 	infile.seekg(0);
-
-
 	infile.read(outputFile.type, 4);
-	
 	infile.read((char*)&outputFile.version, sizeof(uint32_t));
 
 	uint32_t jsonlen = 0;

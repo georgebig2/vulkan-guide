@@ -46,12 +46,12 @@ else()
     add_subdirectory(assetlib)
     add_subdirectory(rengine)
     add_subdirectory(extra-engine)
+    add_subdirectory(asset-baker)
 
 endif()
 
 
 
-#add_subdirectory(asset-baker)
 
 #[[
 if (${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "AMD64")

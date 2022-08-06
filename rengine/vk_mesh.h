@@ -16,7 +16,7 @@ struct VertexInputDescription {
 	VkPipelineVertexInputStateCreateFlags flags = 0;
 };
 
-
+class REngine;
 
 struct Vertex {
 
@@ -40,5 +40,5 @@ struct Mesh {
 
 	RenderBounds bounds;
 
-	bool load_from_meshasset(const char* filename);
+	bool load_from_meshasset(REngine* engine, const char* filename);
 };
