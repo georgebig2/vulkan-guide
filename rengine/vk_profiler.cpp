@@ -26,6 +26,7 @@ namespace vkutil {
 		{
 			queryPoolInfo.pipelineStatistics = VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT;
 			vkCreateQueryPool(device, &queryPoolInfo, NULL, &queryFrames[i].statPool);
+			//vkCmdResetQueryPool(cmd, queryFrames[i].statPool, 0, queryFrames[i].statLast);
 			queryFrames[i].statLast = 0;
 		}
 	}

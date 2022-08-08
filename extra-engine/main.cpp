@@ -4,7 +4,7 @@ int main(int argc, char* argv[])
 {
 	VulkanEngine engine;
 
-	engine.init();	
+	engine.init(true);	
 	
 	engine.run();	
 

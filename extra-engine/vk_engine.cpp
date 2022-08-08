@@ -10,8 +10,6 @@
 #include <SDL.h>
 #include <SDL_vulkan.h>
 
-
-
 #include <iostream>
 #include <fstream>
 #include <chrono>
@@ -41,25 +39,10 @@
 #include "vk_scene.h"
 
 AutoCVar_Int CVAR_OcclusionCullGPU("culling.enableOcclusionGPU", "Perform occlusion culling in gpu", 1, CVarFlags::EditCheckbox);
-
-
 AutoCVar_Int CVAR_CamLock("camera.lock", "Locks the camera", 0, CVarFlags::EditCheckbox);
 AutoCVar_Int CVAR_OutputIndirectToFile("culling.outputIndirectBufferToFile", "output the indirect data to a file. Autoresets", 0, CVarFlags::EditCheckbox);
 
-constexpr bool bUseValidationLayers = false;
-
-//we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
-using namespace std;
-#define VK_CHECK(x)                                                 \
-	do                                                              \
-	{                                                               \
-		VkResult err = x;                                           \
-		if (err)                                                    \
-		{                                                           \
-			std::cout <<"Detected Vulkan error: " << err << std::endl; \
-			abort();                                                \
-		}                                                           \
-	} while (0)
+//constexpr bool bUseValidationLayers = false;
 
 
 #include "SDL.h"
@@ -150,7 +133,7 @@ std::string VulkanEngine::shader_path(std::string_view path)
 	return "../../shaders/" + std::string(path);
 }
 
-void VulkanEngine::init()
+void VulkanEngine::init(bool debug)
 {
 	ZoneScopedN("Engine Init");
 
@@ -173,7 +156,7 @@ void VulkanEngine::init()
 
 	//_renderables.reserve(10000);
 
-	REngine::init();
+	REngine::init(debug);
 
 	//this initializes imgui for SDL
 	ImGui_ImplSDL2_InitForVulkan(_window);
@@ -188,7 +171,6 @@ void VulkanEngine::cleanup()
 		SDL_DestroyWindow(_window);
 	}
 }
-
 
 void VulkanEngine::run()
 {
@@ -265,25 +247,7 @@ void VulkanEngine::run()
 			ImGui_ImplVulkan_NewFrame();
 			ImGui::NewFrame();
 
-			if (ImGui::BeginMainMenuBar())
-			{
-				if (ImGui::BeginMenu("Debug"))
-				{
-					if (ImGui::BeginMenu("CVAR"))
-					{
-						CVarSystem::Get()->DrawImguiEditor();
-						ImGui::EndMenu();
-					}
-					if (ImGui::BeginMenu("GRAPH"))
-					{
-						static bool perf = false;
-						ImGui::Checkbox("Perf", &perf);
-						ImGui::EndMenu();
-					}
-					ImGui::EndMenu();
-				}
-				ImGui::EndMainMenuBar();
-			}
+			hud_update();
 
 			constexpr auto gsMaxHistory = 256;
 			static uint32_t curFrame = 0;

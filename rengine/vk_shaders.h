@@ -76,7 +76,7 @@ struct ShaderDescriptorBinder {
 
 	void bind_dynamic_buffer(const char* name, uint32_t offset,const VkDescriptorBufferInfo& bufferInfo);
 
-	void apply_binds( VkCommandBuffer cmd);
+	//void apply_binds( VkCommandBuffer cmd);
 
 	//void build_sets(VkDevice device, VkDescriptorPool allocator);
 	void build_sets(VkDevice device, vkutil::DescriptorAllocator& allocator);

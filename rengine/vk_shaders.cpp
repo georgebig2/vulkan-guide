@@ -294,16 +294,16 @@ void ShaderDescriptorBinder::bind_dynamic_buffer(const char* name, uint32_t offs
 	}
 }
 
-void ShaderDescriptorBinder::apply_binds(VkCommandBuffer cmd)
-{
-	for (int i = 0; i < 2; i++) {
-		//there are writes for this set
-		if (cachedDescriptorSets[i] != VK_NULL_HANDLE) {
-
-			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, shaders->builtLayout, i, 1, &cachedDescriptorSets[i], setOffsets[i].count, setOffsets[i].offsets.data());
-		}
-	}
-}
+//void ShaderDescriptorBinder::apply_binds(VkCommandBuffer cmd)
+//{
+//	for (int i = 0; i < 2; i++) {
+//		//there are writes for this set
+//		if (cachedDescriptorSets[i] != VK_NULL_HANDLE) {
+//
+//			vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, shaders->builtLayout, i, 1, &cachedDescriptorSets[i], setOffsets[i].count, setOffsets[i].offsets.data());
+//		}
+//	}
+//}
 
 void ShaderDescriptorBinder::build_sets(VkDevice device, vkutil::DescriptorAllocator& allocator)
 {

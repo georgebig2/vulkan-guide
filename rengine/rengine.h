@@ -138,7 +138,6 @@ struct Texture {
     VkImageView imageView;
 };
 
-constexpr unsigned int FRAME_OVERLAP = 2;
 struct FrameData;
 class RenderScene;
 class ShaderCache;
@@ -150,13 +149,15 @@ public:
     VkExtent2D _windowExtent{ 1700 * 2 / 3 , 900 * 2 / 3 };
     VkExtent2D _shadowExtent{ 1024 * 2,1024 * 2 };
     int _frameNumber{ 0 };
+    uint32_t _swapchainImageIndex = 0;
+    uint32_t _swapchainImageIndex_prev = 0;
     bool _isInitialized{ false };
 
 	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 	DeletionQueue _surfaceDeletionQueue;
     DeletionQueue _mainDeletionQueue;
 
-    virtual void init();
+    virtual void init(bool debug);
     virtual void update();
     virtual void cleanup();
     virtual bool create_surface(VkInstance instance, VkSurfaceKHR* surface) = 0;
@@ -165,11 +166,11 @@ public:
 
     void recreate_swapchain();
 
-    //draw loop
     void draw();
+    void hud_update();
 
     FrameData& get_current_frame();
-    FrameData& get_last_frame();
+    //FrameData& get_last_frame();
 
     ShaderCache* get_shader_cache();
     RenderScene* get_render_scene();

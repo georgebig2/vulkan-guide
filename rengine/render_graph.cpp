@@ -271,7 +271,6 @@ void REngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 {
 	vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu forward pass");
 	vkutil::VulkanPipelineStatRecorder timer2(cmd, _profiler, "Forward Primitives");
-	//clear depth at 0
 	VkClearValue depthClear;
 	depthClear.depthStencil.depth = 0.f;
 
@@ -281,7 +280,6 @@ void REngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 
 	//connect clear values
 	rpInfo.clearValueCount = 2;
-
 	VkClearValue clearValues[] = { clearValue, depthClear };
 
 	rpInfo.pClearValues = &clearValues[0];
@@ -759,9 +757,7 @@ void REngine::copy_render_to_swapchain(uint32_t swapchainImageIndex, VkCommandBu
 
 	vkCmdSetViewport(cmd, 0, 1, &viewport);
 	vkCmdSetScissor(cmd, 0, 1, &scissor);
-
 	vkCmdSetDepthBias(cmd, 0, 0, 0);
-
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _blitPipeline);
 
 	VkDescriptorImageInfo sourceImage;
@@ -778,7 +774,6 @@ void REngine::copy_render_to_swapchain(uint32_t swapchainImageIndex, VkCommandBu
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _blitLayout, 0, 1, &blitSet, 0, nullptr);
 
 	vkCmdDraw(cmd, 3, 1, 0, 0);
-
 
 	vkCmdEndRenderPass(cmd);
 }
