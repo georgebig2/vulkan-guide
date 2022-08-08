@@ -525,7 +525,7 @@ void Label(const char* label, float textWidth)
 
 	ImGuiWindow* window = ImGui::GetCurrentWindow();
 	const ImVec2 lineStart = ImGui::GetCursorScreenPos();
-	const ImGuiStyle& style = ImGui::GetStyle();
+	//const ImGuiStyle& style = ImGui::GetStyle();
 	float fullWidth = textWidth + Slack;
 
 	ImVec2 textSize = ImGui::CalcTextSize(label);

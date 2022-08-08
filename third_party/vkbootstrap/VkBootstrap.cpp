@@ -1255,7 +1255,9 @@ namespace vkb {
 		VkExtent2D extent = detail::find_extent(
 			surface_support.value().capabilities, info.desired_width, info.desired_height);
 
-		uint32_t imageCount = surface_support.value().capabilities.minImageCount + 1;
+		uint32_t imageCount = surface_support.value().capabilities.minImageCount;
+		if (imageCount < 2)
+			imageCount = 2;
 		if (surface_support.value().capabilities.maxImageCount > 0 &&
 			imageCount > surface_support.value().capabilities.maxImageCount) {
 			imageCount = surface_support.value().capabilities.maxImageCount;

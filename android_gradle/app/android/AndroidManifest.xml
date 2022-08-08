@@ -33,9 +33,9 @@
 		tools:ignore="GoogleAppIndexingWarning,HardcodedDebugMode">
 
 		<activity android:name="com.georgebig2.vulkan_guide.SampleLauncherActivity"
-			android:exported="true"
-      		android:screenOrientation="landscape"
-			>
+			android:configChanges="orientation|screenSize"
+			android:exported="true">
+<!--      		android:screenOrientation="landscape">-->
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />

@@ -22,6 +22,12 @@ AutoCVar_Int CVAR_Shadowcast("gpu.shadowcast", "Use shadowcasting", 1, CVarFlags
 
 void REngine::init_forward_renderpass()
 {
+	VkSamplerCreateInfo shadsamplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
+	shadsamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	shadsamplerInfo.compareEnable = true;
+	shadsamplerInfo.compareOp = VK_COMPARE_OP_LESS;
+	vkCreateSampler(_device, &shadsamplerInfo, nullptr, &_shadowSampler);
+
 	//we define an attachment description for our main color image
 	//the attachment is loaded as "clear" when renderpass start
 	//the attachment is stored when renderpass ends
@@ -98,6 +104,23 @@ void REngine::init_forward_renderpass()
 
 void REngine::init_shadow_renderpass()
 {
+	//shadow image
+	{
+		//for the depth image, we want to allocate it from gpu local memory
+		VmaAllocationCreateInfo dimg_allocinfo = {};
+		dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		VkExtent3D shadowExtent = { _shadowExtent.width, _shadowExtent.height, 1 };
+
+		//the depth image will be a image with the format we selected and Depth Attachment usage flag
+		VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, shadowExtent);
+
+		vmaCreateImage(_allocator, &dimg_info, &dimg_allocinfo, &_shadowImage._image, &_shadowImage._allocation, nullptr);
+		VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, _shadowImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
+		VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_shadowImage._defaultView));
+	}
+
 	VkAttachmentDescription depth_attachment = {};
 	// Depth attachment
 	depth_attachment.flags = 0;
@@ -140,14 +163,57 @@ void REngine::init_shadow_renderpass()
 
 	VK_CHECK(vkCreateRenderPass(_device, &render_pass_info, nullptr, &_shadowPass));
 
+	//if (!_shadowFramebuffer)
+	{
+		VkFramebufferCreateInfo sh_info = vkinit::framebuffer_create_info(_shadowPass, _shadowExtent);
+		sh_info.pAttachments = &_shadowImage._defaultView;
+		sh_info.attachmentCount = 1;
+		VK_CHECK(vkCreateFramebuffer(_device, &sh_info, nullptr, &_shadowFramebuffer));
+	}
+
 	_mainDeletionQueue.push_function([=]() {
+		vkDestroyImageView(_device, _shadowImage._defaultView, nullptr);
+		vmaDestroyImage(_allocator, _shadowImage._image, _shadowImage._allocation);
 		vkDestroyRenderPass(_device, _shadowPass, nullptr);
+		vkDestroyFramebuffer(_device, _shadowFramebuffer, nullptr);
 		});
 }
 
 
 void REngine::init_copy_renderpass()
 {
+	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	vkCreateSampler(_device, &samplerInfo, nullptr, &_smoothSampler);
+
+	samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	//info.anisotropyEnable = true;
+	samplerInfo.mipLodBias = 2;
+	samplerInfo.maxLod = 30.f;
+	samplerInfo.minLod = 3;
+	vkCreateSampler(_device, &samplerInfo, nullptr, &_smoothSampler2);
+
+
+	VkSamplerCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	createInfo.magFilter = VK_FILTER_LINEAR;
+	createInfo.minFilter = VK_FILTER_LINEAR;
+	createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+	createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	createInfo.minLod = 0;
+	createInfo.maxLod = 16.f;
+	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
+	auto reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN_EXT;
+	if (reductionMode != VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT)
+	{
+		createInfoReduction.reductionMode = reductionMode;
+		createInfo.pNext = &createInfoReduction;
+	}
+	VK_CHECK(vkCreateSampler(_device, &createInfo, 0, &_depthSampler));
+
 	//we define an attachment description for our main color image
 //the attachment is loaded as "clear" when renderpass start
 //the attachment is stored when renderpass ends
@@ -250,7 +316,6 @@ void REngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 		//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Imgui Draw");
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 	}
-
 	//finalize the render pass
 	vkCmdEndRenderPass(cmd);
 }
@@ -260,9 +325,9 @@ void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
 	ZoneScopedNC("DrawObjects", tracy::Color::Blue);
 	//make a model view matrix for rendering the object
 	//camera view
-	glm::mat4 view = _camera.get_view_matrix();
+	glm::mat4 view = _camera.get_view_matrix(this);
 	//camera projection
-	glm::mat4 projection = _camera.get_projection_matrix();
+	glm::mat4 projection = _camera.get_projection_matrix(this);
 
 
 	GPUCameraData camData;

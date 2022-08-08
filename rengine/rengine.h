@@ -148,24 +148,22 @@ class REngine {
 public:
 
     VkExtent2D _windowExtent{ 1700 * 2 / 3 , 900 * 2 / 3 };
-    VkExtent2D _shadowExtent{ 1024 * 4,1024 * 4 };
+    VkExtent2D _shadowExtent{ 1024 * 2,1024 * 2 };
     int _frameNumber{ 0 };
     bool _isInitialized{ false };
 
-
-	//AllocatedBufferUntyped create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
 	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
-	DeletionQueue _mainDeletionQueue;
+	DeletionQueue _surfaceDeletionQueue;
+    DeletionQueue _mainDeletionQueue;
 
     virtual void init();
     virtual void update();
     virtual void cleanup();
     virtual bool create_surface(VkInstance instance, VkSurfaceKHR* surface) = 0;
     virtual void resize_window(int w, int h);
+    virtual float get_dpi_factor() { return 1.f; }
 
-    //void init_vulkan();
-
-    void init_swapchain();
+    void recreate_swapchain();
 
     //draw loop
     void draw();
@@ -182,6 +180,7 @@ public:
     virtual bool load_asset(const char* path, assets::AssetFile& outputFile);
     virtual std::vector<uint32_t> load_file(const char* path);
 
+    bool handle_surface_changes(bool force_update = false);
 
     PlayerCamera _camera;
 
@@ -195,37 +194,40 @@ public:
     uint32_t _graphicsQueueFamily;
 
     VkSurfaceKHR _surface{};
-    VkSwapchainKHR _swapchain;
+    vkb::Swapchain _swapchain;
     VkFormat _swachainImageFormat;
     VkFormat _depthFormat;
-
+    VkSurfaceTransformFlagBitsKHR _pretransformFlag{ VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR };
+   
     VkPhysicalDeviceProperties _gpuProperties;
 
     std::vector<VkFramebuffer> _framebuffers;
-    std::vector<VkImage> _swapchainImages;
+    //std::vector<VkImage> _swapchainImages;
     std::vector<VkImageView> _swapchainImageViews;
 
     VkFormat _renderFormat;
     AllocatedImage _rawRenderImage;
-    VkSampler _smoothSampler;
-    VkFramebuffer _forwardFramebuffer;
-    VkFramebuffer _shadowFramebuffer;
+    VkFramebuffer _forwardFramebuffer = 0;
+    VkFramebuffer _shadowFramebuffer = 0;
 
     AllocatedImage _depthImage;
     AllocatedImage _depthPyramid;
-    VkSampler _shadowSampler;
     AllocatedImage _shadowImage;
+
+    VkSampler _smoothSampler;
+    VkSampler _smoothSampler2;
+    VkSampler _shadowSampler;
+    VkSampler _depthSampler;
 
     int depthPyramidWidth;
     int depthPyramidHeight;
     int depthPyramidLevels;
 
-    VkSampler _depthSampler;
     VkImageView depthPyramidMips[16] = {};
 
     void init_commands();
     void init_sync_structures();
-    void init_framebuffers();
+    void recreate_framebuffers();
     void init_forward_renderpass();
     void init_copy_renderpass();
     void init_shadow_renderpass();

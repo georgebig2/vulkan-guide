@@ -7,6 +7,8 @@
 #include <asset_loader.h>
 #include <android/asset_manager.h>
 
+static float dpi = 1.f;
+
 
 class AndroidEngine : public REngine {
 public:
@@ -67,6 +69,11 @@ public:
 	std::string shader_path(std::string_view path) override
 	{
 		return "shaders/" + std::string(path);
+	}
+
+	float get_dpi_factor() override
+	{
+		return dpi;
 	}
 
 };
@@ -137,7 +144,8 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 			if (!engine && app->window != NULL)
 			{
 				engine = new AndroidEngine(app->window, app->activity->assetManager);
-				engine->resize_window(ANativeWindow_getWidth(app->window), ANativeWindow_getHeight(app->window));
+				//engine->resize_window(ANativeWindow_getWidth(app->window), ANativeWindow_getHeight(app->window));
+				dpi = AConfiguration_getDensity(app->config) / static_cast<float>(ACONFIGURATION_DENSITY_MEDIUM);
 				engine->init();
 				//mHasWindow = true;
 /*				if (app->savedStateSize == sizeof(mState) && app->savedState != nullptr) {
@@ -193,7 +201,8 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 			break;
 		case APP_CMD_WINDOW_RESIZED:
 		case APP_CMD_CONFIG_CHANGED:
-			engine->resize_window(ANativeWindow_getWidth(app->window), ANativeWindow_getHeight(app->window));
+			//engine->resize_window(ANativeWindow_getWidth(app->window), ANativeWindow_getHeight(app->window));
+			dpi = AConfiguration_getDensity(app->config) / static_cast<float>(ACONFIGURATION_DENSITY_MEDIUM);
 			//VLOGD("NativeEngine: %s", cmd == APP_CMD_WINDOW_RESIZED ?
 			//						  "APP_CMD_WINDOW_RESIZED" : "APP_CMD_CONFIG_CHANGED");
 			// Window was resized or some other configuration changed.

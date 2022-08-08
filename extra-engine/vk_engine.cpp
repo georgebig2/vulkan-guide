@@ -161,7 +161,6 @@ void VulkanEngine::init()
 	// We initialize SDL and create a window with it. 
 	SDL_Init(SDL_INIT_VIDEO);
 	LOG_SUCCESS("SDL inited");
-	SDL_WindowFlags window_flags = (SDL_WINDOW_VULKAN);
 
 	_window = SDL_CreateWindow(
 		"",
@@ -169,7 +168,7 @@ void VulkanEngine::init()
 		SDL_WINDOWPOS_UNDEFINED,
 		_windowExtent.width,
 		_windowExtent.height,
-		window_flags
+		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE
 	);
 
 	//_renderables.reserve(10000);
@@ -255,6 +254,12 @@ void VulkanEngine::run()
 		}
 		{
 			ZoneScopedNC("Imgui Logic", tracy::Color::Grey);
+
+			//ImGuiIO& io = ImGui::GetIO();
+			//io.DeltaTime = 1.0f / 60.0f;
+			//io.DisplaySize = ImVec2(_windowExtent.width, _windowExtent.height);
+			ImGui::GetStyle() = ImGuiStyle();
+			ImGui::GetStyle().ScaleAllSizes(1);
 
 			ImGui_ImplSDL2_NewFrame(_window);
 			ImGui_ImplVulkan_NewFrame();
@@ -441,9 +446,7 @@ void VulkanEngine::run()
 				//_renderScene.update_object(h);
 			}
 			_camera.bLocked = CVAR_CamLock.Get();
-
-			_camera.update_camera(stats.frametime);
-
+			_camera.update_camera(stats.frametime, _windowExtent.width, _windowExtent.height);
 			_mainLight.lightPosition = _camera.position;
 		}
 

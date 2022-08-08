@@ -13,44 +13,6 @@
 #include "Tracy.hpp"
 
 
-//bool vkutil::load_image_from_file(REngine& engine, const char* file, AllocatedImage & outImage)
-//{
-//	int texWidth, texHeight, texChannels;
-//
-//	stbi_uc* pixels = stbi_load(file, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-//
-//	if (!pixels) {
-//		std::cout << "Failed to load texture file " << file << std::endl;
-//		return false;
-//	}
-//
-//	void* pixel_ptr = pixels;
-//	VkDeviceSize imageSize = texWidth * texHeight * 4;
-//
-//	VkFormat image_format = VK_FORMAT_R8G8B8A8_UNORM;
-//
-//	AllocatedBufferUntyped stagingBuffer = engine.create_buffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-//
-//	void* data;
-//	vmaMapMemory(engine._allocator, stagingBuffer._allocation, &data);
-//
-//	memcpy(data, pixel_ptr, static_cast<size_t>(imageSize));
-//
-//	vmaUnmapMemory(engine._allocator, stagingBuffer._allocation);
-//
-//	stbi_image_free(pixels);
-//
-//
-//	outImage =  upload_image(texWidth, texHeight, image_format, engine, stagingBuffer);
-//
-//
-//	vmaDestroyBuffer(engine._allocator, stagingBuffer._buffer, stagingBuffer._allocation);
-//
-//	std::cout << "Texture loaded succesfully " << file << std::endl;
-//
-//	
-//	return true;
-//}
 
 AllocatedBufferUntyped create_buffer(REngine*, size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags = 0);
 
