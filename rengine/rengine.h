@@ -9,26 +9,9 @@
 #include "common.h"
 #include <player_camera.h>
 #include "vk_types.h"
+#include "frame_data.h"
 
-struct DeletionQueue
-{
-    std::deque<std::function<void()>> deletors;
 
-    template<typename F>
-    void push_function(F&& function) {
-        static_assert(sizeof(F) < 200, "DONT CAPTURE TOO MUCH IN THE LAMBDA");
-        deletors.push_back(function);
-    }
-
-    void flush() {
-        // reverse iterate the deletion queue to execute all the functions
-        for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
-            (*it)(); //call functors
-        }
-
-        deletors.clear();
-    }
-};
 
 //forward declarations
 namespace vkutil {
@@ -86,7 +69,7 @@ namespace assets {
 
 struct /*alignas(16)*/DrawCullData
 {
-    glm::mat4 viewMat;
+    glm::mat4 view;
     float P00, P11, znear, zfar; // symmetric projection parameters
     float frustum[4]; // data for left/right/top/bottom frustum planes
     //float lodBase, lodStep; // lod distance i = base * pow(step, i)
@@ -164,7 +147,7 @@ public:
     virtual void resize_window(int w, int h);
     virtual float get_dpi_factor() { return 1.f; }
 
-    void recreate_swapchain();
+    void init_swapchain();
 
     void draw();
     void hud_update();
@@ -197,23 +180,18 @@ public:
     VkSurfaceKHR _surface{};
     vkb::Swapchain _swapchain;
     VkFormat _swachainImageFormat;
-    VkFormat _depthFormat;
+    VkFormat _depthFormat = VK_FORMAT_D32_SFLOAT;
+
     VkSurfaceTransformFlagBitsKHR _pretransformFlag{ VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR };
    
     VkPhysicalDeviceProperties _gpuProperties;
 
-    std::vector<VkFramebuffer> _framebuffers;
-    //std::vector<VkImage> _swapchainImages;
-    std::vector<VkImageView> _swapchainImageViews;
+    //std::vector<VkFramebuffer> _framebuffers;
+    ////std::vector<VkImage> _swapchainImages;
+    //std::vector<VkImageView> _swapchainImageViews;
 
-    VkFormat _renderFormat;
-    AllocatedImage _rawRenderImage;
-    VkFramebuffer _forwardFramebuffer = 0;
-    VkFramebuffer _shadowFramebuffer = 0;
+    VkFormat _renderFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
 
-    AllocatedImage _depthImage;
-    AllocatedImage _depthPyramid;
-    AllocatedImage _shadowImage;
 
     VkSampler _smoothSampler;
     VkSampler _smoothSampler2;
@@ -224,13 +202,11 @@ public:
     int depthPyramidHeight;
     int depthPyramidLevels;
 
-    VkImageView depthPyramidMips[16] = {};
-
     void init_commands();
     void init_sync_structures();
-    void recreate_framebuffers();
+    void init_framebuffers();
     void init_forward_renderpass();
-    void init_copy_renderpass();
+    void init_copy_renderpass(VkFormat swachainImageFormat);
     void init_shadow_renderpass();
     void init_pipelines();
     void init_imgui();
@@ -243,6 +219,8 @@ public:
 
     void refresh_renderbounds(MeshObject* object);
     bool load_image_to_cache(const char* name, const char* path);
+
+    std::vector<FrameData> _frames;
 
     vkutil::MaterialSystem* _materialSystem;
 
@@ -276,7 +254,7 @@ public:
     template<typename T>
     T* map_buffer(AllocatedBuffer<T>& buffer);
     void unmap_buffer(AllocatedBufferUntyped& buffer);
-    void copy_render_to_swapchain(uint32_t swapchainImageIndex, VkCommandBuffer cmd);
+    void copy_render_to_swapchain(VkCommandBuffer cmd);
     void shadow_pass(VkCommandBuffer cmd);
     void reduce_depth(VkCommandBuffer cmd);
     void forward_pass(VkClearValue clearValue, VkCommandBuffer cmd);

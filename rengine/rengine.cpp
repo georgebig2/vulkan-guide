@@ -39,8 +39,6 @@ constexpr bool bUseValidationLayers = true;
 
 AutoCVar_Float CVAR_DrawDistance("gpu.drawDistance", "Distance cull", 5000);
 
-std::vector<FrameData> _frames;
-
 ShaderCache _shaderCache;
 RenderScene _renderScene;
 std::unordered_map<std::string, Texture> _loadedTextures;
@@ -73,12 +71,28 @@ T* REngine::map_buffer(AllocatedBuffer<T>& buffer)
 	return(T*)data;
 }
 
-//void REngine::init()
+//
+//void REngine::hud_update()
 //{
-//	//ZoneScopedN("Engine Init");
-//	//LogHandler::Get().set_time();
-//	//LOG_INFO("Engine Init");
-//	//init_vulkan();
+//    if (ImGui::BeginMainMenuBar())
+//    {
+//        if (ImGui::BeginMenu("Debug"))
+//        {
+//            if (ImGui::BeginMenu("CVAR"))
+//            {
+//                CVarSystem::Get()->DrawImguiEditor();
+//                ImGui::EndMenu();
+//            }
+//            if (ImGui::BeginMenu("GRAPH"))
+//            {
+//                static bool perf = false;
+//                ImGui::Checkbox("Perf", &perf);
+//                ImGui::EndMenu();
+//            }
+//            ImGui::EndMenu();
+//        }
+//        ImGui::EndMainMenuBar();
+//    }
 //}
 
 void REngine::update()
@@ -117,9 +131,9 @@ void REngine::init_scene()
 		//load_prefab(asset_path("mine.pfb").c_str(), (scale * rot * tr));
 	}
 
-	int dimHelmets = 5;
-	for (int x = -dimHelmets; x <= dimHelmets; x++) {
-		for (int y = -dimHelmets; y <= dimHelmets; y++) {
+	int dimHelmets = 0;
+	for (int x = -dimHelmets; x < dimHelmets; x++) {
+		for (int y = -dimHelmets; y < dimHelmets; y++) {
 
 			glm::mat4 translation = glm::translate(glm::mat4{ 1.0 }, glm::vec3(x * 5, 10, y * 5));
 			glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(10));
@@ -252,13 +266,11 @@ void REngine::init(bool debug)
 	//LOG_INFO("The gpu has a minimum buffer alignement of {}", _gpuProperties.limits.minUniformBufferOffsetAlignment);
 
 	_shaderCache.init(_device);
-	recreate_swapchain();
+	init_forward_renderpass();
+	init_swapchain();
 	init_descriptors();
 	get_render_scene()->init();
-	init_forward_renderpass();
-	//init_copy_renderpass();
 	init_shadow_renderpass();
-	recreate_framebuffers();
 	init_commands();
 	init_sync_structures();
 	init_pipelines();
@@ -813,28 +825,6 @@ bool REngine::load_compute_shader(const char* shaderPath, VkPipeline& pipeline, 
 }
 
 
-void REngine::recreate_framebuffers()
-{
-	//create the framebuffers for the swapchain images. This will connect the render-pass to the images for rendering
-	//assert(!_forwardFramebuffer);
-	//if (!_forwardFramebuffer)
-	{
-		VkFramebufferCreateInfo fwd_info = vkinit::framebuffer_create_info(_renderPass, _windowExtent);
-		VkImageView attachments[2];
-		attachments[0] = _rawRenderImage._defaultView;
-		attachments[1] = _depthImage._defaultView;
-
-		fwd_info.pAttachments = attachments;
-		fwd_info.attachmentCount = 2;
-		VK_CHECK(vkCreateFramebuffer(_device, &fwd_info, nullptr, &_forwardFramebuffer));
-		_surfaceDeletionQueue.push_function([=]() {
-			vkDestroyFramebuffer(_device, _forwardFramebuffer, nullptr);
-			//_forwardFramebuffer = 0;
-			});
-	}
-}
-
-
 void REngine::init_imgui()
 {
 	//1: create descriptor pool for IMGUI
@@ -995,7 +985,7 @@ glm::mat4 DirectionalLight::get_view()
 	return view;
 }
 
-void REngine::recreate_swapchain()
+void REngine::init_swapchain()
 {
 	VkSurfaceCapabilitiesKHR capabilities;
 	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_chosenGPU, _surface, &capabilities));
@@ -1003,7 +993,7 @@ void REngine::recreate_swapchain()
 		capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
 	{
 		// Pre-rotation: always use native orientation i.e. if rotated, use width and height of identity transform
-		std::swap(capabilities.currentExtent.width, capabilities.currentExtent.height);
+		//std::swap(capabilities.currentExtent.width, capabilities.currentExtent.height);
 	}
 	_pretransformFlag = capabilities.currentTransform;
 	_windowExtent = capabilities.currentExtent;
@@ -1012,12 +1002,12 @@ void REngine::recreate_swapchain()
 
 	VkSurfaceFormatKHR format = {};
 	format.format = VK_FORMAT_R8G8B8A8_SRGB;
-	format.colorSpace = VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT;
+	format.colorSpace = VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT;	//VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
 
 	auto swap_ret = swapchainBuilder
 		//.use_default_format_selection()
 		.set_desired_format(format)
-		.set_desired_present_mode(VK_PRESENT_MODE_FIFO_RELAXED_KHR)//(VK_PRESENT_MODE_IMMEDIATE_KHR)
+		.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)//VK_PRESENT_MODE_FIFO_RELAXED_KHR)//(VK_PRESENT_MODE_IMMEDIATE_KHR)
 		.set_desired_extent(_windowExtent.width, _windowExtent.height)
 		.recreate(_swapchain);
 	if (!swap_ret) {
@@ -1026,122 +1016,138 @@ void REngine::recreate_swapchain()
 	}
 	vkb::destroy_swapchain(_swapchain);
 	_swapchain = swap_ret.value();
+
 	_swachainImageFormat = _swapchain.image_format;
+	if (!_isInitialized)
+		init_copy_renderpass(_swachainImageFormat);
 
+	assert(_frames.empty() || _frames.size() == _swapchain.image_count);
+	_frames.resize(_swapchain.image_count);
 
-	// 1?
+	auto swapchainImageViews = _swapchain.get_image_views().value();
+
+	for (int i = 0; i < _frames.size(); ++i)
 	{
+		auto& frame = _frames[i];
+		frame._swapchainImageView = swapchainImageViews[i];
+
 		VkExtent3D renderImageExtent = { _windowExtent.width, _windowExtent.height, 1 };
-		_renderFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
-		VkImageCreateInfo ri_info = vkinit::image_create_info(_renderFormat, 
+		VkImageCreateInfo ri_info = vkinit::image_create_info(_renderFormat,
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, renderImageExtent);
 
 		//for the depth image, we want to allocate it from gpu local memory
 		VmaAllocationCreateInfo dimg_allocinfo = {};
 		dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 		dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		vmaCreateImage(_allocator, &ri_info, &dimg_allocinfo, &_rawRenderImage._image, &_rawRenderImage._allocation, nullptr);
 
-		VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_renderFormat, _rawRenderImage._image, VK_IMAGE_ASPECT_COLOR_BIT);
-		VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_rawRenderImage._defaultView));
-	}
+		vmaCreateImage(_allocator, &ri_info, &dimg_allocinfo, &frame._rawRenderImage._image, &frame._rawRenderImage._allocation, nullptr);
+
+		VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_renderFormat, frame._rawRenderImage._image, VK_IMAGE_ASPECT_COLOR_BIT);
+		VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &frame._rawRenderImage._defaultView));
 
 
-	//depth image size will match the window
-	VkExtent3D depthImageExtent = {	_windowExtent.width, _windowExtent.height, 1 };
+		//depth image size will match the window
+		VkExtent3D depthImageExtent = { _windowExtent.width, _windowExtent.height, 1 };
 
-	//for the depth image, we want to allocate it from gpu local memory
-	VmaAllocationCreateInfo dimg_allocinfo = {};
-	dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		////for the depth image, we want to allocate it from gpu local memory
+		//VmaAllocationCreateInfo dimg_allocinfo = {};
+		//dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		//dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	// 1?
-	// depth image ------ 
-	{
-		//the depth image will be a image with the format we selected and Depth Attachment usage flag
-		_depthFormat = VK_FORMAT_D32_SFLOAT;
-		VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat,
-			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, depthImageExtent);
+		// depth image ------ 
+		{
+			//the depth image will be a image with the format we selected and Depth Attachment usage flag
+			VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat,
+				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, depthImageExtent);
 
-		vmaCreateImage(_allocator, &dimg_info, &dimg_allocinfo, &_depthImage._image, &_depthImage._allocation, nullptr);
-		VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, _depthImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);;
-		VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_depthImage._defaultView));
-	}
-
-	if (!_isInitialized)
-		init_copy_renderpass();
-
-	//_swapchainImages = _swapchain.get_images().value();
-	_swapchainImageViews = _swapchain.get_image_views().value();
-	auto num = static_cast<uint32_t>(_swapchainImageViews.size());
-	_framebuffers = std::vector<VkFramebuffer>(num, 0);
-	for (uint32_t i = 0; i < num; i++)
-	{
-		//if (i >= _framebuffers.size())
-		//	_framebuffers.push_back(0);
-		//create the framebuffers for the swapchain images. This will connect the render-pass to the images for rendering
-		//if (!_framebuffers[i])
-		//assert(!_framebuffers[i]);
+			vmaCreateImage(_allocator, &dimg_info, &dimg_allocinfo, &frame._depthImage._image, &frame._depthImage._allocation, nullptr);
+			VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, frame._depthImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
+			VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &frame._depthImage._defaultView));
+		}
 		{
 			VkFramebufferCreateInfo fb_info = vkinit::framebuffer_create_info(_copyPass, _windowExtent);
-			fb_info.pAttachments = &_swapchainImageViews[i];
+			fb_info.pAttachments = &frame._swapchainImageView;
 			fb_info.attachmentCount = 1;
-			VK_CHECK(vkCreateFramebuffer(_device, &fb_info, nullptr, &_framebuffers[i]));
+			VK_CHECK(vkCreateFramebuffer(_device, &fb_info, nullptr, &frame._framebuffer));
 
+			{
+				auto swapchainImageView = frame._swapchainImageView;
+				auto framebuffer = frame._framebuffer;
+				_surfaceDeletionQueue.push_function([=]() {
+					vkDestroyImageView(_device, swapchainImageView, nullptr);
+					vkDestroyFramebuffer(_device, framebuffer, nullptr);
+					});
+			}
+		}
+
+		// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
+		depthPyramidWidth = previousPow2(_windowExtent.width);
+		depthPyramidHeight = previousPow2(_windowExtent.height);
+		depthPyramidLevels = getImageMipLevels(depthPyramidWidth, depthPyramidHeight);
+
+		VkExtent3D pyramidExtent = {
+			static_cast<uint32_t>(depthPyramidWidth),
+			static_cast<uint32_t>(depthPyramidHeight),
+			1
+		};
+		//the depth image will be a image with the format we selected and Depth Attachment usage flag
+		VkImageCreateInfo pyramidInfo = vkinit::image_create_info(VK_FORMAT_R32_SFLOAT,
+			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, pyramidExtent);
+
+		pyramidInfo.mipLevels = depthPyramidLevels;
+
+		vmaCreateImage(_allocator, &pyramidInfo, &dimg_allocinfo, &frame._depthPyramid._image, &frame._depthPyramid._allocation, nullptr);
+		VkImageViewCreateInfo priview_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
+		priview_info.subresourceRange.levelCount = depthPyramidLevels;
+		VK_CHECK(vkCreateImageView(_device, &priview_info, nullptr, &frame._depthPyramid._defaultView));
+
+		{
+			auto defaultView = frame._depthImage._defaultView;
+			auto image = frame._depthImage._image;
+			auto pdefaultView = frame._depthPyramid._defaultView;
+			auto pimage = frame._depthPyramid._image;
+			auto allocation = frame._depthImage._allocation;
+			auto pallocation = frame._depthPyramid._allocation;
 			_surfaceDeletionQueue.push_function([=]() {
-				vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
-				vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
-				//_framebuffers[i] = 0;
-				//_swapchainImageViews[i] = 0;
+				vkDestroyImageView(_device, defaultView, nullptr);
+				vmaDestroyImage(_allocator, image, allocation);
+				vkDestroyImageView(_device, pdefaultView, nullptr);
+				vmaDestroyImage(_allocator, pimage, pallocation);
 				});
 		}
-	}
 
-	assert(_frames.empty() || _frames.size() == num);
-	_frames.resize(num);
+		for (int32_t i = 0; i < depthPyramidLevels; ++i)
+		{
+			VkImageViewCreateInfo level_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
+			level_info.subresourceRange.levelCount = 1;
+			level_info.subresourceRange.baseMipLevel = i;
 
-	// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
-	depthPyramidWidth = previousPow2(_windowExtent.width);
-	depthPyramidHeight = previousPow2(_windowExtent.height);
-	depthPyramidLevels = getImageMipLevels(depthPyramidWidth, depthPyramidHeight);
+			VkImageView pyramid;
+			vkCreateImageView(_device, &level_info, nullptr, &pyramid);
 
-	VkExtent3D pyramidExtent = {
-		static_cast<uint32_t>(depthPyramidWidth),
-		static_cast<uint32_t>(depthPyramidHeight),
-		1
-	};
-	//the depth image will be a image with the format we selected and Depth Attachment usage flag
-	VkImageCreateInfo pyramidInfo = vkinit::image_create_info(VK_FORMAT_R32_SFLOAT, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, pyramidExtent);
+			_surfaceDeletionQueue.push_function([=]() {
+				vkDestroyImageView(_device, pyramid, nullptr);
+				});
 
-	pyramidInfo.mipLevels = depthPyramidLevels;
+			frame.depthPyramidMips[i] = pyramid;
+			assert(frame.depthPyramidMips[i]);
+		}
+		{
+			VkFramebufferCreateInfo fwd_info = vkinit::framebuffer_create_info(_renderPass, _windowExtent);
+			VkImageView attachments[2];
+			attachments[0] = frame._rawRenderImage._defaultView;
+			attachments[1] = frame._depthImage._defaultView;
 
-	vmaCreateImage(_allocator, &pyramidInfo, &dimg_allocinfo, &_depthPyramid._image, &_depthPyramid._allocation, nullptr);
-	VkImageViewCreateInfo priview_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, _depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
-	priview_info.subresourceRange.levelCount = depthPyramidLevels;
-	VK_CHECK(vkCreateImageView(_device, &priview_info, nullptr, &_depthPyramid._defaultView));
-
-	_surfaceDeletionQueue.push_function([=]() {
-		vkDestroyImageView(_device, _depthImage._defaultView, nullptr);
-		vmaDestroyImage(_allocator, _depthImage._image, _depthImage._allocation);
-		vkDestroyImageView(_device, _depthPyramid._defaultView, nullptr);
-		vmaDestroyImage(_allocator, _depthPyramid._image, _depthPyramid._allocation);
-		});
-
-	for (int32_t i = 0; i < depthPyramidLevels; ++i)
-	{
-		VkImageViewCreateInfo level_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, _depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
-		level_info.subresourceRange.levelCount = 1;
-		level_info.subresourceRange.baseMipLevel = i;
-
-		VkImageView pyramid;
-		vkCreateImageView(_device, &level_info, nullptr, &pyramid);
-
-		_surfaceDeletionQueue.push_function([=]() {
-			vkDestroyImageView(_device, pyramid, nullptr);
-			});
-
-		depthPyramidMips[i] = pyramid;
-		assert(depthPyramidMips[i]);
+			fwd_info.pAttachments = attachments;
+			fwd_info.attachmentCount = 2;
+			VK_CHECK(vkCreateFramebuffer(_device, &fwd_info, nullptr, &frame._forwardFramebuffer));
+			{
+				auto forwardFramebuffer = frame._forwardFramebuffer;
+				_surfaceDeletionQueue.push_function([=]() {
+					vkDestroyFramebuffer(_device, forwardFramebuffer, nullptr);
+					});
+			}
+		}
 	}
 
 }
@@ -1200,7 +1206,6 @@ void REngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& functi
 
 
 	//submit command buffer to the queue and execute it.
-	// _renderFence will now block until the graphic commands finish execution
 	VK_CHECK(vkQueueSubmit(_graphicsQueue, 1, &submit, _uploadContext._uploadFence));
 
 	vkWaitForFences(_device, 1, &_uploadContext._uploadFence, true, -1);
@@ -1328,40 +1333,28 @@ bool REngine::handle_surface_changes(bool force_update)
 {
 	VkSurfaceCapabilitiesKHR capabilities;
 	auto res = (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_chosenGPU, _surface, &capabilities));  // slow?
-	if (res != VK_SUCCESS || capabilities.currentExtent.width == 0xFFFFFFFF || capabilities.currentExtent.width == 0) {
+	if (res != VK_SUCCESS || capabilities.currentExtent.width == 0xFFFFFFFF) {
 		return false;
 	}
 	if (capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
 		capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
 	{
 		// Pre-rotation: always use native orientation i.e. if rotated, use width and height of identity transform
-		std::swap(capabilities.currentExtent.width, capabilities.currentExtent.height);
+		//std::swap(capabilities.currentExtent.width, capabilities.currentExtent.height);
 	}
-
 
 	if (capabilities.currentExtent.width != _windowExtent.width ||
 		capabilities.currentExtent.height != _windowExtent.height ||
-		_pretransformFlag != capabilities.currentTransform ||
+		//_pretransformFlag != capabilities.currentTransform ||
 		force_update)
 	{
-		//for (auto& frame : _frames) {
-		//	vkWaitForFences(_device, 1, &frame._renderFence, true, -1);
-		//}
 		vkDeviceWaitIdle(_device);
-
-		//update_swapchain(capabilities.currentExtent, pre_transform);
-		//device.get_resource_cache().clear_framebuffers();
 		_surfaceDeletionQueue.flush();
 
+		init_swapchain();
+		//init_framebuffers();
+
 		//_windowExtent = capabilities.currentExtent;
-
-		//swapchain = std::make_unique<Swapchain>(*swapchain, VkExtent2D{ width, height }, transform);
-		recreate_swapchain();
-		recreate_framebuffers();
-
-		//LOGI("Recreated swapchain");
-		//ImGui::GetStyle() = ImGuiStyle();
-		//ImGui::GetStyle().ScaleAllSizes(2);
 		return true;
 	}
 
@@ -1379,17 +1372,18 @@ void REngine::draw()
 
 	handle_surface_changes();
 
+	auto acquired_semaphore = get_current_frame()._presentSemaphore;
 	{
 		ZoneScopedN("Aquire Image");
 
-		_swapchainImageIndex_prev = _swapchainImageIndex;
-		auto result = vkAcquireNextImageKHR(_device, _swapchain.swapchain, -1, get_current_frame()._presentSemaphore, nullptr, &_swapchainImageIndex);
+		//_swapchainImageIndex_prev = _swapchainImageIndex;
+		auto result = vkAcquireNextImageKHR(_device, _swapchain.swapchain, -1, acquired_semaphore, nullptr, &_swapchainImageIndex);
 		if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			bool swapchain_updated = handle_surface_changes(result == VK_ERROR_OUT_OF_DATE_KHR);
 			if (swapchain_updated)
 			{
-				result = vkAcquireNextImageKHR(_device, _swapchain.swapchain, -1, get_current_frame()._presentSemaphore, nullptr, &_swapchainImageIndex);
+				result = vkAcquireNextImageKHR(_device, _swapchain.swapchain, -1, acquired_semaphore, nullptr, &_swapchainImageIndex);
 			}
 		}
 		if (result != VK_SUCCESS)
@@ -1406,13 +1400,17 @@ void REngine::draw()
 		//wait until the gpu has finished rendering the last frame. Timeout of 1 second
 		VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, -1));
 		VK_CHECK(vkResetFences(_device, 1, &get_current_frame()._renderFence));
+	}
+	{
+		//now that we are sure that the commands finished executing, we can safely reset the command buffer to begin recording again.
+		VK_CHECK(vkResetCommandBuffer(get_current_frame()._mainCommandBuffer, 0));
 
 		get_current_frame().dynamicData.reset();
 
 		_renderScene.build_batches();
 
 		//check the debug data
-		void* data;
+	/*	void* data;
 		vmaMapMemory(_allocator, get_current_frame().debugOutputBuffer._allocation, &data);
 		for (int i = 1; i < get_current_frame().debugDataNames.size(); i++)
 		{
@@ -1443,20 +1441,17 @@ void REngine::draw()
 				free(buffer);
 			}
 		}
-
 		vmaUnmapMemory(_allocator, get_current_frame().debugOutputBuffer._allocation);
 		get_current_frame().debugDataNames.clear();
 		get_current_frame().debugDataOffsets.clear();
-
 		get_current_frame().debugDataNames.push_back("");
-		get_current_frame().debugDataOffsets.push_back(0);
+		get_current_frame().debugDataOffsets.push_back(0);*/
+
 	}
+
 	get_current_frame()._frameDeletionQueue.flush();
 	get_current_frame().dynamicDescriptorAllocator->reset_pools();
 
-
-	//now that we are sure that the commands finished executing, we can safely reset the command buffer to begin recording again.
-	VK_CHECK(vkResetCommandBuffer(get_current_frame()._mainCommandBuffer, 0));
 
 	//naming it cmd for shorter writing
 	VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
@@ -1539,12 +1534,11 @@ void REngine::draw()
 			//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Imgui Draw");
 			//ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 		}
-		copy_render_to_swapchain(_swapchainImageIndex, cmd);
+		copy_render_to_swapchain(cmd);
 	}
 
 	//TracyVkCollect(_graphicsQueueContext, get_current_frame()._mainCommandBuffer);
 
-	//finalize the command buffer (we can no longer add commands, but it can now be executed)
 	VK_CHECK(vkEndCommandBuffer(cmd));
 
 	//prepare the submission to the queue. 
@@ -1558,7 +1552,7 @@ void REngine::draw()
 		submit.pWaitDstStageMask = &waitStage;
 
 		submit.waitSemaphoreCount = 1;
-		submit.pWaitSemaphores = &get_current_frame()._presentSemaphore;
+		submit.pWaitSemaphores = &acquired_semaphore;
 
 		submit.signalSemaphoreCount = 1;
 		submit.pSignalSemaphores = &get_current_frame()._renderSemaphore;
@@ -1831,6 +1825,8 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 
 void REngine::ready_cull_data(MeshPass& pass, VkCommandBuffer cmd)
 {
+	if (pass.batches.empty())
+		return;
 	//copy from the cleared indirect buffer into the one we will use on rendering. This one happens every frame
 	VkBufferCopy indirectCopy;
 	indirectCopy.dstOffset = 0;

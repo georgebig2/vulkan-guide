@@ -146,7 +146,7 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 				engine = new AndroidEngine(app->window, app->activity->assetManager);
 				//engine->resize_window(ANativeWindow_getWidth(app->window), ANativeWindow_getHeight(app->window));
 				dpi = AConfiguration_getDensity(app->config) / static_cast<float>(ACONFIGURATION_DENSITY_MEDIUM);
-				engine->init();
+				engine->init(false);
 				//mHasWindow = true;
 /*				if (app->savedStateSize == sizeof(mState) && app->savedState != nullptr) {
 					mState = *((NativeEngineSavedState *) mApp->savedState);

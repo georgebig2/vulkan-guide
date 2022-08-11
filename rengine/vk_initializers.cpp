@@ -356,3 +356,25 @@ VkImageMemoryBarrier vkinit::image_barrier(VkImage image, VkAccessFlags srcAcces
 
 	return result;
 }
+
+//VkImageMemoryBarrier2 imageBarrier2(VkImage image, VkPipelineStageFlags2 srcStageMask, VkAccessFlags2 srcAccessMask, VkImageLayout oldLayout, VkPipelineStageFlags2 dstStageMask, VkAccessFlags2 dstAccessMask, VkImageLayout newLayout, VkImageAspectFlags aspectMask, uint32_t baseMipLevel, uint32_t levelCount)
+//{
+//	VkImageMemoryBarrier2 result = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+//
+//	result.srcStageMask = srcStageMask;
+//	result.srcAccessMask = srcAccessMask;
+//	result.dstStageMask = dstStageMask;
+//	result.dstAccessMask = dstAccessMask;
+//	result.oldLayout = oldLayout;
+//	result.newLayout = newLayout;
+//	result.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+//	result.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+//	result.image = image;
+//	result.subresourceRange.aspectMask = aspectMask;
+//	result.subresourceRange.baseMipLevel = baseMipLevel;
+//	result.subresourceRange.levelCount = levelCount;
+//	result.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+//
+//	return result;
+//}
+

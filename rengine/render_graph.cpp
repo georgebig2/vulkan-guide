@@ -37,7 +37,7 @@ void REngine::init_forward_renderpass()
 	VkAttachmentDescription color_attachment = {};
 	color_attachment.format = _renderFormat;//_swachainImageFormat;
 	color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -72,16 +72,6 @@ void REngine::init_forward_renderpass()
 	//hook the depth attachment into the subpass
 	subpass.pDepthStencilAttachment = &depth_attachment_ref;
 
-	//1 dependency, which is from "outside" into the subpass. And we can read or write color
-	VkSubpassDependency dependency = {};
-	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependency.dstSubpass = 0;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.srcAccessMask = 0;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
-
 	//array of 2 attachments, one for the color, and other for depth
 	VkAttachmentDescription attachments[2] = { color_attachment,depth_attachment };
 
@@ -104,23 +94,6 @@ void REngine::init_forward_renderpass()
 
 void REngine::init_shadow_renderpass()
 {
-	//shadow image
-	{
-		//for the depth image, we want to allocate it from gpu local memory
-		VmaAllocationCreateInfo dimg_allocinfo = {};
-		dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		VkExtent3D shadowExtent = { _shadowExtent.width, _shadowExtent.height, 1 };
-
-		//the depth image will be a image with the format we selected and Depth Attachment usage flag
-		VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, shadowExtent);
-
-		vmaCreateImage(_allocator, &dimg_info, &dimg_allocinfo, &_shadowImage._image, &_shadowImage._allocation, nullptr);
-		VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, _shadowImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
-		VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_shadowImage._defaultView));
-	}
-
 	VkAttachmentDescription depth_attachment = {};
 	// Depth attachment
 	depth_attachment.flags = 0;
@@ -144,15 +117,6 @@ void REngine::init_shadow_renderpass()
 	//hook the depth attachment into the subpass
 	subpass.pDepthStencilAttachment = &depth_attachment_ref;
 
-	//1 dependency, which is from "outside" into the subpass. And we can read or write color
-	VkSubpassDependency dependency = {};
-	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependency.dstSubpass = 0;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.srcAccessMask = 0;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
 	VkRenderPassCreateInfo render_pass_info = {};
 	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	//2 attachments from said array
@@ -162,25 +126,50 @@ void REngine::init_shadow_renderpass()
 	render_pass_info.pSubpasses = &subpass;
 
 	VK_CHECK(vkCreateRenderPass(_device, &render_pass_info, nullptr, &_shadowPass));
-
-	//if (!_shadowFramebuffer)
-	{
-		VkFramebufferCreateInfo sh_info = vkinit::framebuffer_create_info(_shadowPass, _shadowExtent);
-		sh_info.pAttachments = &_shadowImage._defaultView;
-		sh_info.attachmentCount = 1;
-		VK_CHECK(vkCreateFramebuffer(_device, &sh_info, nullptr, &_shadowFramebuffer));
-	}
-
 	_mainDeletionQueue.push_function([=]() {
-		vkDestroyImageView(_device, _shadowImage._defaultView, nullptr);
-		vmaDestroyImage(_allocator, _shadowImage._image, _shadowImage._allocation);
 		vkDestroyRenderPass(_device, _shadowPass, nullptr);
-		vkDestroyFramebuffer(_device, _shadowFramebuffer, nullptr);
 		});
+
+	for (auto& frame : _frames)
+	{
+		//for the depth image, we want to allocate it from gpu local memory
+		VmaAllocationCreateInfo dimg_allocinfo = {};
+		dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+		dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+		VkExtent3D shadowExtent = { _shadowExtent.width, _shadowExtent.height, 1 };
+
+		//the depth image will be a image with the format we selected and Depth Attachment usage flag
+		VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, shadowExtent);
+
+		vmaCreateImage(_allocator, &dimg_info, &dimg_allocinfo, &frame._shadowImage._image, &frame._shadowImage._allocation, nullptr);
+		VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, frame._shadowImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
+		VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &frame._shadowImage._defaultView));
+
+
+		{
+			VkFramebufferCreateInfo sh_info = vkinit::framebuffer_create_info(_shadowPass, _shadowExtent);
+			sh_info.pAttachments = &frame._shadowImage._defaultView;
+			sh_info.attachmentCount = 1;
+			VK_CHECK(vkCreateFramebuffer(_device, &sh_info, nullptr, &frame._shadowFramebuffer));
+		}
+
+		{
+			auto defaultView = frame._shadowImage._defaultView;
+			auto image = frame._shadowImage._image;
+			auto allocation = frame._shadowImage._allocation;
+			auto shadowFramebuffer = frame._shadowFramebuffer;
+			_mainDeletionQueue.push_function([=]() {
+				vkDestroyImageView(_device, defaultView, nullptr);
+				vmaDestroyImage(_allocator, image, allocation);
+				vkDestroyFramebuffer(_device, shadowFramebuffer, nullptr);
+				});
+		}
+	}
 }
 
 
-void REngine::init_copy_renderpass()
+void REngine::init_copy_renderpass(VkFormat swachainImageFormat)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
 	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -221,7 +210,7 @@ void REngine::init_copy_renderpass()
 //we dont care about stencil, and dont use multisampling
 
 	VkAttachmentDescription color_attachment = {};
-	color_attachment.format = _swachainImageFormat;
+	color_attachment.format = swachainImageFormat;
 	color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -239,15 +228,6 @@ void REngine::init_copy_renderpass()
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &color_attachment_ref;
-
-	//1 dependency, which is from "outside" into the subpass. And we can read or write color
-	VkSubpassDependency dependency = {};
-	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependency.dstSubpass = 0;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.srcAccessMask = 0;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
 
 	VkRenderPassCreateInfo render_pass_info = {};
@@ -276,7 +256,7 @@ void REngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 
 	//start the main renderpass. 
 	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _forwardFramebuffer/*_framebuffers[swapchainImageIndex]*/);
+	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, get_current_frame()._forwardFramebuffer);
 
 	//connect clear values
 	rpInfo.clearValueCount = 2;
@@ -321,17 +301,16 @@ void REngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
 {
 	ZoneScopedNC("DrawObjects", tracy::Color::Blue);
-	//make a model view matrix for rendering the object
-	//camera view
+
 	glm::mat4 view = _camera.get_view_matrix(this);
-	//camera projection
 	glm::mat4 projection = _camera.get_projection_matrix(this);
+	glm::mat4 pre_rotate = _camera.get_pre_rotation_matrix(this);
 
 
 	GPUCameraData camData;
 	camData.proj = projection;
 	camData.view = view;
-	camData.viewproj = projection * view;
+	camData.viewproj = pre_rotate * projection * view;
 
 	_sceneParameters.sunlightShadowMatrix = _mainLight.get_projection() * _mainLight.get_view();
 
@@ -359,7 +338,7 @@ void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
 	VkDescriptorImageInfo shadowImage;
 	shadowImage.sampler = _shadowSampler;
 
-	shadowImage.imageView = _shadowImage._defaultView;
+	shadowImage.imageView = get_current_frame()._shadowImage._defaultView;
 	shadowImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	VkDescriptorSet GlobalSet;
@@ -393,7 +372,7 @@ void REngine::shadow_pass(VkCommandBuffer cmd)
 	//clear depth at 1
 	VkClearValue depthClear;
 	depthClear.depthStencil.depth = 1.f;
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_shadowPass, _shadowExtent, _shadowFramebuffer);
+	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_shadowPass, _shadowExtent, get_current_frame()._shadowFramebuffer);
 
 	//connect clear values
 	rpInfo.clearValueCount = 1;
@@ -496,7 +475,7 @@ void REngine::execute_compute_cull(VkCommandBuffer cmd, MeshPass& pass, CullPara
 
 	VkDescriptorImageInfo depthPyramid;
 	depthPyramid.sampler = _depthSampler;
-	depthPyramid.imageView = _depthPyramid._defaultView;
+	depthPyramid.imageView = get_current_frame()._depthPyramid._defaultView;
 	depthPyramid.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 
@@ -535,7 +514,7 @@ void REngine::execute_compute_cull(VkCommandBuffer cmd, MeshPass& pass, CullPara
 	//cullData.pyramidWidth = static_cast<float>(depthPyramidWidth);
 	//cullData.pyramidHeight = static_cast<float>(depthPyramidHeight);
 	cullData.pyramid = depthPyramidWidth + (depthPyramidHeight << 16);
-	cullData.viewMat = params.viewmat;//get_view_matrix();
+	cullData.view = params.viewmat;//get_view_matrix();
 
 	cullData.flags |= params.aabb ? 8 : 0;
 	cullData.aabbmin_x = params.aabbmin.x;
@@ -597,11 +576,18 @@ void REngine::reduce_depth(VkCommandBuffer cmd)
 {
 	vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu depth reduce");
 
-	VkImageMemoryBarrier depthReadBarriers[] =
-	{
-		vkinit::image_barrier(_depthImage._image, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT),
+	VkImageMemoryBarrier depthReadBarriers[] = {
+		vkinit::image_barrier(get_current_frame()._depthImage._image,
+		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 
+		VK_ACCESS_SHADER_READ_BIT,
+		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+		VK_IMAGE_ASPECT_DEPTH_BIT),
 	};
-	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, depthReadBarriers);
+	vkCmdPipelineBarrier(cmd, 
+		VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+		VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, depthReadBarriers);
 
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _depthReducePipeline);
 
@@ -609,18 +595,18 @@ void REngine::reduce_depth(VkCommandBuffer cmd)
 	{
 		VkDescriptorImageInfo destTarget;
 		destTarget.sampler = _depthSampler;
-		destTarget.imageView = depthPyramidMips[i];
+		destTarget.imageView = get_current_frame().depthPyramidMips[i];
 		destTarget.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
 		VkDescriptorImageInfo sourceTarget;
 		sourceTarget.sampler = _depthSampler;
 		if (i == 0)
 		{
-			sourceTarget.imageView = _depthImage._defaultView;
+			sourceTarget.imageView = get_current_frame()._depthImage._defaultView;
 			sourceTarget.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		}
 		else {
-			sourceTarget.imageView = depthPyramidMips[i - 1];
+			sourceTarget.imageView = get_current_frame().depthPyramidMips[i - 1];
 			sourceTarget.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 		}
 
@@ -642,11 +628,25 @@ void REngine::reduce_depth(VkCommandBuffer cmd)
 		vkCmdPushConstants(cmd, _depthReduceLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(reduceData), &reduceData);
 		vkCmdDispatch(cmd, getGroupCount(levelWidth, 32), getGroupCount(levelHeight, 32), 1);
 
-		VkImageMemoryBarrier reduceBarrier = vkinit::image_barrier(_depthPyramid._image, VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_ASPECT_COLOR_BIT);
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &reduceBarrier);
+		VkImageMemoryBarrier reduceBarrier = vkinit::image_barrier(get_current_frame()._depthPyramid._image,
+			VK_ACCESS_SHADER_WRITE_BIT, 
+			VK_ACCESS_SHADER_READ_BIT, 
+			VK_IMAGE_LAYOUT_GENERAL, 
+			VK_IMAGE_LAYOUT_GENERAL, 
+			VK_IMAGE_ASPECT_COLOR_BIT);
+
+		vkCmdPipelineBarrier(cmd, 
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+			VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &reduceBarrier);
 	}
 
-	VkImageMemoryBarrier depthWriteBarrier = vkinit::image_barrier(_depthImage._image, VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+	VkImageMemoryBarrier depthWriteBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
+		VK_ACCESS_SHADER_READ_BIT, 
+		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
+		VK_IMAGE_ASPECT_DEPTH_BIT);
 	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthWriteBarrier);
 }
 
@@ -734,12 +734,11 @@ void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescr
 	}
 }
 
-void REngine::copy_render_to_swapchain(uint32_t swapchainImageIndex, VkCommandBuffer cmd)
+void REngine::copy_render_to_swapchain(VkCommandBuffer cmd)
 {
 	//start the main renderpass. 
 	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo copyRP = vkinit::renderpass_begin_info(_copyPass, _windowExtent, _framebuffers[swapchainImageIndex]);
-
+	VkRenderPassBeginInfo copyRP = vkinit::renderpass_begin_info(_copyPass, _windowExtent, get_current_frame()._framebuffer);
 
 	vkCmdBeginRenderPass(cmd, &copyRP, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -763,7 +762,7 @@ void REngine::copy_render_to_swapchain(uint32_t swapchainImageIndex, VkCommandBu
 	VkDescriptorImageInfo sourceImage;
 	sourceImage.sampler = _smoothSampler;
 
-	sourceImage.imageView = _rawRenderImage._defaultView;
+	sourceImage.imageView = get_current_frame()._rawRenderImage._defaultView;
 	sourceImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	VkDescriptorSet blitSet;
