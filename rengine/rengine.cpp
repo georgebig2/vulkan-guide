@@ -107,6 +107,30 @@ void REngine::update()
 	ImGui::NewFrame();
 	hud_update();
 
+	//vtest flagging some objects for changes
+	{
+		//ZoneScopedNC("Flag Objects", tracy::Color::Blue);
+		int N_changes = 1000;
+		for (int i = 0; i < N_changes; i++)
+		{
+			int rng = rand() % get_render_scene()->renderables.size();
+
+			Handle<RenderObject> h;
+			h.handle = rng;
+
+			auto* obj = get_render_scene()->get_object(h);
+			auto prev = obj->transformMatrix;
+			//glm::mat4 tr = glm::translate(glm::mat4{ 1.0 }, glm::vec3(0, 15, 0));
+			float scale = sin(_frameNumber / 1000.f + h.handle) * 0.0005f + 1.f;
+			glm::mat4 sm = glm::scale(glm::mat4{ 1.0 }, glm::vec3(scale));
+			//glm::mat4 rot = glm::rotate(glm::radians(90.f), glm::vec3{ 1,0,0 });
+			auto newm = prev * sm;
+			get_render_scene()->update_transform(h, newm);
+
+			//_renderScene.update_object(h);
+		}
+	}
+
 	_camera.update_camera(stats.frametime, _windowExtent.width, _windowExtent.height);
 	_mainLight.lightPosition = _camera.position;
 

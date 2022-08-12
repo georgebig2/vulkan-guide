@@ -409,10 +409,11 @@ void VulkanEngine::run()
 
 				//_renderScene.update_object(h);
 			}
-			_camera.bLocked = CVAR_CamLock.Get();
-			_camera.update_camera(stats.frametime, _windowExtent.width, _windowExtent.height);
-			_mainLight.lightPosition = _camera.position;
 		}
+
+		_camera.bLocked = CVAR_CamLock.Get();
+		_camera.update_camera(stats.frametime, _windowExtent.width, _windowExtent.height);
+		_mainLight.lightPosition = _camera.position;
 
 		draw();
 	}
