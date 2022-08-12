@@ -71,29 +71,6 @@ T* REngine::map_buffer(AllocatedBuffer<T>& buffer)
 	return(T*)data;
 }
 
-//
-//void REngine::hud_update()
-//{
-//    if (ImGui::BeginMainMenuBar())
-//    {
-//        if (ImGui::BeginMenu("Debug"))
-//        {
-//            if (ImGui::BeginMenu("CVAR"))
-//            {
-//                CVarSystem::Get()->DrawImguiEditor();
-//                ImGui::EndMenu();
-//            }
-//            if (ImGui::BeginMenu("GRAPH"))
-//            {
-//                static bool perf = false;
-//                ImGui::Checkbox("Perf", &perf);
-//                ImGui::EndMenu();
-//            }
-//            ImGui::EndMenu();
-//        }
-//        ImGui::EndMainMenuBar();
-//    }
-//}
 
 void REngine::update()
 {
@@ -121,7 +98,7 @@ void REngine::update()
 			auto* obj = get_render_scene()->get_object(h);
 			auto prev = obj->transformMatrix;
 			//glm::mat4 tr = glm::translate(glm::mat4{ 1.0 }, glm::vec3(0, 15, 0));
-			float scale = sin(_frameNumber / 1000.f + h.handle) * 0.0005f + 1.f;
+			float scale = sin(_frameNumber / 200.f + h.handle) * 0.0003f + 1.f;
 			glm::mat4 sm = glm::scale(glm::mat4{ 1.0 }, glm::vec3(scale));
 			//glm::mat4 rot = glm::rotate(glm::radians(90.f), glm::vec3{ 1,0,0 });
 			auto newm = prev * sm;
@@ -131,7 +108,7 @@ void REngine::update()
 		}
 	}
 
-	_camera.update_camera(stats.frametime, _windowExtent.width, _windowExtent.height);
+	_camera.update_camera(stats.frametime);
 	_mainLight.lightPosition = _camera.position;
 
 	draw();
@@ -210,7 +187,7 @@ void REngine::init_scene()
 
 void REngine::init(bool debug)
 {
-	vkb::Instance vkb_inst;
+	//vkb::Instance vkb_inst;
 	vkb::InstanceBuilder builder;
 	if (debug) {
 		auto inst_ret = builder.set_app_name("REngine")
@@ -218,18 +195,18 @@ void REngine::init(bool debug)
 			.use_default_debug_messenger()
 			.build();
 		//LOG_SUCCESS("Vulkan Instance initialized");
-		vkb_inst = inst_ret.value();
+		_instance = inst_ret.value();
 	}
 	else {
 		auto inst_ret = builder.set_app_name("REngine")
 //			.request_validation_layers(bUseValidationLayers)
 	//		.use_default_debug_messenger()
 			.build();
-		vkb_inst = inst_ret.value();
+		_instance = inst_ret.value();
 	}
-	_instance = vkb_inst.instance;
+	//_instance = vkb_inst.instance;
 
-	create_surface(_instance, &_surface);
+	create_surface(_instance.instance, &_surface);
 
 	VkPhysicalDeviceFeatures feats = {};
 	feats.pipelineStatisticsQuery = true;
@@ -237,7 +214,7 @@ void REngine::init(bool debug)
 	feats.drawIndirectFirstInstance = true;
 	feats.samplerAnisotropy = true;
 
-	vkb::PhysicalDeviceSelector selector{ vkb_inst };
+	vkb::PhysicalDeviceSelector selector{ _instance };
 	selector.set_required_features(feats);
 
 	vkb::PhysicalDevice physicalDevice = selector.set_surface(_surface)
@@ -280,7 +257,7 @@ void REngine::init(bool debug)
 	VmaAllocatorCreateInfo allocatorInfo = {};
 	allocatorInfo.physicalDevice = _chosenGPU;
 	allocatorInfo.device = _device;
-	allocatorInfo.instance = _instance;
+	allocatorInfo.instance = _instance.instance;
 	allocatorInfo.pVulkanFunctions = &vma_vulkan_func;
 	
 	vmaCreateAllocator(&allocatorInfo, &_allocator);
@@ -304,20 +281,20 @@ void REngine::init(bool debug)
 
 	//load_image_to_cache("white", asset_path("Sponza/white.tx").c_str());
 
-	{
-		vkutil::MaterialData texturedInfo;
-		texturedInfo.baseTemplate = "texturedPBR_opaque";
-		texturedInfo.parameters = nullptr;
+	//{
+	//	vkutil::MaterialData texturedInfo;
+	//	texturedInfo.baseTemplate = "texturedPBR_opaque";
+	//	texturedInfo.parameters = nullptr;
 
-		vkutil::SampledTexture whiteTex;
-		whiteTex.sampler = _smoothSampler2;
-		whiteTex.view = _loadedTextures["white"].imageView;
+	//	vkutil::SampledTexture whiteTex;
+	//	whiteTex.sampler = _smoothSampler2;
+	//	whiteTex.view = _loadedTextures["white"].imageView;
 
-		texturedInfo.textures.push_back(whiteTex);
+	//	texturedInfo.textures.push_back(whiteTex);
 
-		vkutil::Material* newmat = _materialSystem->build_material("textured", texturedInfo);
-	}
-	{
+	//	vkutil::Material* newmat = _materialSystem->build_material("textured", texturedInfo);
+	//}
+	/*{
 		vkutil::MaterialData matinfo;
 		matinfo.baseTemplate = "texturedPBR_opaque";
 		matinfo.parameters = nullptr;
@@ -330,7 +307,7 @@ void REngine::init(bool debug)
 
 		vkutil::Material* newmat = _materialSystem->build_material("default", matinfo);
 
-	}
+	}*/
 
 	init_scene();
 
@@ -357,8 +334,8 @@ void REngine::init(bool debug)
 
 void REngine::resize_window(int w, int h)
 {
-	//_windowExtent.width = w;
-	//_windowExtent.height = h;
+	_windowExtent.width = 0;
+	_windowExtent.height = 0;
 	//if (_isInitialized)
 	//{
 		//ImGui_ImplVulkanH_CreateOrResizeWindow(_instance, _chosenGPU, _device, ImGui_ImplVulkanH_Window * wnd, _graphicsQueue, const VkAllocationCallbacks * allocator, w, h, 3);
@@ -441,23 +418,22 @@ bool REngine::load_image_to_cache(const char* name, const char* path)
 	ZoneScopedNC("Load Texture", tracy::Color::Yellow);
 	Texture newtex;
 
-	if (_loadedTextures.find(name) != _loadedTextures.end()) return true;
+	if (_loadedTextures.find(name) != _loadedTextures.end()) 
+		return true;
 
 	bool result = vkutil::load_image_from_asset(*this, path, newtex.image);
 
 	if (!result)
 	{
 		LOG_ERROR("Error When texture {} at path {}", name, path);
-		return false;
+		bool result = vkutil::load_image_from_asset(*this, asset_path("white.tx").c_str(), newtex.image);
+		assert(result);
+		//return false;
 	}
 	else {
 		LOG_SUCCESS("Loaded texture {} at path {}", name, path);
 	}
 	newtex.imageView = newtex.image._defaultView;
-	//VkImageViewCreateInfo imageinfo = vkinit::imageview_create_info(VK_FORMAT_R8G8B8A8_UNORM, newtex.image._image, VK_IMAGE_ASPECT_COLOR_BIT);
-	//imageinfo.subresourceRange.levelCount = newtex.image.mipLevels;
-	//vkCreateImageView(_device, &imageinfo, nullptr, &newtex.imageView);
-
 	_loadedTextures[name] = newtex;
 	return true;
 }
@@ -563,11 +539,6 @@ bool REngine::load_prefab(const char* path, glm::mat4 root)
 
 	std::vector<MeshObject> prefab_renderables;
 	prefab_renderables.reserve(prefab->node_meshes.size());
-
-	//VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-	//samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	//VkSampler smoothSampler;
-	//vkCreateSampler(_device, &samplerInfo, nullptr, &smoothSampler);
 
 	for (auto& [k, v] : prefab->node_meshes)
 	{
@@ -735,28 +706,36 @@ void REngine::upload_mesh(Mesh& mesh)
 	vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 
 	AllocatedBufferUntyped stagingBuffer;
+	{
+		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo,
+			&mesh._vertexBuffer._buffer,
+			&mesh._vertexBuffer._allocation,
+			nullptr));
 
-	//allocate the buffer
-	VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo,
-		&mesh._vertexBuffer._buffer,
-		&mesh._vertexBuffer._allocation,
-		nullptr));
-	//copy vertex data
-	char* data;
-	vmaMapMemory(_allocator, mesh._vertexBuffer._allocation, (void**)&data);
-	memcpy(data, mesh._vertices.data(), vertex_buffer_size);
-	vmaUnmapMemory(_allocator, mesh._vertexBuffer._allocation);
+		char* data;
+		vmaMapMemory(_allocator, mesh._vertexBuffer._allocation, (void**)&data);
+		memcpy(data, mesh._vertices.data(), vertex_buffer_size);
+		vmaUnmapMemory(_allocator, mesh._vertexBuffer._allocation);
+
+		_mainDeletionQueue.push_function([=]() {
+			vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+			});
+	}
 
 	if (index_buffer_size != 0)
 	{
-		//allocate the buffer
 		VK_CHECK(vmaCreateBuffer(_allocator, &indexBufferInfo, &vmaallocInfo,
 			&mesh._indexBuffer._buffer,
 			&mesh._indexBuffer._allocation,
 			nullptr));
+		char* data;
 		vmaMapMemory(_allocator, mesh._indexBuffer._allocation, (void**)&data);
 		memcpy(data, mesh._indices.data(), index_buffer_size);
 		vmaUnmapMemory(_allocator, mesh._indexBuffer._allocation);
+
+		_mainDeletionQueue.push_function([=]() {
+			vmaDestroyBuffer(_allocator, mesh._indexBuffer._buffer, mesh._indexBuffer._allocation);
+			});
 	}
 }
 
@@ -770,7 +749,7 @@ void REngine::init_pipelines()
 	ShaderEffect* blitEffect = new ShaderEffect();
 	blitEffect->add_stage(get_shader_cache()->get_shader(this, shader_path("fullscreen.vert.spv")), VK_SHADER_STAGE_VERTEX_BIT);
 	blitEffect->add_stage(get_shader_cache()->get_shader(this, shader_path("blit.frag.spv")), VK_SHADER_STAGE_FRAGMENT_BIT);
-	blitEffect->reflect_layout(_device, nullptr, 0);
+	blitEffect->reflect_layout(this, _device, nullptr, 0);
 
 
 	PipelineBuilder pipelineBuilder;
@@ -804,7 +783,7 @@ void REngine::init_pipelines()
 	_blitLayout = blitEffect->builtLayout;
 
 	_mainDeletionQueue.push_function([=]() {
-		//vkDestroyPipeline(_device, meshPipeline, nullptr);
+		//vkDestroyPipelineLayout(_device, _blitLayout, nullptr);
 		vkDestroyPipeline(_device, _blitPipeline, nullptr);
 		});
 
@@ -827,7 +806,7 @@ bool REngine::load_compute_shader(const char* shaderPath, VkPipeline& pipeline, 
 	ShaderEffect* computeEffect = new ShaderEffect();;
 	computeEffect->add_stage(&computeModule, VK_SHADER_STAGE_COMPUTE_BIT);
 
-	computeEffect->reflect_layout(_device, nullptr, 0);
+	computeEffect->reflect_layout(this, _device, nullptr, 0);
 
 	ComputePipelineBuilder computeBuilder;
 	computeBuilder._pipelineLayout = computeEffect->builtLayout;
@@ -837,12 +816,11 @@ bool REngine::load_compute_shader(const char* shaderPath, VkPipeline& pipeline, 
 	layout = computeEffect->builtLayout;
 	pipeline = computeBuilder.build_pipeline(_device);
 
-	vkDestroyShaderModule(_device, computeModule.module, nullptr);
+	//vkDestroyShaderModule(_device, computeModule.module, nullptr);
 
 	_mainDeletionQueue.push_function([=]() {
 		vkDestroyPipeline(_device, pipeline, nullptr);
-
-		vkDestroyPipelineLayout(_device, layout, nullptr);
+		//vkDestroyPipelineLayout(_device, layout, nullptr);
 		});
 
 	return true;
@@ -887,7 +865,7 @@ void REngine::init_imgui()
 
 	//this initializes imgui for Vulkan
 	ImGui_ImplVulkan_InitInfo init_info = {};
-	init_info.Instance = _instance;
+	init_info.Instance = _instance.instance;
 	init_info.PhysicalDevice = _chosenGPU;
 	init_info.Device = _device;
 	init_info.Queue = _graphicsQueue;
@@ -947,19 +925,18 @@ void REngine::cleanup()
 
 		for (auto& frame : _frames)
 		{
+			frame._frameDeletionQueue.flush();
 			frame.dynamicDescriptorAllocator->cleanup();
 		}
 
 		_descriptorAllocator->cleanup();
 		_descriptorLayoutCache->cleanup();
 
-		vkDestroySwapchainKHR(_device, _swapchain.swapchain, nullptr);
+		vkb::destroy_swapchain(_swapchain);
 
 		vkDestroyDevice(_device, nullptr);
-		vkDestroySurfaceKHR(_instance, _surface, nullptr);
-		vkDestroyInstance(_instance, nullptr);
-
-		//ImGui_ImplVulkan_Shutdown();
+		vkDestroySurfaceKHR(_instance.instance, _surface, nullptr);
+		vkb::destroy_instance(_instance);
 	}
 }
 
@@ -1059,47 +1036,55 @@ void REngine::init_swapchain()
 		VkImageCreateInfo ri_info = vkinit::image_create_info(_renderFormat,
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, renderImageExtent);
 
-		//for the depth image, we want to allocate it from gpu local memory
 		VmaAllocationCreateInfo dimg_allocinfo = {};
 		dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 		dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-		vmaCreateImage(_allocator, &ri_info, &dimg_allocinfo, &frame._rawRenderImage._image, &frame._rawRenderImage._allocation, nullptr);
+		{
+			vmaCreateImage(_allocator, &ri_info, &dimg_allocinfo, &frame._rawRenderImage._image, &frame._rawRenderImage._allocation, nullptr);
+			VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_renderFormat, frame._rawRenderImage._image, VK_IMAGE_ASPECT_COLOR_BIT);
+			VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &frame._rawRenderImage._defaultView));
+			auto i = frame._rawRenderImage._image;
+			auto a = frame._rawRenderImage._allocation;
+			auto v = frame._rawRenderImage._defaultView;
+			_surfaceDeletionQueue.push_function([=]() {
+				vkDestroyImageView(_device, v, nullptr);
+				vmaDestroyImage(_allocator, i, a);
+				});
+		}
 
-		VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_renderFormat, frame._rawRenderImage._image, VK_IMAGE_ASPECT_COLOR_BIT);
-		VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &frame._rawRenderImage._defaultView));
-
-
-		//depth image size will match the window
-		VkExtent3D depthImageExtent = { _windowExtent.width, _windowExtent.height, 1 };
-
-		////for the depth image, we want to allocate it from gpu local memory
-		//VmaAllocationCreateInfo dimg_allocinfo = {};
-		//dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		//dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 		// depth image ------ 
 		{
 			//the depth image will be a image with the format we selected and Depth Attachment usage flag
+			VkExtent3D depthImageExtent = { _windowExtent.width, _windowExtent.height, 1 };
 			VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat,
 				VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, depthImageExtent);
 
 			vmaCreateImage(_allocator, &dimg_info, &dimg_allocinfo, &frame._depthImage._image, &frame._depthImage._allocation, nullptr);
-			VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, frame._depthImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
+			auto dview_info = vkinit::imageview_create_info(_depthFormat, frame._depthImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
 			VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &frame._depthImage._defaultView));
+			{
+				auto i = frame._depthImage._image;
+				auto a = frame._depthImage._allocation;
+				auto v = frame._depthImage._defaultView;
+				_surfaceDeletionQueue.push_function([=]() {
+					vkDestroyImageView(_device, v, nullptr);
+					vmaDestroyImage(_allocator, i, a);
+					});
+			}
 		}
 		{
 			VkFramebufferCreateInfo fb_info = vkinit::framebuffer_create_info(_copyPass, _windowExtent);
 			fb_info.pAttachments = &frame._swapchainImageView;
 			fb_info.attachmentCount = 1;
 			VK_CHECK(vkCreateFramebuffer(_device, &fb_info, nullptr, &frame._framebuffer));
-
 			{
-				auto swapchainImageView = frame._swapchainImageView;
-				auto framebuffer = frame._framebuffer;
+				auto v = frame._swapchainImageView;
+				auto f = frame._framebuffer;
 				_surfaceDeletionQueue.push_function([=]() {
-					vkDestroyImageView(_device, swapchainImageView, nullptr);
-					vkDestroyFramebuffer(_device, framebuffer, nullptr);
+					vkDestroyFramebuffer(_device, f, nullptr);
+					vkDestroyImageView(_device, v, nullptr);
 					});
 			}
 		}
@@ -1124,17 +1109,11 @@ void REngine::init_swapchain()
 		VkImageViewCreateInfo priview_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
 		priview_info.subresourceRange.levelCount = depthPyramidLevels;
 		VK_CHECK(vkCreateImageView(_device, &priview_info, nullptr, &frame._depthPyramid._defaultView));
-
 		{
-			auto defaultView = frame._depthImage._defaultView;
-			auto image = frame._depthImage._image;
 			auto pdefaultView = frame._depthPyramid._defaultView;
 			auto pimage = frame._depthPyramid._image;
-			auto allocation = frame._depthImage._allocation;
 			auto pallocation = frame._depthPyramid._allocation;
 			_surfaceDeletionQueue.push_function([=]() {
-				vkDestroyImageView(_device, defaultView, nullptr);
-				vmaDestroyImage(_allocator, image, allocation);
 				vkDestroyImageView(_device, pdefaultView, nullptr);
 				vmaDestroyImage(_allocator, pimage, pallocation);
 				});
@@ -1148,7 +1127,6 @@ void REngine::init_swapchain()
 
 			VkImageView pyramid;
 			vkCreateImageView(_device, &level_info, nullptr, &pyramid);
-
 			_surfaceDeletionQueue.push_function([=]() {
 				vkDestroyImageView(_device, pyramid, nullptr);
 				});
@@ -1166,9 +1144,9 @@ void REngine::init_swapchain()
 			fwd_info.attachmentCount = 2;
 			VK_CHECK(vkCreateFramebuffer(_device, &fwd_info, nullptr, &frame._forwardFramebuffer));
 			{
-				auto forwardFramebuffer = frame._forwardFramebuffer;
+				auto f = frame._forwardFramebuffer;
 				_surfaceDeletionQueue.push_function([=]() {
-					vkDestroyFramebuffer(_device, forwardFramebuffer, nullptr);
+					vkDestroyFramebuffer(_device, f, nullptr);
 					});
 			}
 		}
@@ -1244,26 +1222,23 @@ void REngine::init_commands()
 	//we also want the pool to allow for resetting of individual command buffers
 	VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
-
 	for (int i = 0; i < _frames.size(); i++)
 	{
 		VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_frames[i]._commandPool));
 
-		//allocate the default command buffer that we will use for rendering
 		VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1);
-
 		VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_frames[i]._mainCommandBuffer));
-
-		_mainDeletionQueue.push_function([=]() {
-			vkDestroyCommandPool(_device, _frames[i]._commandPool, nullptr);
-			});
+		{
+			auto p = _frames[i]._commandPool;
+			auto c = _frames[i]._mainCommandBuffer;
+			_mainDeletionQueue.push_function([=]() {
+				vkFreeCommandBuffers(_device, p, 1, &c);
+				vkDestroyCommandPool(_device, p, nullptr);
+				});
+		}
 	}
 	
-	//_graphicsQueueContext = TracyVkContext(_chosenGPU, _device, _graphicsQueue, _frames[0]._mainCommandBuffer);
-
-
 	VkCommandPoolCreateInfo uploadCommandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily);
-	//create pool for upload context
 	VK_CHECK(vkCreateCommandPool(_device, &uploadCommandPoolInfo, nullptr, &_uploadContext._commandPool));
 
 	_mainDeletionQueue.push_function([=]() {
@@ -1336,7 +1311,7 @@ void REngine::init_descriptors()
 	set3info.pNext = nullptr;
 	set3info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	set3info.pBindings = &textureBind;
-	_singleTextureSetLayout = _descriptorLayoutCache->create_descriptor_layout(&set3info);
+	//_singleTextureSetLayout = _descriptorLayoutCache->create_descriptor_layout(&set3info);
 	const size_t sceneParamBufferSize = _frames.size() * pad_uniform_buffer_size(sizeof(GPUSceneData));
 
 	for (int i = 0; i < _frames.size(); i++)
@@ -1346,10 +1321,14 @@ void REngine::init_descriptors()
 
 		//1 megabyte of dynamic data buffer
 		auto dynamicDataBuffer = create_buffer(this, 1000000, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+		_mainDeletionQueue.push_function([=]() {
+			vmaUnmapMemory(_allocator, dynamicDataBuffer._allocation);
+			vmaDestroyBuffer(_allocator, dynamicDataBuffer._buffer, dynamicDataBuffer._allocation);
+			});
 		_frames[i].dynamicData.init(_allocator, dynamicDataBuffer, _gpuProperties.limits.minUniformBufferOffsetAlignment);
 
 		//20 megabyte of debug output
-		_frames[i].debugOutputBuffer = create_buffer(this, 200000000, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU);
+		//_frames[i].debugOutputBuffer = create_buffer(this, 200000000, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU);
 	}
 }
 
@@ -1394,6 +1373,8 @@ void REngine::draw()
 	stats.objects = 0;
 	stats.triangles = 0;
 
+	ImGui::Render();
+
 	handle_surface_changes();
 
 	auto acquired_semaphore = get_current_frame()._presentSemaphore;
@@ -1417,7 +1398,6 @@ void REngine::draw()
 		}
 	}
 
-	ImGui::Render();
 
 	{
 		ZoneScopedN("Fence Wait");
@@ -1610,12 +1590,9 @@ void REngine::draw()
 void REngine::reallocate_buffer(AllocatedBufferUntyped& buffer, size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VkMemoryPropertyFlags required_flags /*= 0*/)
 {
 	AllocatedBufferUntyped newBuffer = create_buffer(this, allocSize, usage, memoryUsage, required_flags);
-
 	get_current_frame()._frameDeletionQueue.push_function([=]() {
-
 		vmaDestroyBuffer(_allocator, buffer._buffer, buffer._allocation);
-		});
-
+	});
 	buffer = newBuffer;
 }
 
@@ -1640,23 +1617,22 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 		size_t copySize = _renderScene.renderables.size() * sizeof(GPUObjectData);
 		if (_renderScene.objectDataBuffer._size < copySize)
 		{
-			reallocate_buffer(_renderScene.objectDataBuffer, copySize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			reallocate_buffer(_renderScene.objectDataBuffer, copySize, 
+				VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 		}
 
 		//if 80% of the objects are dirty, then just reupload the whole thing
 		if (_renderScene.dirtyObjects.size() >= _renderScene.renderables.size() * 0.8)
 		{
-			AllocatedBuffer<GPUObjectData> newBuffer = create_buffer(this, copySize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			AllocatedBuffer<GPUObjectData> newBuffer = create_buffer(this, copySize, 
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			get_current_frame()._frameDeletionQueue.push_function([=]() {
+				vmaDestroyBuffer(_allocator, newBuffer._buffer, newBuffer._allocation);
+				});
 
 			GPUObjectData* objectSSBO = map_buffer(newBuffer);
 			_renderScene.fill_objectData(objectSSBO);
 			unmap_buffer(newBuffer);
-
-			get_current_frame()._frameDeletionQueue.push_function([=]() {
-
-				vmaDestroyBuffer(_allocator, newBuffer._buffer, newBuffer._allocation);
-				});
-
 
 			//copy from the uploaded cpu side instance buffer to the gpu one
 			VkBufferCopy indirectCopy;
@@ -1665,7 +1641,8 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 			indirectCopy.srcOffset = 0;
 			vkCmdCopyBuffer(cmd, newBuffer._buffer, _renderScene.objectDataBuffer._buffer, 1, &indirectCopy);
 		}
-		else {
+		else
+		{
 			//update only the changed elements
 
 			std::vector<VkBufferCopy> copies;
@@ -1676,14 +1653,15 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 			uint64_t intsize = sizeof(uint32_t);
 			uint64_t wordsize = sizeof(GPUObjectData) / sizeof(uint32_t);
 			uint64_t uploadSize = _renderScene.dirtyObjects.size() * wordsize * intsize;
-			AllocatedBuffer<GPUObjectData> newBuffer = create_buffer(this, buffersize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-			AllocatedBuffer<uint32_t> targetBuffer = create_buffer(this, uploadSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-
-			get_current_frame()._frameDeletionQueue.push_function([=]() {
-
+			AllocatedBuffer<GPUObjectData> newBuffer = create_buffer(this, buffersize, 
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			AllocatedBuffer<uint32_t> targetBuffer = create_buffer(this, uploadSize, 
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			get_current_frame()._frameDeletionQueue.push_function([=]()
+			{
 				vmaDestroyBuffer(_allocator, newBuffer._buffer, newBuffer._allocation);
 				vmaDestroyBuffer(_allocator, targetBuffer._buffer, targetBuffer._allocation);
-				});
+			});
 
 			uint32_t* targetData = map_buffer(targetBuffer);
 			GPUObjectData* objectSSBO = map_buffer(newBuffer);
@@ -1709,9 +1687,7 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 			unmap_buffer(targetBuffer);
 
 			VkDescriptorBufferInfo indexData = targetBuffer.get_info();
-
 			VkDescriptorBufferInfo sourceData = newBuffer.get_info();
-
 			VkDescriptorBufferInfo targetInfo = _renderScene.objectDataBuffer.get_info();
 
 			VkDescriptorSet COMPObjectDataSet;
@@ -1773,7 +1749,8 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 		{
 			ZoneScopedNC("Refresh Indirect Buffer", tracy::Color::Red);
 
-			AllocatedBuffer<GPUIndirectObject> newBuffer = create_buffer(this, sizeof(GPUIndirectObject) * pass.batches.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			AllocatedBuffer<GPUIndirectObject> newBuffer = create_buffer(this, sizeof(GPUIndirectObject) * pass.batches.size(), 
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
 			GPUIndirectObject* indirect = map_buffer(newBuffer);
 
 			async_calls.push_back(std::async(std::launch::async, [=] {
@@ -1788,13 +1765,11 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 
 			if (pass.clearIndirectBuffer._buffer != VK_NULL_HANDLE)
 			{
-				AllocatedBufferUntyped deletionBuffer = pass.clearIndirectBuffer;
-				//add buffer to deletion queue of this frame
+				auto b = pass.clearIndirectBuffer;
 				get_current_frame()._frameDeletionQueue.push_function([=]() {
-					vmaDestroyBuffer(_allocator, deletionBuffer._buffer, deletionBuffer._allocation);
+					vmaDestroyBuffer(_allocator, b._buffer, b._allocation);
 					});
 			}
-
 			pass.clearIndirectBuffer = newBuffer;
 			pass.needsIndirectRefresh = false;
 		}
@@ -1803,7 +1778,11 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 		{
 			ZoneScopedNC("Refresh Instancing Buffer", tracy::Color::Red);
 
-			AllocatedBuffer<GPUInstance> newBuffer = create_buffer(this, sizeof(GPUInstance) * pass.flat_batches.size(), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			AllocatedBuffer<GPUInstance> newBuffer = create_buffer(this, sizeof(GPUInstance) * pass.flat_batches.size(), 
+				VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+			get_current_frame()._frameDeletionQueue.push_function([=]() {
+				vmaDestroyBuffer(_allocator, newBuffer._buffer, newBuffer._allocation);
+				});
 
 			GPUInstance* instanceData = map_buffer(newBuffer);
 			async_calls.push_back(std::async(std::launch::async, [=] {
@@ -1812,10 +1791,6 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 			unmaps.push_back(newBuffer);
 			//_renderScene.fill_instancesArray(instanceData, pass);
 			//unmap_buffer(newBuffer);
-
-			get_current_frame()._frameDeletionQueue.push_function([=]() {
-				vmaDestroyBuffer(_allocator, newBuffer._buffer, newBuffer._allocation);
-				});
 
 			//copy from the uploaded cpu side instance buffer to the gpu one
 			VkBufferCopy indirectCopy;

@@ -42,11 +42,10 @@ struct PlayerCamera {
 
 	float pitch{ 0 }; //up-down rotation
 	float yaw{ 0 }; //left-right rotation
-	int w, h;
 	bool bSprint = false;
 	bool bLocked;
 
-	void update_camera(float deltaSeconds, int w, int h);
+	void update_camera(float deltaSeconds);
 
 	glm::mat4 get_view_matrix(REngine* engine);
 	glm::mat4 get_projection_matrix(REngine* engine, bool bReverse = true);

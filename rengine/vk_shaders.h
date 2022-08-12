@@ -39,9 +39,10 @@ struct ShaderEffect {
 
 	void add_stage(ShaderModule* shaderModule, VkShaderStageFlagBits stage);
 
-	void reflect_layout(VkDevice device, ReflectionOverrides* overrides, int overrideCount);
+	void reflect_layout(REngine* engine, VkDevice device, ReflectionOverrides* overrides, int overrideCount);
 
 	void fill_stages(std::vector<VkPipelineShaderStageCreateInfo>& pipelineStages);
+
 	VkPipelineLayout builtLayout;
 
 	struct ReflectedBinding {

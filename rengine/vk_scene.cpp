@@ -225,6 +225,11 @@ void RenderScene::merge_meshes(REngine* engine)
 	mergedIndexBuffer = create_buffer(engine, total_indices * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 		VMA_MEMORY_USAGE_GPU_ONLY);
 
+	engine->_mainDeletionQueue.push_function([=]() {
+		vmaDestroyBuffer(engine->_allocator, mergedVertexBuffer._buffer, mergedVertexBuffer._allocation);
+		vmaDestroyBuffer(engine->_allocator, mergedIndexBuffer._buffer, mergedIndexBuffer._allocation);
+		});
+
 	engine->immediate_submit([&](VkCommandBuffer cmd)
 	{
 		for (auto& m : meshes)

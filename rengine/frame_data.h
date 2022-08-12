@@ -41,7 +41,7 @@ struct FrameData
 	vkutil::PushBuffer dynamicData;
 	//AllocatedBufferUntyped dynamicDataBuffer;
 
-	AllocatedBufferUntyped debugOutputBuffer;
+	//AllocatedBufferUntyped debugOutputBuffer;
 
 	vkutil::DescriptorAllocator* dynamicDescriptorAllocator;
 

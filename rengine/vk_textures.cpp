@@ -61,11 +61,8 @@ bool vkutil::load_image_from_asset(REngine& engine, const char* filename, Alloca
 		}
 	}
 	vmaUnmapMemory(engine._allocator, stagingBuffer._allocation);		
-
 	outImage = upload_image_mipmapped(textureInfo.pages[0].width, textureInfo.pages[0].height, image_format, engine, stagingBuffer,mips);
-
 	vmaDestroyBuffer(engine._allocator, stagingBuffer._buffer, stagingBuffer._allocation);
-
 	return true;
 }
 
@@ -138,12 +135,11 @@ AllocatedImage vkutil::upload_image(int texWidth, int texHeight, VkFormat image_
 
 	//build a default imageview
 	VkImageViewCreateInfo view_info = vkinit::imageview_create_info(image_format, newImage._image, VK_IMAGE_ASPECT_COLOR_BIT);
-
 	vkCreateImageView(engine._device, &view_info, nullptr, &newImage._defaultView);
 
-
-	engine._mainDeletionQueue.push_function([=, &engine]() {
-
+	engine._mainDeletionQueue.push_function([=, &engine]()
+	{
+		vkDestroyImageView(engine._device, newImage._defaultView, nullptr);
 		vmaDestroyImage(engine._allocator, newImage._image, newImage._allocation);
 	});
 
@@ -227,19 +223,16 @@ AllocatedImage vkutil::upload_image_mipmapped(int texWidth, int texHeight, VkFor
 		//barrier the image into the shader readable layout
 		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
 	});
-
-
-
 	newImage.mipLevels = (uint32_t) mips.size();
-
 
 	//build a default imageview
 	VkImageViewCreateInfo view_info = vkinit::imageview_create_info(image_format, newImage._image, VK_IMAGE_ASPECT_COLOR_BIT);
 	view_info.subresourceRange.levelCount = newImage.mipLevels;
 	vkCreateImageView(engine._device, &view_info, nullptr, &newImage._defaultView);
 
-	engine._mainDeletionQueue.push_function([=, &engine]() {
-
+	engine._mainDeletionQueue.push_function([=, &engine]()
+	{
+		vkDestroyImageView(engine._device, newImage._defaultView, nullptr);
 		vmaDestroyImage(engine._allocator, newImage._image, newImage._allocation);
 	});
 

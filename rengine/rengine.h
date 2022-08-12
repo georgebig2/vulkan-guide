@@ -171,7 +171,7 @@ public:
 	VkDevice _device;
 	VmaAllocator _allocator; //vma lib allocator
 
-    VkInstance _instance;
+    vkb::Instance _instance;
     VkPhysicalDevice _chosenGPU;
 
     VkQueue _graphicsQueue;
@@ -270,7 +270,7 @@ public:
     VkPipelineLayout _blitLayout;
     VkPipeline _depthReducePipeline;
     VkPipelineLayout _depthReduceLayout;
-    VkDescriptorSetLayout _singleTextureSetLayout;
+    //VkDescriptorSetLayout _singleTextureSetLayout;
 
     DirectionalLight _mainLight;
     GPUSceneData _sceneParameters;

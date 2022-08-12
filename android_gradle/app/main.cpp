@@ -6,6 +6,7 @@
 #include "rengine.h"
 #include <asset_loader.h>
 #include <android/asset_manager.h>
+#include <android/window.h>
 
 static float dpi = 1.f;
 
@@ -79,6 +80,7 @@ public:
 };
 
 static AndroidEngine* engine = 0;
+static bool is_paused = false;
 
 // Implement input event handling function.
 static int32_t engine_handle_input(struct android_app* app)
@@ -141,6 +143,7 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 		case APP_CMD_INIT_WINDOW:
 			// We have a window!
 			//VLOGD("NativeEngine: APP_CMD_INIT_WINDOW");
+			is_paused = false;
 			if (!engine && app->window != NULL)
 			{
 				engine = new AndroidEngine(app->window, app->activity->assetManager);
@@ -162,9 +165,11 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 		case APP_CMD_TERM_WINDOW:
 			if (engine)
 			{
-                engine->cleanup();
-				delete engine;
-				engine = 0;
+				is_paused = true;
+                engine->resize_window(0, 0);
+    //            engine->cleanup();
+				//delete engine;
+				//engine = 0;
 			}
 			// The window is going away -- kill the surface
 			//VLOGD("NativeEngine: APP_CMD_TERM_WINDOW");
@@ -172,20 +177,24 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 			//mHasWindow = false;
 			break;
 		case APP_CMD_GAINED_FOCUS:
+			is_paused = false;
 			//VLOGD("NativeEngine: APP_CMD_GAINED_FOCUS");
 			//mHasFocus = true;
 			//mState.mHasFocus = appState.mHasFocus = mHasFocus;
 			break;
 		case APP_CMD_LOST_FOCUS:
+			is_paused = true;
 			//VLOGD("NativeEngine: APP_CMD_LOST_FOCUS");
 			//mHasFocus = false;
 			//mState.mHasFocus = appState.mHasFocus = mHasFocus;
 			break;
 		case APP_CMD_PAUSE:
+			is_paused = true;
 			//VLOGD("NativeEngine: APP_CMD_PAUSE");
 			//mgr->OnPause();
 			break;
 		case APP_CMD_RESUME:
+			is_paused = false;
 			//VLOGD("NativeEngine: APP_CMD_RESUME");
 			//mgr->OnResume();
 			break;
@@ -246,10 +255,9 @@ void android_main(android_app* app)
     app->onAppCmd = _handle_cmd_proxy;
     //mApp->onInputEvent = _handle_input_proxy;
 
-    //auto activity = NativeEngine::GetInstance()->GetAndroidApp()->activity;
-    //GameActivity_setWindowFlags(activity,
-     //                           AWINDOW_FLAG_KEEP_SCREEN_ON | AWINDOW_FLAG_TURN_SCREEN_ON |
-     //                           AWINDOW_FLAG_FULLSCREEN | AWINDOW_FLAG_SHOW_WHEN_LOCKED, 0);
+    GameActivity_setWindowFlags(app->activity,
+                                AWINDOW_FLAG_KEEP_SCREEN_ON | AWINDOW_FLAG_TURN_SCREEN_ON |
+                                AWINDOW_FLAG_FULLSCREEN | AWINDOW_FLAG_SHOW_WHEN_LOCKED, 0);
 
     //UpdateSystemBarOffset();
 
@@ -276,8 +284,8 @@ void android_main(android_app* app)
 
 			// Check if app is exiting.
 			if (app->destroyRequested) {
-				//engine_term_display(&engine);
 				if (engine) {
+					is_paused = true;
 					engine->cleanup();
 					delete engine;
 					engine = 0;
@@ -288,7 +296,7 @@ void android_main(android_app* app)
 		// Process input events if there are any.
 		engine_handle_input(app);
 
-		if (engine) {
+		if (engine && !is_paused) {
 			engine->update();
 			//if (engine.animating) {
 				// Draw a game frame.

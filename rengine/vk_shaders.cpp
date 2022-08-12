@@ -31,6 +31,9 @@ bool vkutil::load_shader_module(REngine* engine, VkDevice device,const char* fil
 	if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
 		return false;
 	}
+	engine->_mainDeletionQueue.push_function([=]() {
+		vkDestroyShaderModule(device, shaderModule, nullptr);		// delete eary?
+		});
 
 	outShaderModule->code = std::move(buffer);
 	outShaderModule->module = shaderModule;
@@ -75,7 +78,7 @@ struct DescriptorSetLayoutData {
 	VkDescriptorSetLayoutCreateInfo create_info;
 	std::vector<VkDescriptorSetLayoutBinding> bindings;
 };
-void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* overrides, int overrideCount)
+void ShaderEffect::reflect_layout(REngine* engine, VkDevice device, ReflectionOverrides* overrides, int overrideCount)
 {
 	std::vector<DescriptorSetLayoutData> set_layouts;
 
@@ -153,6 +156,8 @@ void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* override
 
 			constant_ranges.push_back(pcs);
 		}
+
+		//vkDestroyShaderModule(engine->_device, s.shaderModule->module, nullptr);
 	}
 
 
@@ -206,6 +211,9 @@ void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* override
 		if (ly.create_info.bindingCount > 0) {
 			setHashes[i] = vkutil::hash_descriptor_layout_info(&ly.create_info);
 			vkCreateDescriptorSetLayout(device, &ly.create_info, nullptr, &setLayouts[i]);
+			engine->_mainDeletionQueue.push_function([=]() {
+				vkDestroyDescriptorSetLayout(device, setLayouts[i], nullptr);
+				});
 		}
 		else {
 			setHashes[i] = 0;
@@ -230,9 +238,11 @@ void ShaderEffect::reflect_layout(VkDevice device, ReflectionOverrides* override
 
 	mesh_pipeline_layout_info.setLayoutCount = s;
 	mesh_pipeline_layout_info.pSetLayouts = compactedLayouts.data();
-
 	
 	vkCreatePipelineLayout(device, &mesh_pipeline_layout_info, nullptr, &builtLayout);
+	engine->_mainDeletionQueue.push_function([=]() {
+		vkDestroyPipelineLayout(device, builtLayout, nullptr);
+		});
 
 }
 

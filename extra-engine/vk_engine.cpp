@@ -412,7 +412,7 @@ void VulkanEngine::run()
 		}
 
 		_camera.bLocked = CVAR_CamLock.Get();
-		_camera.update_camera(stats.frametime, _windowExtent.width, _windowExtent.height);
+		_camera.update_camera(stats.frametime);
 		_mainLight.lightPosition = _camera.position;
 
 		draw();
@@ -422,7 +422,7 @@ void VulkanEngine::run()
 
 bool VulkanEngine::create_surface(VkInstance instance, VkSurfaceKHR* surface)
 {
-	SDL_Vulkan_CreateSurface(_window, _instance, &_surface);
+	SDL_Vulkan_CreateSurface(_window, _instance.instance, &_surface);
 	LOG_SUCCESS("SDL Surface initialized");
 	return true;
 }

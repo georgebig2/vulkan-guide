@@ -145,24 +145,21 @@ void REngine::init_shadow_renderpass()
 		vmaCreateImage(_allocator, &dimg_info, &dimg_allocinfo, &frame._shadowImage._image, &frame._shadowImage._allocation, nullptr);
 		VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, frame._shadowImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
 		VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &frame._shadowImage._defaultView));
-
-
 		{
 			VkFramebufferCreateInfo sh_info = vkinit::framebuffer_create_info(_shadowPass, _shadowExtent);
 			sh_info.pAttachments = &frame._shadowImage._defaultView;
 			sh_info.attachmentCount = 1;
 			VK_CHECK(vkCreateFramebuffer(_device, &sh_info, nullptr, &frame._shadowFramebuffer));
 		}
-
 		{
-			auto defaultView = frame._shadowImage._defaultView;
-			auto image = frame._shadowImage._image;
-			auto allocation = frame._shadowImage._allocation;
-			auto shadowFramebuffer = frame._shadowFramebuffer;
+			auto v = frame._shadowImage._defaultView;
+			auto i = frame._shadowImage._image;
+			auto a = frame._shadowImage._allocation;
+			auto f = frame._shadowFramebuffer;
 			_mainDeletionQueue.push_function([=]() {
-				vkDestroyImageView(_device, defaultView, nullptr);
-				vmaDestroyImage(_allocator, image, allocation);
-				vkDestroyFramebuffer(_device, shadowFramebuffer, nullptr);
+				vkDestroyFramebuffer(_device, f, nullptr);
+				vkDestroyImageView(_device, v, nullptr);
+				vmaDestroyImage(_allocator, i, a);
 				});
 		}
 	}
@@ -301,6 +298,9 @@ void REngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
 {
 	ZoneScopedNC("DrawObjects", tracy::Color::Blue);
+	VkDescriptorBufferInfo instanceInfo = pass.compactedInstanceBuffer.get_info();
+	if (instanceInfo.range == 0)
+		return;
 
 	glm::mat4 view = _camera.get_view_matrix(this);
 	glm::mat4 projection = _camera.get_projection_matrix(this);
@@ -331,8 +331,6 @@ void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
 
 	VkDescriptorBufferInfo camInfo = get_current_frame().dynamicData.source.get_info();
 	camInfo.range = sizeof(GPUCameraData);
-
-	VkDescriptorBufferInfo instanceInfo = pass.compactedInstanceBuffer.get_info();
 
 
 	VkDescriptorImageInfo shadowImage;
@@ -410,6 +408,9 @@ void REngine::shadow_pass(VkCommandBuffer cmd)
 void REngine::draw_objects_shadow(VkCommandBuffer cmd, MeshPass& pass)
 {
 	ZoneScopedNC("DrawObjects", tracy::Color::Blue);
+	VkDescriptorBufferInfo instanceInfo = pass.compactedInstanceBuffer.get_info();
+	if (instanceInfo.range == 0)
+		return;
 
 	glm::mat4 view = _mainLight.get_view();
 
@@ -428,9 +429,6 @@ void REngine::draw_objects_shadow(VkCommandBuffer cmd, MeshPass& pass)
 
 	VkDescriptorBufferInfo camInfo = get_current_frame().dynamicData.source.get_info();
 	camInfo.range = sizeof(GPUCameraData);
-
-	VkDescriptorBufferInfo instanceInfo = pass.compactedInstanceBuffer.get_info();
-
 
 	VkDescriptorSet GlobalSet;
 	vkutil::DescriptorBuilder::begin(_descriptorLayoutCache, get_current_frame().dynamicDescriptorAllocator)

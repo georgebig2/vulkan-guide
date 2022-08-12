@@ -147,7 +147,7 @@ ShaderEffect* build_effect(REngine* eng,std::string_view vertexShader, std::stri
 	{
 		effect->add_stage(eng->get_shader_cache()->get_shader(eng, eng->shader_path(fragmentShader)), VK_SHADER_STAGE_FRAGMENT_BIT);
 	}
-	effect->reflect_layout(eng->_device, overrides, 2);
+	effect->reflect_layout(eng, eng->_device, overrides, 2);
 	return effect; 
 }
 
@@ -231,6 +231,10 @@ vkutil::ShaderPass* vkutil::MaterialSystem::build_shader(VkRenderPass renderPass
 	pipbuilder.setShaders(effect);
 
 	pass->pipeline = pipbuilder.build_pipeline(engine->_device, renderPass);
+	engine->_mainDeletionQueue.push_function([=]() {
+		//vkDestroyPipelineLayout(engine->_device, pass->layout, nullptr);
+		vkDestroyPipeline(engine->_device, pass->pipeline, nullptr);
+		});
 
 	return pass;
 }
