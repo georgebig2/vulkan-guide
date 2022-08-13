@@ -206,7 +206,8 @@ void REngine::init(bool debug)
 	}
 	//_instance = vkb_inst.instance;
 
-	create_surface(_instance.instance, &_surface);
+	auto res = create_surface(_instance.instance, &_surface);
+	assert(res);
 
 	VkPhysicalDeviceFeatures feats = {};
 	feats.pipelineStatisticsQuery = true;
@@ -334,8 +335,8 @@ void REngine::init(bool debug)
 
 void REngine::resize_window(int w, int h)
 {
-	_windowExtent.width = 0;
-	_windowExtent.height = 0;
+	_windowExtent.width = w;
+	_windowExtent.height = h;
 	//if (_isInitialized)
 	//{
 		//ImGui_ImplVulkanH_CreateOrResizeWindow(_instance, _chosenGPU, _device, ImGui_ImplVulkanH_Window * wnd, _graphicsQueue, const VkAllocationCallbacks * allocator, w, h, 3);
@@ -999,23 +1000,25 @@ void REngine::init_swapchain()
 	_pretransformFlag = capabilities.currentTransform;
 	_windowExtent = capabilities.currentExtent;
 
-	vkb::SwapchainBuilder swapchainBuilder{ _chosenGPU,_device,_surface };
+	vkb::SwapchainBuilder swapchainBuilder{ _chosenGPU, _device, _surface };
 
 	VkSurfaceFormatKHR format = {};
 	format.format = VK_FORMAT_R8G8B8A8_SRGB;
 	format.colorSpace = VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT;	//VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
+
+	vkb::destroy_swapchain(_swapchain);
 
 	auto swap_ret = swapchainBuilder
 		//.use_default_format_selection()
 		.set_desired_format(format)
 		.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)//VK_PRESENT_MODE_FIFO_RELAXED_KHR)//(VK_PRESENT_MODE_IMMEDIATE_KHR)
 		.set_desired_extent(_windowExtent.width, _windowExtent.height)
-		.recreate(_swapchain);
-	if (!swap_ret) {
+		.build();//.recreate(_swapchain);
+	//if (!swap_ret) {
 		// If it failed to create a swapchain, the old swapchain handle is invalid.
-		_swapchain.swapchain = VK_NULL_HANDLE;
-	}
-	vkb::destroy_swapchain(_swapchain);
+		//_swapchain.swapchain = VK_NULL_HANDLE;
+	//}
+	//vkb::destroy_swapchain(_swapchain);
 	_swapchain = swap_ret.value();
 
 	_swachainImageFormat = _swapchain.image_format;
@@ -1339,12 +1342,22 @@ bool REngine::handle_surface_changes(bool force_update)
 	if (res != VK_SUCCESS || capabilities.currentExtent.width == 0xFFFFFFFF) {
 		return false;
 	}
-	if (capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
-		capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
-	{
-		// Pre-rotation: always use native orientation i.e. if rotated, use width and height of identity transform
-		//std::swap(capabilities.currentExtent.width, capabilities.currentExtent.height);
-	}
+	//if (capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
+	//	capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
+	//{
+	//	// Pre-rotation: always use native orientation i.e. if rotated, use width and height of identity transform
+	//	//std::swap(capabilities.currentExtent.width, capabilities.currentExtent.height);
+	//}
+
+	//if (_windowExtent.width == 0 && _windowExtent.height == 0)
+	//{
+	//	vkDestroySurfaceKHR(_instance.instance, _surface, nullptr);
+	//	auto res = create_surface(_instance.instance, &_surface);
+	//	assert(res);
+	//	_windowExtent.width = capabilities.currentExtent.width;
+	//	_windowExtent.height = capabilities.currentExtent.height;
+	//}
+
 
 	if (capabilities.currentExtent.width != _windowExtent.width ||
 		capabilities.currentExtent.height != _windowExtent.height ||
@@ -1353,6 +1366,17 @@ bool REngine::handle_surface_changes(bool force_update)
 	{
 		vkDeviceWaitIdle(_device);
 		_surfaceDeletionQueue.flush();
+
+		vkDestroySurfaceKHR(_instance.instance, _surface, nullptr);
+		auto res = create_surface(_instance.instance, &_surface);
+		assert(res);
+
+		//if (_windowExtent.width == 0 && _windowExtent.height == 0)
+		//{
+		//	vkDestroySurfaceKHR(_instance.instance, _surface, nullptr);
+		//	auto res = create_surface(_instance.instance, &_surface);
+		//	assert(res);
+		//}
 
 		init_swapchain();
 		//init_framebuffers();
@@ -1383,9 +1407,9 @@ void REngine::draw()
 
 		//_swapchainImageIndex_prev = _swapchainImageIndex;
 		auto result = vkAcquireNextImageKHR(_device, _swapchain.swapchain, -1, acquired_semaphore, nullptr, &_swapchainImageIndex);
-		if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
+		if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_ERROR_SURFACE_LOST_KHR)
 		{
-			bool swapchain_updated = handle_surface_changes(result == VK_ERROR_OUT_OF_DATE_KHR);
+			bool swapchain_updated = handle_surface_changes(result != VK_SUBOPTIMAL_KHR);
 			if (swapchain_updated)
 			{
 				result = vkAcquireNextImageKHR(_device, _swapchain.swapchain, -1, acquired_semaphore, nullptr, &_swapchainImageIndex);
@@ -1578,9 +1602,9 @@ void REngine::draw()
 		presentInfo.waitSemaphoreCount = 1;
 		presentInfo.pImageIndices = &_swapchainImageIndex;
 		VkResult result = vkQueuePresentKHR(_graphicsQueue, &presentInfo);
-		if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)
+		if (result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_ERROR_SURFACE_LOST_KHR)
 		{
-			handle_surface_changes();
+			handle_surface_changes(result != VK_SUBOPTIMAL_KHR);
 		}
 	}
 

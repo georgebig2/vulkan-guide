@@ -160,13 +160,18 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 					mHasFocus = appState.mHasFocus;
 				}*/
 			}
+			else
+			{
+				engine->window = app->window;
+			}
 			//VLOGD("HandleCommand(%d): hasWindow = %d, hasFocus = %d", cmd, mHasWindow ? 1 : 0, mHasFocus ? 1 : 0);
 			break;
 		case APP_CMD_TERM_WINDOW:
 			if (engine)
 			{
 				is_paused = true;
-                engine->resize_window(0, 0);
+				engine->window = 0;
+                //engine->resize_window(0, 0);
     //            engine->cleanup();
 				//delete engine;
 				//engine = 0;
@@ -273,7 +278,7 @@ void android_main(android_app* app)
 		// If not animating, block forever waiting for events.
 		// If animating, loop until all events are read, then continue
 		// to draw the next frame of animation.
-		while ((ALooper_pollAll(true ? 0 : -1, nullptr, &events, (void**)&source)) >= 0)
+		while ((ALooper_pollAll(!is_paused ? 0 : -1, nullptr, &events, (void**)&source)) >= 0)
         {
 			// Process this app cycle or inset change event.
 			if (source) {
@@ -296,7 +301,7 @@ void android_main(android_app* app)
 		// Process input events if there are any.
 		engine_handle_input(app);
 
-		if (engine && !is_paused) {
+		if (engine && !is_paused && engine->window) {
 			engine->update();
 			//if (engine.animating) {
 				// Draw a game frame.
