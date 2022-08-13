@@ -16,7 +16,7 @@
 //forward declarations
 namespace vkutil {
     class DescriptorLayoutCache;
-    class DescriptorAllocator;
+    struct DescriptorAllocator;
     class VulkanProfiler;
     class MaterialSystem;
 }
@@ -139,6 +139,7 @@ public:
 	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 	DeletionQueue _surfaceDeletionQueue;
     DeletionQueue _mainDeletionQueue;
+    DeletionQueue _imguiDeletionQueue;
 
     virtual void init(bool debug);
     virtual void update();
@@ -186,11 +187,8 @@ public:
    
     VkPhysicalDeviceProperties _gpuProperties;
 
-    //std::vector<VkFramebuffer> _framebuffers;
-    ////std::vector<VkImage> _swapchainImages;
-    //std::vector<VkImageView> _swapchainImageViews;
 
-    VkFormat _renderFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+    VkFormat _renderFormat = VK_FORMAT_R8G8B8A8_SNORM;// VK_FORMAT_R32G32B32A32_SFLOAT;
 
 
     VkSampler _smoothSampler;
@@ -209,7 +207,7 @@ public:
     void init_copy_renderpass(VkFormat swachainImageFormat);
     void init_shadow_renderpass();
     void init_pipelines();
-    void init_imgui();
+    virtual void init_imgui();
     
     void load_meshes();
     bool load_compute_shader(const char* shaderPath, VkPipeline& pipeline, VkPipelineLayout& layout);
@@ -225,6 +223,7 @@ public:
     vkutil::MaterialSystem* _materialSystem;
 
     EngineStats stats;
+    bool recreate_imgui = false;
 
     //ShaderCache _shaderCache;
 

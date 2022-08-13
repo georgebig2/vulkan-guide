@@ -14,7 +14,7 @@ public:
 	tracy::VkCtx* _graphicsQueueContext;
 
 	void init(bool debug) override;
-	/*void update() override;*/
+	void init_imgui() override;
 	void cleanup() override;
 	void run();
 

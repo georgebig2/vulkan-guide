@@ -40,7 +40,6 @@
 
 AutoCVar_Int CVAR_OcclusionCullGPU("culling.enableOcclusionGPU", "Perform occlusion culling in gpu", 1, CVarFlags::EditCheckbox);
 AutoCVar_Int CVAR_CamLock("camera.lock", "Locks the camera", 0, CVarFlags::EditCheckbox);
-AutoCVar_Int CVAR_OutputIndirectToFile("culling.outputIndirectBufferToFile", "output the indirect data to a file. Autoresets", 0, CVarFlags::EditCheckbox);
 
 //constexpr bool bUseValidationLayers = false;
 
@@ -112,12 +111,18 @@ void process_input_event(PlayerCamera& camera, SDL_Event * ev)
 			break;
 		}
 	}
-	else if (ev->type == SDL_MOUSEMOTION) {
+	else if (ev->type == SDL_MOUSEMOTION)
+	{
+		static float prevx = ev->motion.x;
+		static float prevy = ev->motion.y;
 		if (!camera.bLocked)
 		{
-			camera.pitch -= ev->motion.yrel * 0.003f;
-			camera.yaw -= ev->motion.xrel * 0.003f;
+			camera.pitch -= (ev->motion.y - prevy) * 0.003f;
+			camera.yaw -= (ev->motion.x - prevx) * 0.003f;
+			//LOG_INFO("%f", camera.yaw);
 		}
+		prevx = ev->motion.x;
+		prevy = ev->motion.y;
 	}
 
 	camera.inputAxis = glm::clamp(camera.inputAxis, { -1.0,-1.0,-1.0 }, { 1.0,1.0,1.0 });
@@ -157,10 +162,15 @@ void VulkanEngine::init(bool debug)
 	//_renderables.reserve(10000);
 
 	REngine::init(debug);
+}
 
-	//this initializes imgui for SDL
+void VulkanEngine::init_imgui()
+{
+	REngine::init_imgui();
 	ImGui_ImplSDL2_InitForVulkan(_window);
-
+	_imguiDeletionQueue.push_function([=]() {
+		ImGui_ImplSDL2_Shutdown();
+		});
 }
 
 void VulkanEngine::cleanup()
@@ -184,7 +194,9 @@ void VulkanEngine::run()
 
 	start = std::chrono::system_clock::now();
 	end = std::chrono::system_clock::now();
-	//main loop
+	bool inFocus = false;
+
+	// main loop
 	while (!bQuit)
 	{
 		ZoneScopedN("Main Loop");
@@ -199,10 +211,22 @@ void VulkanEngine::run()
 			ZoneScopedNC("Event Loop", tracy::Color::White);
 			while (SDL_PollEvent(&e) != 0)
 			{
+				//if (e.type == SDL_APP_WILLENTERFOREGROUND)
+				//{
+				//	inFocus = true;
+				//}
+				//else if (e.type == SDL_APP_WILLENTERBACKGROUND)
+				//{
+				//	inFocus = false;
+				//}
+				auto f = SDL_GetWindowFlags(_window);
+				inFocus = f & SDL_WINDOW_INPUT_FOCUS;
 
 				ImGui_ImplSDL2_ProcessEvent(&e);
-				process_input_event(_camera, &e);
 
+				//if (inFocus) {
+					process_input_event(_camera, &e);
+				//}
 
 				//close the window when user alt-f4s or clicks the X button			
 				if (e.type == SDL_QUIT)
@@ -238,153 +262,11 @@ void VulkanEngine::run()
 		{
 			ZoneScopedNC("Imgui Logic", tracy::Color::Grey);
 
-			//ImGuiIO& io = ImGui::GetIO();
+			ImGuiIO& io = ImGui::GetIO();
 			//io.DeltaTime = 1.0f / 60.0f;
-			//io.DisplaySize = ImVec2(_windowExtent.width, _windowExtent.height);
-			ImGui::GetStyle() = ImGuiStyle();
-			ImGui::GetStyle().ScaleAllSizes(1);
-
 			ImGui_ImplSDL2_NewFrame(_window);
-			ImGui_ImplVulkan_NewFrame();
-			ImGui::NewFrame();
-
+			//io.DisplaySize = ImVec2(_windowExtent.height, _windowExtent.width);
 			hud_update();
-
-			constexpr auto gsMaxHistory = 256;
-			static uint32_t curFrame = 0;
-			static bool paused = false;
-			if (!paused) {
-				curFrame = (curFrame + 1) % gsMaxHistory;
-			}
-			struct Graph
-			{
-				//const char* name;
-				std::array<float, gsMaxHistory> history;
-				double avg = 0;
-				bool checked = true;
-			};
-			static std::unordered_map<std::string, Graph> graphs;
-
-			{
-				ImGui::Begin("engine", 0, ImGuiWindowFlags_AlwaysAutoResize);
-
-				ImGui::Text("Frame: %.2f ms", stats.frametime);
-				graphs["Frame"].history[curFrame] = stats.frametime;
-
-				ImGui::Text("Objects: %d", stats.objects);
-				//ImGui::Text("Drawcalls: %d", stats.drawcalls);
-				ImGui::Text("Batches: %d", stats.draws);
-				//ImGui::Text("Triangles: %d", stats.triangles);		
-
-				CVAR_OutputIndirectToFile.Set(false);
-				if (ImGui::Button("Output Indirect"))
-				{
-					CVAR_OutputIndirectToFile.Set(true);
-				}
-
-				ImGui::Separator();
-				for (auto& [k, v] : _profiler->timing)
-				{
-					ImGui::Text("TIME %s %.2f ms", k.c_str(), v);
-					graphs[k.c_str()].history[curFrame] = v;
-				}
-				for (auto& [k, v] : _profiler->stats)
-				{
-					ImGui::Text("STAT %s %d,%03d,%03d", k.c_str(), v / 1000000, (v / 1000) % 1000, v % 1000);
-					//ImGui::Text("STAT %s %d", k.c_str(), v);
-				}
-
-				ImGui::End();
-			}
-
-			{
-				const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-				ImVec2 windowSize = main_viewport->Size;
-				ImVec2 windowPos = { 0, windowSize.y / 2 };
-				windowSize.y /= 2.7f;
-				ImGui::SetNextWindowPos(windowPos, ImGuiCond_FirstUseEver);
-				ImGui::SetNextWindowSize(windowSize, ImGuiCond_FirstUseEver);
-				ImGui::SetNextWindowBgAlpha(0.6f);
-
-				static bool opened = true;
-				if (ImGui::Begin("History graph show", &opened, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)) {
-
-					if (ImGui::Button(paused ? "resume" : "pause")) {
-						paused = !paused;
-					}
-					static int maxValue = 60;
-					ImGui::DragInt("scale", &maxValue, 1.f);
-					if (maxValue < 1) {
-						maxValue = 1;
-					}
-
-					auto wp = ImGui::GetWindowPos();
-					auto ws = ImGui::GetWindowSize();
-					ImVec2 wp2 = ws + wp;
-
-					ImDrawList* draw_list = ImGui::GetWindowDrawList();
-
-					auto y1 = wp2.y - ws.y * 1000.f / 30 / maxValue;
-					auto y2 = wp2.y - ws.y * 1000.f / 60 / maxValue;
-					auto y3 = wp2.y - ws.y * 60.f / maxValue;
-					auto y4 = wp2.y;
-					draw_list->AddLine(ImVec2(wp.x, y1), ImVec2(wp2.x, y1), IM_COL32(180, 180, 180, 255));
-					draw_list->AddLine(ImVec2(wp.x, y2), ImVec2(wp2.x, y2), IM_COL32(180, 180, 180, 255));
-					draw_list->AddLine(ImVec2(wp.x, y3), ImVec2(wp2.x, y3), IM_COL32(180, 180, 180, 255));
-					draw_list->AddLine(ImVec2(wp.x, y4), ImVec2(wp2.x, y4), IM_COL32(180, 180, 180, 255));
-
-					ImU32 colors[] = {
-						IM_COL32(200, 150, 200, 255),
-						IM_COL32(20, 108, 255, 255),
-						IM_COL32(18, 255, 18, 255),
-						IM_COL32(255, 255, 128, 255),
-						IM_COL32(255, 128, 255, 255),
-						IM_COL32(248, 150, 23, 255),
-						IM_COL32(255, 58, 58, 255),
-					};
-
-					std::array<ImVec2, gsMaxHistory> points;
-					int cIdx = 0;
-					for (auto& [k, g] : graphs)
-					{
-						g.avg = 0;
-						auto scale = 1;// indicator->unit->GetGraphScale();
-						for (int i = 0; i < gsMaxHistory - 1; ++i) {
-
-							points[i + 0].y = wp2.y - ws.y * g.history[(i + curFrame) % gsMaxHistory] * scale / maxValue;
-							points[i + 1].y = wp2.y - ws.y * g.history[(i + 1 + curFrame) % gsMaxHistory] * scale / maxValue;
-							points[i + 0].x = wp.x + (i + 0) * ws.x / gsMaxHistory;
-							points[i + 1].x = wp.x + (i + 1) * ws.x / gsMaxHistory;
-							g.avg += g.history[(i + curFrame) % gsMaxHistory];
-						}
-						g.avg /= (gsMaxHistory - 1);
-
-						if (g.checked) {
-							draw_list->AddPolyline(&points[0], gsMaxHistory, colors[cIdx], 0, 1.5f);
-						}
-						cIdx = (cIdx + 1) % (sizeof(colors) / sizeof(colors[0]));
-					}
-
-					cIdx = 0;
-					for (auto& [k, g] : graphs)
-					{
-						//if (indicator->unit->IsPrinting())
-						{
-							ImGui::PushID(cIdx);
-							ImGui::Checkbox("", &g.checked);
-							ImGui::PopID();
-							ImGui::SameLine();
-
-							auto val = g.avg;// *indicator->unit->GetGraphScale();
-							const char* format = "%s %.2f";
-							ImGui::TextColored(ImColor(colors[cIdx]), format, k.c_str(), val);
-							cIdx = (cIdx + 1) % (sizeof(colors) / sizeof(colors[0]));
-						}
-					}
-
-					ImGui::End();
-				}
-			}
 		}
 
 		{
@@ -427,14 +309,5 @@ bool VulkanEngine::create_surface(VkInstance instance, VkSurfaceKHR* surface)
 	LOG_SUCCESS("SDL Surface initialized");
 	return true;
 }
-
-//void VulkanEngine::init_vulkan()
-//{
-//	REngine::init_vulkan();
-//	LOG_SUCCESS("Vulkan Instance initialized");
-//	LOG_SUCCESS("GPU found");
-//	LOG_INFO("The gpu has a minimum buffer alignement of {}", _gpuProperties.limits.minUniformBufferOffsetAlignment);
-//}
-//
 
 

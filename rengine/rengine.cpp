@@ -76,12 +76,6 @@ void REngine::update()
 {
 	ImGuiIO& io = ImGui::GetIO();
 	//io.DeltaTime = 1.0f / 60.0f;
-	io.DisplaySize = ImVec2(_windowExtent.width , _windowExtent.height);
-	ImGui::GetStyle() = ImGuiStyle();
-	ImGui::GetStyle(  ).ScaleAllSizes(get_dpi_factor());
-
-	ImGui_ImplVulkan_NewFrame();
-	ImGui::NewFrame();
 	hud_update();
 
 	//vtest flagging some objects for changes
@@ -98,7 +92,7 @@ void REngine::update()
 			auto* obj = get_render_scene()->get_object(h);
 			auto prev = obj->transformMatrix;
 			//glm::mat4 tr = glm::translate(glm::mat4{ 1.0 }, glm::vec3(0, 15, 0));
-			float scale = sin(_frameNumber / 200.f + h.handle) * 0.0003f + 1.f;
+			float scale = sin(_frameNumber / 200.f + h.handle) * 0.0001f + 1.f;
 			glm::mat4 sm = glm::scale(glm::mat4{ 1.0 }, glm::vec3(scale));
 			//glm::mat4 rot = glm::rotate(glm::radians(90.f), glm::vec3{ 1,0,0 });
 			auto newm = prev * sm;
@@ -132,12 +126,12 @@ void REngine::init_scene()
 		//load_prefab(asset_path("mine.pfb").c_str(), (scale * rot * tr));
 	}
 
-	int dimHelmets = 0;
+	int dimHelmets = 2;
 	for (int x = -dimHelmets; x < dimHelmets; x++) {
 		for (int y = -dimHelmets; y < dimHelmets; y++) {
 
-			glm::mat4 translation = glm::translate(glm::mat4{ 1.0 }, glm::vec3(x * 5, 10, y * 5));
-			glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(10));
+			glm::mat4 translation = glm::translate(glm::mat4{ 1.0 }, glm::vec3(x * 10 - 200 , 10, y * 10));
+			glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(20));
 
 			load_prefab(asset_path("FlightHelmet_GLTF/FlightHelmet.pfb").c_str(), (translation * scale));
 		}
@@ -322,7 +316,8 @@ void REngine::init(bool debug)
 	_isInitialized = true;
 
 	_camera = {};
-	_camera.position = { 0.f,6.f,5.f };
+	_camera.yaw = 1.5f;
+	_camera.position = { 0.f, 85.f, 1.f };
 
 	_mainLight.lightPosition = { 0,50,0 };
 	_mainLight.lightDirection = glm::vec3(0.3, -1, 0.3);
@@ -858,9 +853,7 @@ void REngine::init_imgui()
 	VK_CHECK(vkCreateDescriptorPool(_device, &pool_info, nullptr, &imguiPool));
 
 
-	// 2: initialize imgui library
-
-	//this initializes the core structures of imgui
+	//ImGuiConfigFlags_IsTouchScreen
 	ImGui::CreateContext();
 	ImGui::GetIO().IniFilename = NULL;
 
@@ -871,8 +864,8 @@ void REngine::init_imgui()
 	init_info.Device = _device;
 	init_info.Queue = _graphicsQueue;
 	init_info.DescriptorPool = imguiPool;
-	init_info.MinImageCount = 3;
-	init_info.ImageCount = 3;
+	init_info.MinImageCount = _frames.size();
+	init_info.ImageCount = _frames.size();
 
 	ImGui_ImplVulkan_Init(&init_info, _renderPass);
 
@@ -880,14 +873,13 @@ void REngine::init_imgui()
 	immediate_submit([&](VkCommandBuffer cmd) {
 		ImGui_ImplVulkan_CreateFontsTexture(cmd);
 		});
-
-	//clear font textures from cpu data
 	ImGui_ImplVulkan_DestroyFontUploadObjects();
 
 	//add the destroy the imgui created structures
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyDescriptorPool(_device, imguiPool, nullptr);
+	_imguiDeletionQueue.push_function([=]() {
 		ImGui_ImplVulkan_Shutdown();
+		ImGui::DestroyContext();
+		vkDestroyDescriptorPool(_device, imguiPool, nullptr);
 		});
 
 }
@@ -921,6 +913,7 @@ void REngine::cleanup()
 		vkDestroySampler(_device, _smoothSampler2, nullptr);
 		vkDestroySampler(_device, _smoothSampler, nullptr);
 
+		_imguiDeletionQueue.flush();
 		_mainDeletionQueue.flush();
 		_surfaceDeletionQueue.flush();
 
@@ -1379,7 +1372,8 @@ bool REngine::handle_surface_changes(bool force_update)
 		//}
 
 		init_swapchain();
-		//init_framebuffers();
+		recreate_imgui = true;
+		//init_imgui();
 
 		//_windowExtent = capabilities.currentExtent;
 		return true;
@@ -1506,18 +1500,18 @@ void REngine::draw()
 		vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu frame");
 
 		{
-			vkutil::VulkanScopeTimer timer2(cmd, _profiler, "gpu ready");
+			vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu ready");
 
 			ready_mesh_draw(cmd);
-
 			ready_cull_data(_renderScene._forwardPass, cmd);
 			ready_cull_data(_renderScene._transparentForwardPass, cmd);
 			ready_cull_data(_renderScene._shadowPass, cmd);
-
 			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, cullReadyBarriers.size(), cullReadyBarriers.data(), 0, nullptr);
 		}
 
 		{
+			//vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu forward cull");
+
 			CullParams forwardCull;
 			forwardCull.projmat = _camera.get_projection_matrix(this, true);
 			forwardCull.viewmat = _camera.get_view_matrix(this);
@@ -1534,7 +1528,7 @@ void REngine::draw()
 		{
 			if (*CVarSystem::Get()->GetIntCVar("gpu.shadowcast"))
 			{
-				vkutil::VulkanScopeTimer timer2(cmd, _profiler, "gpu shadow cull");
+				vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu shadow cull");
 
 				CullParams shadowCull;
 				shadowCull.projmat = _mainLight.get_projection();
@@ -1606,6 +1600,14 @@ void REngine::draw()
 		{
 			handle_surface_changes(result != VK_SUBOPTIMAL_KHR);
 		}
+	}
+
+	if (recreate_imgui)
+	{
+		vkDeviceWaitIdle(_device);
+		_imguiDeletionQueue.flush();
+		init_imgui();
+		recreate_imgui = false;
 	}
 
 	_frameNumber++;
