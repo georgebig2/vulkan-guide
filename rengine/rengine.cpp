@@ -58,11 +58,6 @@ FrameData& REngine::get_current_frame()
 }
 
 
-//FrameData& REngine::get_last_frame()
-//{
-//	return _frames[_swapchainImageIndex_prev];
-//}
-
 template<typename T>
 T* REngine::map_buffer(AllocatedBuffer<T>& buffer)
 {
@@ -72,8 +67,29 @@ T* REngine::map_buffer(AllocatedBuffer<T>& buffer)
 }
 
 
-void REngine::update()
+void REngine::update(InputData& input)
 {
+	{
+		//if (ev->type == SDL_MOUSEMOTION)
+		{
+			static float prevx = input.touch_x;
+			static float prevy = input.touch_y;
+			if (!input.touch)// !camera.bLocked)
+			{
+				_camera.pitch -= (input.touch_y - prevy) *0.003f;
+				_camera.yaw -= (input.touch_x - prevx) *0.003f;
+				//LOG_INFO("%f", camera.yaw);
+			}
+			prevx = input.touch_x;
+			prevy = input.touch_y;
+
+			//if (input.press)
+			{
+				_camera.position += input.press * _camera.get_dir() * 3.f;
+			}
+		}
+	}
+
 	ImGuiIO& io = ImGui::GetIO();
 	//io.DeltaTime = 1.0f / 60.0f;
 	hud_update();

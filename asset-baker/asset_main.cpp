@@ -957,7 +957,7 @@ void extract_assimp_meshes(const aiScene* scene, const fs::path& input, const fs
 			_indices[f * 3 + 2] = mesh->mFaces[f].mIndices[2];
 
 			//assimp fbx creates bad normals, just regen them
-			if (true)
+			if (1)
 			{
 				int v0 = _indices[f * 3 + 0];
 				int v1 = _indices[f * 3 + 1];

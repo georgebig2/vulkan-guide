@@ -126,6 +126,13 @@ class RenderScene;
 class ShaderCache;
 struct MeshPass;
 
+struct InputData
+{
+    float touch_x = 0, touch_y = 0;
+    float touch = 0;
+    float press = 0;
+};
+
 class REngine {
 public:
 
@@ -142,7 +149,7 @@ public:
     DeletionQueue _imguiDeletionQueue;
 
     virtual void init(bool debug);
-    virtual void update();
+    virtual void update(InputData& input);
     virtual void cleanup();
     virtual bool create_surface(VkInstance instance, VkSurfaceKHR* surface) = 0;
     virtual void resize_window(int w, int h);

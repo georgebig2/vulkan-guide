@@ -20,4 +20,6 @@ struct PlayerCamera
 	glm::mat4 get_projection_matrix(REngine* engine, bool bReverse = true);
 	glm::mat4 get_pre_rotation_matrix(REngine* engine);
 	glm::mat4 get_rotation_matrix();
+
+	glm::vec3 get_dir();
 };

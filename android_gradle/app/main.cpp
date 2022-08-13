@@ -81,8 +81,10 @@ public:
 
 static AndroidEngine* engine = 0;
 static bool is_paused = false;
+static InputData input;
 
-// Implement input event handling function.
+
+
 static int32_t engine_handle_input(struct android_app* app)
 {
 	//auto* engine = (struct engine*)app->userData;
@@ -90,21 +92,36 @@ static int32_t engine_handle_input(struct android_app* app)
 
 	if (ib && ib->motionEventsCount)
     {
-/*		for (int i = 0; i < ib->motionEventsCount; i++) {
+        input.touch = 0;
+		//input.press = 0;
+		int32_t ptrIdx = 0;
+		for (int i = 0; i < ib->motionEventsCount; i++)
+		{
 			auto *event = &ib->motionEvents[i];
-			int32_t ptrIdx = 0;
-			switch (event->action & AMOTION_EVENT_ACTION_MASK) {
+			switch (event->action & AMOTION_EVENT_ACTION_MASK)
+			{
 				case AMOTION_EVENT_ACTION_POINTER_DOWN:
+					ptrIdx = (event->action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+					input.press = ptrIdx == 1 ? 1.f : -1;
+					break;
 				case AMOTION_EVENT_ACTION_POINTER_UP:
 					// Retrieve the index for the starting and the ending of any secondary pointers
-					ptrIdx = (event->action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >>
-																					   AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+					ptrIdx = (event->action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+					input.press = 0.f;
+					break;
 				case AMOTION_EVENT_ACTION_DOWN:
-				case AMOTION_EVENT_ACTION_UP:
-					engine->state.x = GameActivityPointerAxes_getAxisValue(
+					if (ptrIdx == 0)
+					{
+						input.touch = 1.f;
+						input.touch_x = GameActivityPointerAxes_getAxisValue(
 							&event->pointers[ptrIdx], AMOTION_EVENT_AXIS_X);
-					engine->state.y = GameActivityPointerAxes_getAxisValue(
+						input.touch_y = GameActivityPointerAxes_getAxisValue(
 							&event->pointers[ptrIdx], AMOTION_EVENT_AXIS_Y);
+					}
+					break;
+				case AMOTION_EVENT_ACTION_UP:
+					if (ptrIdx == 0)
+	                    input.touch = 1.f;
 					break;
 				case AMOTION_EVENT_ACTION_MOVE:
 					// Process the move action: the new coordinates for all active touch pointers
@@ -112,11 +129,21 @@ static int32_t engine_handle_input(struct android_app* app)
 					// coordinates to find out which pointers are actually moved. Note that there is
 					// no index embedded inside event->action for AMOTION_EVENT_ACTION_MOVE (there
 					// might be multiple pointers moved at the same time).
-					...
+					if (ptrIdx == 0)
+					{
+						input.touch_x = GameActivityPointerAxes_getAxisValue(
+							&event->pointers[ptrIdx], AMOTION_EVENT_AXIS_X);
+						input.touch_y = GameActivityPointerAxes_getAxisValue(
+							&event->pointers[ptrIdx], AMOTION_EVENT_AXIS_Y);
+					}
+					else
+					{
+						//input.press = 1;
+					}
 					break;
 			}
 		}
-*/
+
 		android_app_clear_motion_events(ib);
 	}
 
@@ -285,8 +312,6 @@ void android_main(android_app* app)
 				source->process(source->app, source);
 			}
 
-			//... // Other processing.
-
 			// Check if app is exiting.
 			if (app->destroyRequested) {
 				if (engine) {
@@ -298,14 +323,11 @@ void android_main(android_app* app)
 				return;
 			}
 		}
-		// Process input events if there are any.
+
 		engine_handle_input(app);
 
 		if (engine && !is_paused && engine->window) {
-			engine->update();
-			//if (engine.animating) {
-				// Draw a game frame.
-			//}
+			engine->update(input);
 		}
 	}
 
