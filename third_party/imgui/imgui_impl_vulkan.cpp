@@ -586,7 +586,7 @@ void ImGui_ImplVulkan_RenderDrawData(ImDrawData* draw_data, VkCommandBuffer comm
                 scissor.offset.y = (int32_t)(clip_min.y);
                 scissor.extent.width = (uint32_t)(clip_max.x - clip_min.x);
                 scissor.extent.height = (uint32_t)(clip_max.y - clip_min.y);
-                //vkCmdSetScissor(command_buffer, 0, 1, &scissor);              //!!!!
+                vkCmdSetScissor(command_buffer, 0, 1, &scissor);              //!!!!
 
                 // Bind DescriptorSet with font or user texture
                 VkDescriptorSet desc_set[1] = { (VkDescriptorSet)pcmd->TextureId };

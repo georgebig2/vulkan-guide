@@ -1019,13 +1019,13 @@ void REngine::init_swapchain()
 	_windowExtent = capabilities.currentExtent;
 	_pretransformFlag = capabilities.currentTransform;
 
-	if (capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
-		capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
-	{
-		// Pre-rotation: always use native orientation i.e. if rotated, use width and height of identity transform
-		//std::swap(_surfExtent.width, _surfExtent.height);
-		//std::swap(_windowExtent.width, _windowExtent.height);
-	}
+//	if (capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
+//		capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
+//	{
+//		// Pre-rotation: always use native orientation i.e. if rotated, use width and height of identity transform
+//		//std::swap(_surfExtent.width, _surfExtent.height);
+//		//std::swap(_windowExtent.width, _windowExtent.height);
+//	}
 
 	vkb::SwapchainBuilder swapchainBuilder{ _chosenGPU, _device, _surface };
 
@@ -1113,7 +1113,6 @@ void REngine::init_swapchain()
 		{
 			VkFramebufferCreateInfo fwd_info = vkinit::framebuffer_create_info(_renderPass, _windowExtent);
 			VkImageView attachments[2] = { frame._rawRenderImage._defaultView, frame._depthImage._defaultView };
-
 			fwd_info.pAttachments = attachments;
 			fwd_info.attachmentCount = 2;
 			VK_CHECK(vkCreateFramebuffer(_device, &fwd_info, nullptr, &frame._forwardFramebuffer));
@@ -1125,15 +1124,15 @@ void REngine::init_swapchain()
 			}
 		}
 
-
+//#pragma clang optimize off
 		// framebuffer
 		{
 			frame._swapchainImageView = swapchainImageViews[i];
 
 			VkFramebufferCreateInfo fb_info = vkinit::framebuffer_create_info(nocopy ? _renderPass : _copyPass, _windowExtent);
+			VkImageView attachments[2] = { frame._swapchainImageView, frame._depthImage._defaultView };
 			if (nocopy)
 			{
-				VkImageView attachments[2] = { frame._swapchainImageView, frame._depthImage._defaultView };
 				fb_info.pAttachments = attachments;
 				fb_info.attachmentCount = 2;
 			}

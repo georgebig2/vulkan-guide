@@ -15,7 +15,7 @@ android {
 		externalNativeBuild {
 			cmake {
 				abiFilters.addAll( 'arm64-v8a', /*'armeabi-v7a', 'x86', 'x86_64'*/ )
-				arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_static', '-DVKB_VALIDATION_LAYERS=OFF'
+				arguments '-DANDROID_TOOLCHAIN=clang', '-DANDROID_STL=c++_static', '-DVKB_VALIDATION_LAYERS=OFF'//, '-DCMAKE_BUILD_TYPE:STRING=Debug'
 				//cppFlags "-fno-rtti -std=c++14"
 			}
 		}

@@ -170,10 +170,10 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 		case APP_CMD_CONTENT_RECT_CHANGED:
 			// Get the new size
 			{
-				auto width = app->contentRect.right - app->contentRect.left;
-				auto height = app->contentRect.bottom - app->contentRect.top;
-				if (engine)
-					engine->resize_window(width, height);
+//				auto width = app->contentRect.right - app->contentRect.left;
+//				auto height = app->contentRect.bottom - app->contentRect.top;
+//				if (engine)
+//					engine->resize_window(width, height);
 
 			}
 			break;
@@ -184,7 +184,7 @@ static void _handle_cmd_proxy(struct android_app *app, int32_t cmd)
 			if (!engine && app->window != NULL)
 			{
 				engine = new AndroidEngine(app->window, app->activity->assetManager);
-				engine->resize_window(ANativeWindow_getWidth(app->window), ANativeWindow_getHeight(app->window));
+				//engine->resize_window(ANativeWindow_getWidth(app->window), ANativeWindow_getHeight(app->window));
 				dpi = AConfiguration_getDensity(app->config) / static_cast<float>(ACONFIGURATION_DENSITY_MEDIUM);
 				engine->init(false);
 				//mHasWindow = true;
