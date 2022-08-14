@@ -28,6 +28,8 @@ android {
 		}
 
 		release {
+			debuggable true
+			jniDebuggable true
 			minifyEnabled false
 			proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
 			signingConfig debug.signingConfig
@@ -53,8 +55,7 @@ android {
 			java.srcDirs += [ 'android/java' ]
 			assets.srcDirs += [ 'android/assets' ]
 			manifest.srcFile 'android/AndroidManifest.xml'
-
-			//jniLibs.srcDirs += ["$ndkDirectory/sources/third_party/vulkan/src/build-android/jniLibs"]
+			jniLibs.srcDirs += ["android/jniLibs"]
 		}
 	}
 
@@ -78,7 +79,7 @@ android {
 
 dependencies {
 	implementation 'androidx.core:core:1.8.0'
-	implementation 'androidx.appcompat:appcompat:1.4.2'
+	implementation 'androidx.appcompat:appcompat:1.5.0'
 	//implementation 'com.google.android.material:material:1.6.1'
 	//implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 	implementation "androidx.games:games-activity:1.2.1"

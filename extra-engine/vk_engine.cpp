@@ -246,6 +246,7 @@ void VulkanEngine::run()
 					if (e.key.keysym.sym == SDLK_TAB)
 					{
 						//resize_window(0, 0);
+						//handle_surface_changes(true);
 						if (CVAR_CamLock.Get())
 						{
 							LOG_INFO("Mouselook disabled");

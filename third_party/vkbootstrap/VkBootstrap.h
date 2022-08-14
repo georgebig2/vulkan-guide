@@ -536,6 +536,8 @@ namespace vkb {
 		SwapchainBuilder& add_fallback_format(VkSurfaceFormatKHR format);
 		SwapchainBuilder& use_default_format_selection();
 
+		SwapchainBuilder& set_in_capabilities(VkSurfaceCapabilitiesKHR* in_capabilities);
+
 		SwapchainBuilder& set_desired_present_mode(VkPresentModeKHR present_mode);
 		SwapchainBuilder& add_fallback_present_mode(VkPresentModeKHR present_mode);
 		SwapchainBuilder& use_default_present_mode_selection();
@@ -562,6 +564,7 @@ namespace vkb {
 			uint32_t present_queue_index = 0;
 			std::vector<VkBaseOutStructure*> pNext_elements;
 			VkAllocationCallbacks* allocation_callbacks = VK_NULL_HANDLE;
+			VkSurfaceCapabilitiesKHR* in_capabilities = 0;
 		} info;
 	};
 

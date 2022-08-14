@@ -133,6 +133,9 @@ struct InputData
     float press = 0;
 };
 
+constexpr bool nocopy = true;
+
+
 class REngine {
 public:
 
@@ -159,6 +162,8 @@ public:
 
     void draw();
     void hud_update();
+
+    VkResult get_surface_info(VkSurfaceCapabilitiesKHR& capabilities);
 
     FrameData& get_current_frame();
     //FrameData& get_last_frame();
@@ -195,7 +200,7 @@ public:
     VkPhysicalDeviceProperties _gpuProperties;
 
 
-    VkFormat _renderFormat = VK_FORMAT_R8G8B8A8_SNORM;// VK_FORMAT_R32G32B32A32_SFLOAT;
+    VkFormat _renderFormat = VK_FORMAT_R8G8B8A8_SRGB;// VK_FORMAT_R32G32B32A32_SFLOAT;
 
 
     VkSampler _smoothSampler;

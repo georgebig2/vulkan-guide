@@ -197,6 +197,8 @@ void REngine::init_scene()
 
 void REngine::init(bool debug)
 {
+	//SleepEx(10*1000, 0);
+
 	//vkb::Instance vkb_inst;
 	vkb::InstanceBuilder builder;
 	if (debug) {
@@ -209,7 +211,7 @@ void REngine::init(bool debug)
 	}
 	else {
 		auto inst_ret = builder.set_app_name("REngine")
-//			.request_validation_layers(bUseValidationLayers)
+			//.request_validation_layers(bUseValidationLayers)
 	//		.use_default_debug_messenger()
 			.build();
 		_instance = inst_ret.value();
@@ -278,7 +280,6 @@ void REngine::init(bool debug)
 	//LOG_INFO("The gpu has a minimum buffer alignement of {}", _gpuProperties.limits.minUniformBufferOffsetAlignment);
 
 	_shaderCache.init(_device);
-	init_forward_renderpass();
 	init_swapchain();
 	init_descriptors();
 	get_render_scene()->init();
@@ -326,7 +327,6 @@ void REngine::init(bool debug)
 
 
 	get_render_scene()->merge_meshes(this);
-
 	get_render_scene()->build_batches();
 
 	_isInitialized = true;
@@ -342,6 +342,8 @@ void REngine::init(bool debug)
 	_profiler = new vkutil::VulkanProfiler();
 	_profiler->init(_device, _gpuProperties.limits.timestampPeriod);
 
+	//start = std::chrono::system_clock::now();
+	//end = std::chrono::system_clock::now();
 }
 
 void REngine::resize_window(int w, int h)
@@ -996,18 +998,34 @@ glm::mat4 DirectionalLight::get_view()
 	return view;
 }
 
+VkResult REngine::get_surface_info(VkSurfaceCapabilitiesKHR& capabilities)
+{
+	auto res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_chosenGPU, _surface, &capabilities);
+	VK_CHECK(res);
+	if (1)
+	{
+		capabilities.currentTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;				// no pre_rotate
+		//std::swap(capabilities.currentExtent.width, capabilities.currentExtent.height);
+	}
+	return res;
+}
+
 void REngine::init_swapchain()
 {
 	VkSurfaceCapabilitiesKHR capabilities;
-	VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_chosenGPU, _surface, &capabilities));
+	get_surface_info(capabilities);
+
+	auto _surfExtent = capabilities.currentExtent;
+	_windowExtent = capabilities.currentExtent;
+	_pretransformFlag = capabilities.currentTransform;
+
 	if (capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR ||
 		capabilities.currentTransform & VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR)
 	{
 		// Pre-rotation: always use native orientation i.e. if rotated, use width and height of identity transform
-		//std::swap(capabilities.currentExtent.width, capabilities.currentExtent.height);
+		//std::swap(_surfExtent.width, _surfExtent.height);
+		//std::swap(_windowExtent.width, _windowExtent.height);
 	}
-	_pretransformFlag = capabilities.currentTransform;
-	_windowExtent = capabilities.currentExtent;
 
 	vkb::SwapchainBuilder swapchainBuilder{ _chosenGPU, _device, _surface };
 
@@ -1019,9 +1037,10 @@ void REngine::init_swapchain()
 
 	auto swap_ret = swapchainBuilder
 		//.use_default_format_selection()
+		.set_in_capabilities(&capabilities)
 		.set_desired_format(format)
 		.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)//VK_PRESENT_MODE_FIFO_RELAXED_KHR)//(VK_PRESENT_MODE_IMMEDIATE_KHR)
-		.set_desired_extent(_windowExtent.width, _windowExtent.height)
+		.set_desired_extent(_surfExtent.width, _surfExtent.height)
 		.build();//.recreate(_swapchain);
 	//if (!swap_ret) {
 		// If it failed to create a swapchain, the old swapchain handle is invalid.
@@ -1031,27 +1050,30 @@ void REngine::init_swapchain()
 	_swapchain = swap_ret.value();
 
 	_swachainImageFormat = _swapchain.image_format;
-	if (!_isInitialized)
+	if (!_isInitialized) {
+		init_forward_renderpass();
 		init_copy_renderpass(_swachainImageFormat);
+	}
 
 	assert(_frames.empty() || _frames.size() == _swapchain.image_count);
 	_frames.resize(_swapchain.image_count);
 
 	auto swapchainImageViews = _swapchain.get_image_views().value();
 
+	VkExtent3D renderImageExtent = { _windowExtent.width, _windowExtent.height, 1 };
+	VkImageCreateInfo ri_info = vkinit::image_create_info(_renderFormat,
+		VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, renderImageExtent);
+
+	VmaAllocationCreateInfo dimg_allocinfo = {};
+	dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
 	for (int i = 0; i < _frames.size(); ++i)
 	{
 		auto& frame = _frames[i];
-		frame._swapchainImageView = swapchainImageViews[i];
 
-		VkExtent3D renderImageExtent = { _windowExtent.width, _windowExtent.height, 1 };
-		VkImageCreateInfo ri_info = vkinit::image_create_info(_renderFormat,
-			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, renderImageExtent);
-
-		VmaAllocationCreateInfo dimg_allocinfo = {};
-		dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
+		// forward pass color
+		if (!nocopy)
 		{
 			vmaCreateImage(_allocator, &ri_info, &dimg_allocinfo, &frame._rawRenderImage._image, &frame._rawRenderImage._allocation, nullptr);
 			VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_renderFormat, frame._rawRenderImage._image, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -1065,8 +1087,7 @@ void REngine::init_swapchain()
 				});
 		}
 
-
-		// depth image ------ 
+		// depth 
 		{
 			//the depth image will be a image with the format we selected and Depth Attachment usage flag
 			VkExtent3D depthImageExtent = { _windowExtent.width, _windowExtent.height, 1 };
@@ -1086,10 +1107,42 @@ void REngine::init_swapchain()
 					});
 			}
 		}
+
+		// forward pass framebuffer
+		if (!nocopy)
 		{
-			VkFramebufferCreateInfo fb_info = vkinit::framebuffer_create_info(_copyPass, _windowExtent);
-			fb_info.pAttachments = &frame._swapchainImageView;
-			fb_info.attachmentCount = 1;
+			VkFramebufferCreateInfo fwd_info = vkinit::framebuffer_create_info(_renderPass, _windowExtent);
+			VkImageView attachments[2] = { frame._rawRenderImage._defaultView, frame._depthImage._defaultView };
+
+			fwd_info.pAttachments = attachments;
+			fwd_info.attachmentCount = 2;
+			VK_CHECK(vkCreateFramebuffer(_device, &fwd_info, nullptr, &frame._forwardFramebuffer));
+			{
+				auto f = frame._forwardFramebuffer;
+				_surfaceDeletionQueue.push_function([=]() {
+					vkDestroyFramebuffer(_device, f, nullptr);
+					});
+			}
+		}
+
+
+		// framebuffer
+		{
+			frame._swapchainImageView = swapchainImageViews[i];
+
+			VkFramebufferCreateInfo fb_info = vkinit::framebuffer_create_info(nocopy ? _renderPass : _copyPass, _windowExtent);
+			if (nocopy)
+			{
+				VkImageView attachments[2] = { frame._swapchainImageView, frame._depthImage._defaultView };
+				fb_info.pAttachments = attachments;
+				fb_info.attachmentCount = 2;
+			}
+			else
+			{
+				fb_info.pAttachments = &frame._swapchainImageView;
+				fb_info.attachmentCount = 1;
+			}
+
 			VK_CHECK(vkCreateFramebuffer(_device, &fb_info, nullptr, &frame._framebuffer));
 			{
 				auto v = frame._swapchainImageView;
@@ -1100,6 +1153,8 @@ void REngine::init_swapchain()
 					});
 			}
 		}
+
+
 
 		// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
 		depthPyramidWidth = previousPow2(_windowExtent.width);
@@ -1145,22 +1200,6 @@ void REngine::init_swapchain()
 
 			frame.depthPyramidMips[i] = pyramid;
 			assert(frame.depthPyramidMips[i]);
-		}
-		{
-			VkFramebufferCreateInfo fwd_info = vkinit::framebuffer_create_info(_renderPass, _windowExtent);
-			VkImageView attachments[2];
-			attachments[0] = frame._rawRenderImage._defaultView;
-			attachments[1] = frame._depthImage._defaultView;
-
-			fwd_info.pAttachments = attachments;
-			fwd_info.attachmentCount = 2;
-			VK_CHECK(vkCreateFramebuffer(_device, &fwd_info, nullptr, &frame._forwardFramebuffer));
-			{
-				auto f = frame._forwardFramebuffer;
-				_surfaceDeletionQueue.push_function([=]() {
-					vkDestroyFramebuffer(_device, f, nullptr);
-					});
-			}
 		}
 	}
 
@@ -1347,7 +1386,7 @@ void REngine::init_descriptors()
 bool REngine::handle_surface_changes(bool force_update)
 {
 	VkSurfaceCapabilitiesKHR capabilities;
-	auto res = (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_chosenGPU, _surface, &capabilities));  // slow?
+	auto res = get_surface_info(capabilities); // slow?
 	if (res != VK_SUCCESS || capabilities.currentExtent.width == 0xFFFFFFFF) {
 		return false;
 	}
@@ -1379,13 +1418,6 @@ bool REngine::handle_surface_changes(bool force_update)
 		vkDestroySurfaceKHR(_instance.instance, _surface, nullptr);
 		auto res = create_surface(_instance.instance, &_surface);
 		assert(res);
-
-		//if (_windowExtent.width == 0 && _windowExtent.height == 0)
-		//{
-		//	vkDestroySurfaceKHR(_instance.instance, _surface, nullptr);
-		//	auto res = create_surface(_instance.instance, &_surface);
-		//	assert(res);
-		//}
 
 		init_swapchain();
 		recreate_imgui = true;

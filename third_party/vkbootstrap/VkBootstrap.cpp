@@ -1122,14 +1122,19 @@ namespace vkb {
 		};
 
 		Expected<SurfaceSupportDetails, detail::Error<SurfaceSupportError>> query_surface_support_details(
-			VkPhysicalDevice phys_device, VkSurfaceKHR surface) {
+			VkPhysicalDevice phys_device, VkSurfaceKHR surface, VkSurfaceCapabilitiesKHR* in_capabilities) {
 			if (surface == VK_NULL_HANDLE)
 				return detail::Error<SurfaceSupportError>{ SurfaceSupportError::surface_handle_null };
 
 			VkSurfaceCapabilitiesKHR capabilities;
-			VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys_device, surface, &capabilities);
-			if (res != VK_SUCCESS) {
-				return detail::Error<SurfaceSupportError>{ SurfaceSupportError::failed_get_surface_capabilities, res };
+			if (in_capabilities) {
+				capabilities = *in_capabilities;
+			}
+			else {
+				VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys_device, surface, &capabilities);
+				if (res != VK_SUCCESS) {
+					return detail::Error<SurfaceSupportError>{ SurfaceSupportError::failed_get_surface_capabilities, res };
+				}
 			}
 			auto formats = detail::get_vector<VkSurfaceFormatKHR>(
 				vkGetPhysicalDeviceSurfaceFormatsKHR, phys_device, surface);
@@ -1244,7 +1249,7 @@ namespace vkb {
 		auto desired_present_modes = info.desired_present_modes;
 		if (desired_present_modes.size() == 0) add_desired_present_modes(desired_present_modes);
 
-		auto surface_support = detail::query_surface_support_details(info.physical_device, info.surface);
+		auto surface_support = detail::query_surface_support_details(info.physical_device, info.surface, info.in_capabilities);
 		if (!surface_support.has_value())
 			return detail::Error<SwapchainError>{ SwapchainError::failed_query_surface_support_details,
 			surface_support.error().vk_result };
@@ -1365,6 +1370,10 @@ namespace vkb {
 	}
 	SwapchainBuilder& SwapchainBuilder::set_desired_format(VkSurfaceFormatKHR format) {
 		info.desired_formats.insert(info.desired_formats.begin(), format);
+		return *this;
+	}
+	SwapchainBuilder& SwapchainBuilder::set_in_capabilities(VkSurfaceCapabilitiesKHR* in_capabilities) {
+		info.in_capabilities = in_capabilities;
 		return *this;
 	}
 	SwapchainBuilder& SwapchainBuilder::add_fallback_format(VkSurfaceFormatKHR format) {

@@ -20,6 +20,7 @@ AutoCVar_Float CVAR_SlopeBias("gpu.shadowBiasSlope", "Distance cull", 4.75f);
 AutoCVar_Int CVAR_FreezeShadows("gpu.freezeShadows", "Stop the rendering of shadows", 0, CVarFlags::EditCheckbox);
 AutoCVar_Int CVAR_Shadowcast("gpu.shadowcast", "Use shadowcasting", 1, CVarFlags::EditCheckbox);
 
+
 void REngine::init_forward_renderpass()
 {
 	VkSamplerCreateInfo shadsamplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
@@ -35,14 +36,14 @@ void REngine::init_forward_renderpass()
 	//we dont care about stencil, and dont use multisampling
 
 	VkAttachmentDescription color_attachment = {};
-	color_attachment.format = _renderFormat;//_swachainImageFormat;
+	color_attachment.format = nocopy ? _swachainImageFormat : _renderFormat;
 	color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	color_attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;//PRESENT_SRC_KHR;
+	color_attachment.finalLayout = nocopy ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	VkAttachmentReference color_attachment_ref = {};
 	color_attachment_ref.attachment = 0;
@@ -58,7 +59,7 @@ void REngine::init_forward_renderpass()
 	depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depth_attachment.finalLayout =  VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 	VkAttachmentReference depth_attachment_ref = {};
 	depth_attachment_ref.attachment = 1;
@@ -253,7 +254,7 @@ void REngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
 
 	//start the main renderpass. 
 	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, get_current_frame()._forwardFramebuffer);
+	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, nocopy ? get_current_frame()._framebuffer : get_current_frame()._forwardFramebuffer);
 
 	//connect clear values
 	rpInfo.clearValueCount = 2;
@@ -734,6 +735,9 @@ void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescr
 
 void REngine::copy_render_to_swapchain(VkCommandBuffer cmd)
 {
+	if (nocopy)
+		return;
+
 	//start the main renderpass. 
 	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
 	VkRenderPassBeginInfo copyRP = vkinit::renderpass_begin_info(_copyPass, _windowExtent, get_current_frame()._framebuffer);
@@ -747,6 +751,7 @@ void REngine::copy_render_to_swapchain(VkCommandBuffer cmd)
 	viewport.height = (float)_windowExtent.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
+	//std::swap(viewport.width, viewport.height);
 
 	VkRect2D scissor;
 	scissor.offset = { 0, 0 };
