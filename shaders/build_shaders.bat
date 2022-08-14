@@ -6,5 +6,6 @@ forfiles /m *.frag /c "cmd /c %VULKAN_SDK%\Bin\glslangValidator.exe -V @fname.fr
 
 forfiles /m *.comp /c "cmd /c %VULKAN_SDK%\Bin\glslangValidator.exe -V @fname.comp -o @fname.comp.spv"
 
+"cmd /c %VULKAN_SDK%\Bin\glslangValidator.exe -V -x -o hud.vert.u32 hud.vert"
 
 pause

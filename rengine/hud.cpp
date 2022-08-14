@@ -20,7 +20,7 @@ void REngine::hud_update()
 	ImGui::GetStyle() = ImGuiStyle();
 	ImGui::GetStyle().ScaleAllSizes(get_dpi_factor());
 
-	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplVulkan_NewFrame(_pretransformFlag);
 	io.DisplaySize = ImVec2(_windowExtent.width, _windowExtent.height);
 	//if (_pretransformFlag & VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR) {
 	//	io.DisplaySize = ImVec2(_windowExtent.height, _windowExtent.width);
@@ -103,6 +103,7 @@ void REngine::hud_update()
 	{
 		const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 		ImVec2 windowSize = main_viewport->Size;
+		//std::swap(windowSize.x, windowSize.y);
 		ImVec2 windowPos = { 0, windowSize.y / 2 };
 		windowSize.y /= 2.7f;
 		ImGui::SetNextWindowPos(windowPos, ImGuiCond_FirstUseEver);
@@ -123,6 +124,7 @@ void REngine::hud_update()
 
 			auto wp = ImGui::GetWindowPos();
 			auto ws = ImGui::GetWindowSize();
+			//std::swap(ws.x, ws.y);
 			ImVec2 wp2 = ws + wp;
 
 			ImDrawList* draw_list = ImGui::GetWindowDrawList();
