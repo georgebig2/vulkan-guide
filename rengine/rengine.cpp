@@ -97,7 +97,7 @@ void REngine::update(InputData& input)
 	//vtest flagging some objects for changes
 	{
 		//ZoneScopedNC("Flag Objects", tracy::Color::Blue);
-		int N_changes = 1000;
+		int N_changes = 5000;
 		for (int i = 0; i < N_changes; i++)
 		{
 			int rng = rand() % get_render_scene()->renderables.size();
@@ -108,7 +108,7 @@ void REngine::update(InputData& input)
 			auto* obj = get_render_scene()->get_object(h);
 			auto prev = obj->transformMatrix;
 			//glm::mat4 tr = glm::translate(glm::mat4{ 1.0 }, glm::vec3(0, 15, 0));
-			float scale = sin(_frameNumber / 200.f + h.handle) * 0.0001f + 1.f;
+			float scale = sin(_frameNumber / 20.f + h.handle) * 0.001f + 1.f;
 			glm::mat4 sm = glm::scale(glm::mat4{ 1.0 }, glm::vec3(scale));
 			//glm::mat4 rot = glm::rotate(glm::radians(90.f), glm::vec3{ 1,0,0 });
 			auto newm = prev * sm;
@@ -154,8 +154,13 @@ void REngine::init_scene()
 	}
 
 	{
-		glm::mat4 sponzaMatrix = glm::scale(glm::mat4{ 1.0 }, glm::vec3(1));;
+		glm::mat4 sponzaMatrix = glm::scale(glm::mat4{ 1.0 }, glm::vec3(1));
 		load_prefab(asset_path("Sponza_GLTF/Sponza.pfb").c_str(), sponzaMatrix);
+	}
+
+	{
+		glm::mat4 sponzaMatrix = glm::scale(glm::mat4{ 1.0 }, glm::vec3(1.5f));
+		load_prefab(asset_path("city_GLTF/city.pfb").c_str(), sponzaMatrix);
 	}
 
 	//glm::mat4 unrealFixRotation = glm::rotate(glm::radians(-90.f), glm::vec3{ 1,0,0 });
@@ -333,7 +338,7 @@ void REngine::init(bool debug)
 
 	_camera = {};
 	_camera.yaw = 1.5f;
-	_camera.position = { 0.f, 85.f, 1.f };
+	_camera.position = { 0.f, 5.f, 1.f };
 
 	_mainLight.lightPosition = { 0,50,0 };
 	_mainLight.lightDirection = glm::vec3(0.3, -1, 0.3);

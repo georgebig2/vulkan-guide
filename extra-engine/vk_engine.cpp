@@ -274,7 +274,7 @@ void VulkanEngine::run()
 			ZoneScopedNC("Flag Objects", tracy::Color::Blue);
 			//test flagging some objects for changes
 
-			int N_changes = 1000;
+			int N_changes = 5000;
 			for (int i = 0; i < N_changes; i++)
 			{
 				int rng = rand() % get_render_scene()->renderables.size();
