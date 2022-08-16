@@ -38,7 +38,6 @@
 
 #include "vk_scene.h"
 
-AutoCVar_Int CVAR_OcclusionCullGPU("culling.enableOcclusionGPU", "Perform occlusion culling in gpu", 1, CVarFlags::EditCheckbox);
 AutoCVar_Int CVAR_CamLock("camera.lock", "Locks the camera", 0, CVarFlags::EditCheckbox);
 
 //constexpr bool bUseValidationLayers = false;
@@ -117,8 +116,8 @@ void process_input_event(PlayerCamera& camera, SDL_Event * ev)
 		static float prevy = ev->motion.y;
 		if (!camera.bLocked)
 		{
-			camera.pitch -= (ev->motion.y - prevy) * 0.003f;
-			camera.yaw -= (ev->motion.x - prevx) * 0.003f;
+			camera.pitch -= (ev->motion.y - prevy) * 0.008f;
+			camera.yaw -= (ev->motion.x - prevx) * 0.008f;
 			//LOG_INFO("%f", camera.yaw);
 		}
 		prevx = ev->motion.x;

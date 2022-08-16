@@ -162,6 +162,16 @@ void REngine::init_scene()
 		glm::mat4 sponzaMatrix = glm::scale(glm::mat4{ 1.0 }, glm::vec3(1.5f));
 		load_prefab(asset_path("city_GLTF/city.pfb").c_str(), sponzaMatrix);
 	}
+	{
+		glm::mat4 translation = glm::translate(glm::mat4{ 1.0 }, glm::vec3(-400, 0, 0));
+		glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(1.5));
+		load_prefab(asset_path("city_GLTF/city.pfb").c_str(),  translation * scale);
+	}
+	{
+		glm::mat4 translation = glm::translate(glm::mat4{ 1.0 }, glm::vec3(400, 0, 0));
+		glm::mat4 scale = glm::scale(glm::mat4{ 1.0 }, glm::vec3(1.5));
+		load_prefab(asset_path("city_GLTF/city.pfb").c_str(), translation * scale);
+	}
 
 	//glm::mat4 unrealFixRotation = glm::rotate(glm::radians(-90.f), glm::vec3{ 1,0,0 });
 
@@ -1434,6 +1444,9 @@ bool REngine::handle_surface_changes(bool force_update)
 	return false;
 }
 
+AutoCVar_Int CVAR_OcclusionCullGPU("culling.enableOcclusionGPU", "Perform occlusion culling in gpu", 1, CVarFlags::EditCheckbox);
+
+
 void REngine::draw()
 {
 	ZoneScopedN("Engine Draw");
@@ -1568,7 +1581,7 @@ void REngine::draw()
 			forwardCull.projmat = _camera.get_projection_matrix(this, true);
 			forwardCull.viewmat = _camera.get_view_matrix(this);
 			forwardCull.frustrumCull = true;
-			forwardCull.occlusionCull = true;
+			forwardCull.occlusionCull = CVAR_OcclusionCullGPU.Get();
 			forwardCull.drawDist = CVAR_DrawDistance.Get();
 			forwardCull.aabb = false;
 			execute_compute_cull(cmd, _renderScene._forwardPass, forwardCull);
