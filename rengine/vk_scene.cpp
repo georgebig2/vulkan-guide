@@ -120,7 +120,7 @@ void RenderScene::write_object(GPUObjectData* target, Handle<RenderObject> objec
 
 	object.modelMatrix = renderable->transformMatrix;
 	object.origin_rad = glm::vec4(renderable->bounds.origin, renderable->bounds.radius);
-	object.extents = glm::vec4(renderable->bounds.extents, renderable->bounds.valid ? 1.f : 0.f);
+	//object.extents = glm::vec4(renderable->bounds.extents, renderable->bounds.valid ? 1.f : 0.f);
 
 	memcpy(target, &object, sizeof(GPUObjectData));
 }

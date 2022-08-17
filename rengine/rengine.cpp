@@ -685,24 +685,23 @@ bool REngine::load_prefab(const char* path, glm::mat4 root)
 void REngine::load_meshes()
 {
 	_meshes.reserve(1000);
+	//Mesh triMesh{};
+	//triMesh.bounds.valid = false;
+	////make the array 3 vertices long
+	//triMesh._vertices.resize(3);
 
-	Mesh triMesh{};
-	triMesh.bounds.valid = false;
-	//make the array 3 vertices long
-	triMesh._vertices.resize(3);
+	////vertex positions
+	//triMesh._vertices[0].position = { 1.f,1.f, 0.0f };
+	//triMesh._vertices[1].position = { -1.f,1.f, 0.0f };
+	//triMesh._vertices[2].position = { 0.f,-1.f, 0.0f };
 
-	//vertex positions
-	triMesh._vertices[0].position = { 1.f,1.f, 0.0f };
-	triMesh._vertices[1].position = { -1.f,1.f, 0.0f };
-	triMesh._vertices[2].position = { 0.f,-1.f, 0.0f };
-
-	//vertex colors, all green
-	triMesh._vertices[0].color = { 0.f,1.f, 0.0f }; //pure green
-	triMesh._vertices[1].color = { 0.f,1.f, 0.0f }; //pure green
-	triMesh._vertices[2].color = { 0.f,1.f, 0.0f }; //pure green
-	//we dont care about the vertex normals
-	upload_mesh(triMesh);
-	_meshes["triangle"] = triMesh;
+	////vertex colors, all green
+	//triMesh._vertices[0].color = { 0.f,1.f, 0.0f }; //pure green
+	//triMesh._vertices[1].color = { 0.f,1.f, 0.0f }; //pure green
+	//triMesh._vertices[2].color = { 0.f,1.f, 0.0f }; //pure green
+	////we dont care about the vertex normals
+	//upload_mesh(triMesh);
+	//_meshes["triangle"] = triMesh;
 }
 
 void REngine::upload_mesh(Mesh& mesh)
@@ -943,7 +942,7 @@ void REngine::cleanup()
 
 		vkDestroySampler(_device, _depthSampler, nullptr);
 		vkDestroySampler(_device, _shadowSampler, nullptr);
-		vkDestroySampler(_device, _smoothSampler2, nullptr);
+		//vkDestroySampler(_device, _smoothSampler2, nullptr);
 		vkDestroySampler(_device, _smoothSampler, nullptr);
 
 		_imguiDeletionQueue.flush();
@@ -1575,7 +1574,7 @@ void REngine::draw()
 		}
 
 		{
-			//vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu forward cull");
+			vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu forward cull");
 
 			CullParams forwardCull;
 			forwardCull.projmat = _camera.get_projection_matrix(this, true);
@@ -1740,7 +1739,6 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 			copies.reserve(_renderScene.dirtyObjects.size());
 
 			uint64_t buffersize = sizeof(GPUObjectData) * _renderScene.dirtyObjects.size();
-			uint64_t vec4size = sizeof(glm::vec4);
 			uint64_t intsize = sizeof(uint32_t);
 			uint64_t wordsize = sizeof(GPUObjectData) / sizeof(uint32_t);
 			uint64_t uploadSize = _renderScene.dirtyObjects.size() * wordsize * intsize;

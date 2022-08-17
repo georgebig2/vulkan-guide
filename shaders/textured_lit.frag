@@ -98,6 +98,7 @@ float filterPCF(vec4 sc)
 void main() 
 {
 	vec3 color = texture(tex1,texCoord).xyz;
+	color = mix(color, inColor.xyz, 0.1f);
 	
 	float lightAngle = clamp(dot(inNormal, -sceneData.sunlightDirection.xyz),0.f,1.f);
 

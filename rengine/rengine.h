@@ -60,7 +60,7 @@ struct MeshObject {
 struct GPUObjectData {
     glm::mat4 modelMatrix;
     glm::vec4 origin_rad; // bounds
-    glm::vec4 extents;  // bounds
+    //glm::vec4 extents;  // bounds
 };
 
 namespace assets {
@@ -204,7 +204,7 @@ public:
 
 
     VkSampler _smoothSampler;
-    VkSampler _smoothSampler2;
+    //VkSampler _smoothSampler2;
     VkSampler _shadowSampler;
     VkSampler _depthSampler;
 

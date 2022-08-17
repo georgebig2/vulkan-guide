@@ -171,15 +171,19 @@ void REngine::init_copy_renderpass(VkFormat swachainImageFormat)
 {
 	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
 	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	//samplerInfo.maxAnisotropy = 10;
+	//samplerInfo.anisotropyEnable = true;
 	vkCreateSampler(_device, &samplerInfo, nullptr, &_smoothSampler);
 
-	samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	//info.anisotropyEnable = true;
-	samplerInfo.mipLodBias = 2;
-	samplerInfo.maxLod = 30.f;
-	samplerInfo.minLod = 3;
-	vkCreateSampler(_device, &samplerInfo, nullptr, &_smoothSampler2);
+//	samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
+//	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+//	//info.anisotropyEnable = true;
+////	samplerInfo.maxAnisotropy = 10;
+////	samplerInfo.anisotropyEnable = true;
+//	samplerInfo.mipLodBias = 2;
+//	samplerInfo.maxLod = 30.f;
+//	samplerInfo.minLod = 3;
+//	vkCreateSampler(_device, &samplerInfo, nullptr, &_smoothSampler2);
 
 
 	VkSamplerCreateInfo createInfo = {};

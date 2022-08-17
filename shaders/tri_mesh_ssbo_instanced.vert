@@ -25,11 +25,11 @@ layout(set = 0, binding = 1) uniform  SceneData{
 	mat4 sunlightShadowMatrix;
 } sceneData;
 
-struct ObjectData{
+struct ObjectData {
 	mat4 model;
-vec4 spherebounds;
-vec4 extents;
-}; 
+	vec4 spherebounds;
+	//vec4 extents;
+};
 
 
 vec3 OctNormalDecode(vec2 f)
@@ -58,6 +58,13 @@ layout(set = 1, binding = 1) readonly buffer InstanceBuffer{
 	uint IDs[];
 } instanceBuffer;
 
+float rand(vec2 co){
+    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+}
+float rand(float co){
+    return rand(vec2(co,co));
+}
+
 void main() 
 {	
 	uint index = instanceBuffer.IDs[gl_InstanceIndex];
@@ -68,7 +75,9 @@ void main()
 	mat4 transformMatrix = (cameraData.viewproj * modelMatrix);
 	gl_Position = transformMatrix * vec4(vPosition, 1.0f);
 	outNormal = normalize((modelMatrix * vec4(vNormal,0.f)).xyz);
-	outColor = vColor;
+
+	vec3 k = vec3(1.f/500,1.f/1500,1.f/2500);
+	outColor = vec3(rand(index*k.x),rand(index*k.y),rand(index*k.z));
 	texCoord = vTexCoord;
 
 	ShadowCoord = sceneData.sunlightShadowMatrix * (modelMatrix* vec4(vPosition, 1.0f)  );
