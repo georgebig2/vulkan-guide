@@ -38,13 +38,15 @@
 
 #include "vk_scene.h"
 
+#include <windows.h>
+
 AutoCVar_Int CVAR_CamLock("camera.lock", "Locks the camera", 0, CVarFlags::EditCheckbox);
 
 //constexpr bool bUseValidationLayers = false;
 
 
 #include "SDL.h"
-void process_input_event(PlayerCamera& camera, SDL_Event * ev)
+void process_input_event(PlayerCamera& camera, SDL_Event * ev, SDL_Window* _window)
 {
 	if (ev->type == SDL_KEYDOWN)
 	{
@@ -114,7 +116,9 @@ void process_input_event(PlayerCamera& camera, SDL_Event * ev)
 	{
 		static float prevx = ev->motion.x;
 		static float prevy = ev->motion.y;
-		if (!camera.bLocked)
+		static auto  prevf = SDL_GetWindowFlags(_window);
+		auto f = SDL_GetWindowFlags(_window);
+		if (!camera.bLocked && (prevf & SDL_WINDOW_MOUSE_FOCUS))
 		{
 			camera.pitch -= (ev->motion.y - prevy) * 0.008f;
 			camera.yaw -= (ev->motion.x - prevx) * 0.008f;
@@ -122,6 +126,7 @@ void process_input_event(PlayerCamera& camera, SDL_Event * ev)
 		}
 		prevx = ev->motion.x;
 		prevy = ev->motion.y;
+		prevf = f;
 	}
 
 	camera.inputAxis = glm::clamp(camera.inputAxis, { -1.0,-1.0,-1.0 }, { 1.0,1.0,1.0 });
@@ -155,10 +160,12 @@ void VulkanEngine::init(bool debug)
 		SDL_WINDOWPOS_UNDEFINED,
 		_windowExtent.width,
 		_windowExtent.height,
-		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE
+		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI
 	);
 
 	//_renderables.reserve(10000);
+
+	SetProcessDPIAware();
 
 	REngine::init(debug);
 }
@@ -218,13 +225,13 @@ void VulkanEngine::run()
 				//{
 				//	inFocus = false;
 				//}
-				auto f = SDL_GetWindowFlags(_window);
-				inFocus = f & SDL_WINDOW_INPUT_FOCUS;
+				//auto f = SDL_GetWindowFlags(_window);
+				//inFocus = f & SDL_WINDOW_MOUSE_FOCUS;
 
 				ImGui_ImplSDL2_ProcessEvent(&e);
 
 				//if (inFocus) {
-					process_input_event(_camera, &e);
+					process_input_event(_camera, &e, _window);
 				//}
 
 				//close the window when user alt-f4s or clicks the X button			

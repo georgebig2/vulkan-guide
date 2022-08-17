@@ -62,7 +62,7 @@ void REngine::hud_update()
 	struct Graph
 	{
 		//const char* name;
-		std::array<float, gsMaxHistory> history;
+		std::array<float, gsMaxHistory> history = {};
 		double avg = 0;
 		bool checked = true;
 	};
@@ -105,7 +105,7 @@ void REngine::hud_update()
 		ImVec2 windowSize = main_viewport->Size;
 		//std::swap(windowSize.x, windowSize.y);
 		ImVec2 windowPos = { 0, windowSize.y / 2 };
-		windowSize.y /= 2.7f;
+		windowSize.y /= 2.4f;
 		ImGui::SetNextWindowPos(windowPos, ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(windowSize, ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowBgAlpha(0.6f);
@@ -152,7 +152,7 @@ void REngine::hud_update()
 			int cIdx = 0;
 			for (auto& [k, g] : graphs)
 			{
-				g.avg = 0;
+				//g.avg = 0;
 				auto scale = 1;// indicator->unit->GetGraphScale();
 				for (int i = 0; i < gsMaxHistory - 1; ++i) {
 
@@ -160,9 +160,9 @@ void REngine::hud_update()
 					points[i + 1].y = wp2.y - ws.y * g.history[(i + 1 + curFrame) % gsMaxHistory] * scale / maxValue;
 					points[i + 0].x = wp.x + (i + 0) * ws.x / gsMaxHistory;
 					points[i + 1].x = wp.x + (i + 1) * ws.x / gsMaxHistory;
-					g.avg += g.history[(i + curFrame) % gsMaxHistory];
+					//g.avg += g.history[(i + curFrame) % gsMaxHistory];
 				}
-				g.avg /= (gsMaxHistory - 1);
+				g.avg = g.avg * 0.75f + g.history[curFrame % gsMaxHistory] * 0.25f;///= (gsMaxHistory - 1);
 
 				if (g.checked) {
 					draw_list->AddPolyline(&points[0], gsMaxHistory, colors[cIdx], 0, 1.5f);

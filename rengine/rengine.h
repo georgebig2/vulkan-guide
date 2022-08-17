@@ -139,7 +139,7 @@ constexpr bool nocopy = true;
 class REngine {
 public:
 
-    VkExtent2D _windowExtent{ 1700 * 2 / 3 , 900 * 2 / 3 };
+    VkExtent2D _windowExtent{ 1700 * 4 / 3 , 900 * 4 / 3 };
     VkExtent2D _shadowExtent{ 1024 * 2,1024 * 2 };
     int _frameNumber{ 0 };
     uint32_t _swapchainImageIndex = 0;
@@ -156,7 +156,7 @@ public:
     virtual void cleanup();
     virtual bool create_surface(VkInstance instance, VkSurfaceKHR* surface) = 0;
     virtual void resize_window(int w, int h);
-    virtual float get_dpi_factor() { return 1.f; }
+    virtual float get_dpi_factor() { return 2.f; }
 
     void init_swapchain();
 
