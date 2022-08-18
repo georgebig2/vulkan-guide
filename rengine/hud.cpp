@@ -108,7 +108,7 @@ void REngine::hud_update()
 		windowSize.y /= 2.4f;
 		ImGui::SetNextWindowPos(windowPos, ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(windowSize, ImGuiCond_FirstUseEver);
-		ImGui::SetNextWindowBgAlpha(0.6f);
+		ImGui::SetNextWindowBgAlpha(0.4f);
 
 		static bool opened = true;
 		if (ImGui::Begin("History graph show", &opened, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)) {

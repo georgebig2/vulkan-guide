@@ -700,6 +700,7 @@ void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescr
 			{
 				if (lastMesh != nullptr)
 				{
+					assert(0);
 					VkDeviceSize offset = 0;
 					vkCmdBindVertexBuffers(cmd, 0, 1, &get_render_scene()->mergedVertexBuffer._buffer, &offset);
 
@@ -707,8 +708,9 @@ void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescr
 					lastMesh = nullptr;
 				}
 			}
-			else if (lastMesh != drawMesh) {
-
+			else if (lastMesh != drawMesh)
+			{
+				assert(0);
 				//bind the mesh vertex buffer with offset 0
 				VkDeviceSize offset = 0;
 				vkCmdBindVertexBuffers(cmd, 0, 1, &drawMesh->_vertexBuffer._buffer, &offset);

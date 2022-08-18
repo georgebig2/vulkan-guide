@@ -156,8 +156,8 @@ void VulkanEngine::init(bool debug)
 
 	_window = SDL_CreateWindow(
 		"",
-		SDL_WINDOWPOS_UNDEFINED,
-		SDL_WINDOWPOS_UNDEFINED,
+		0,
+		0,
 		_windowExtent.width,
 		_windowExtent.height,
 		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI
@@ -231,7 +231,9 @@ void VulkanEngine::run()
 				ImGui_ImplSDL2_ProcessEvent(&e);
 
 				//if (inFocus) {
+				if (_frameNumber > 10) {
 					process_input_event(_camera, &e, _window);
+				}
 				//}
 
 				//close the window when user alt-f4s or clicks the X button			

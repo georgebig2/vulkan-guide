@@ -142,10 +142,7 @@ bool Mesh::load_from_meshasset(REngine* engine, const char* filename)
 	_indices.clear();
 
 	_indices.resize(meshinfo.indexBuferSize / sizeof(uint32_t));
-	for (int i = 0; i < _indices.size(); i++) {
-		uint32_t* unpacked_indices = (uint32_t*)indexBuffer;
-		_indices[i] = unpacked_indices[i];
-	}
+	memcpy(&_indices[0], indexBuffer, meshinfo.indexBuferSize);
 
 	if (meshinfo.vertexFormat == assets::VertexFormat::PNCV_F32)
 	{
@@ -174,31 +171,10 @@ bool Mesh::load_from_meshasset(REngine* engine, const char* filename)
 	}
 	else if (meshinfo.vertexFormat == assets::VertexFormat::P32N8C8V16)
 	{
-		assets::Vertex_P32N8C8V16* unpackedVertices = (assets::Vertex_P32N8C8V16*)vertexBuffer;
-
 		_vertices.resize(meshinfo.vertexBuferSize / sizeof(assets::Vertex_P32N8C8V16));
-
-		for (int i = 0; i < _vertices.size(); i++) {
-
-			_vertices[i].position.x = unpackedVertices[i].position[0];
-			_vertices[i].position.y = unpackedVertices[i].position[1];
-			_vertices[i].position.z = unpackedVertices[i].position[2];
-
-			_vertices[i].pack_normal(vec3{ 
-				 unpackedVertices[i].normal[0]
-				,unpackedVertices[i].normal[1]
-				,unpackedVertices[i].normal[2] });
-
-			_vertices[i].color.x = unpackedVertices[i].color[0];// / 255.f;
-			_vertices[i].color.y = unpackedVertices[i].color[1];// / 255.f;
-			_vertices[i].color.z = unpackedVertices[i].color[2];// / 255.f;
-
-			_vertices[i].uv.x = unpackedVertices[i].uv[0];
-			_vertices[i].uv.y = unpackedVertices[i].uv[1];
-		}
+		memcpy(&_vertices[0], (assets::Vertex_P32N8C8V16*)vertexBuffer, meshinfo.vertexBuferSize);
 	}
-
-	
+		
 	if (logMeshUpload)
 	{
 		//LOG_SUCCESS("Loaded mesh {} : Verts={}, Tris={}", filename, _vertices.size(), _indices.size() / 3);

@@ -348,6 +348,7 @@ void REngine::init(bool debug)
 
 	_camera = {};
 	_camera.yaw = 1.5f;
+	_camera.pitch = 0;
 	_camera.position = { 0.f, 5.f, 1.f };
 
 	_mainLight.lightPosition = { 0,50,0 };
