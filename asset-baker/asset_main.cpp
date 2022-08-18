@@ -310,22 +310,19 @@ void unpack_gltf_buffer(tinygltf::Model& model, tinygltf::Accessor& accesor, std
 }
 void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& model, std::vector<assets::Vertex_f32_PNCV>& _vertices)
 {
-	
 	tinygltf::Accessor& pos_accesor = model.accessors[primitive.attributes["POSITION"]];
-
 	_vertices.resize(pos_accesor.count);
 
 	std::vector<uint8_t> pos_data;
 	unpack_gltf_buffer(model, pos_accesor, pos_data);
 	
-
-	for (int i = 0; i < _vertices.size(); i++) {
+	for (int i = 0; i < _vertices.size(); i++)
+	{
 		if (pos_accesor.type == TINYGLTF_TYPE_VEC3)
 		{
 			if (pos_accesor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
 			{
 				float* dtf = (float*)pos_data.data();
-
 				//vec3f 
 				_vertices[i].position[0] = *(dtf + (i * 3) + 0);
 				_vertices[i].position[1] = *(dtf + (i * 3) + 1);
@@ -346,7 +343,8 @@ void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& mode
 	unpack_gltf_buffer(model, normal_accesor, normal_data);
 
 
-	for (int i = 0; i < _vertices.size(); i++) {
+	for (int i = 0; i < _vertices.size(); i++)
+	{
 		if (normal_accesor.type == TINYGLTF_TYPE_VEC3)
 		{
 			if (normal_accesor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
@@ -377,7 +375,8 @@ void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& mode
 	unpack_gltf_buffer(model, uv_accesor, uv_data);
 
 
-	for (int i = 0; i < _vertices.size(); i++) {
+	for (int i = 0; i < _vertices.size(); i++)
+	{
 		if (uv_accesor.type == TINYGLTF_TYPE_VEC2)
 		{
 			if (uv_accesor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
@@ -396,9 +395,6 @@ void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& mode
 			assert(false);
 		}
 	}
-
-	
-
 	//for (auto& v : _vertices)
 	//{
 	//	v.position[0] *= -1;
@@ -408,7 +404,6 @@ void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& mode
 	//	v.normal[2] *= -1;
 	//	//v.position = flip * glm::vec4(v.position, 1.f);
 	//}
-	return;
 }
 
 
@@ -500,13 +495,12 @@ bool extract_gltf_meshes(tinygltf::Model& model, const fs::path& input, const fs
 		std::vector<VertexFormat> _vertices;
 		std::vector<uint32_t> _indices;
 
-		for (auto primindex = 0; primindex < glmesh.primitives.size(); primindex++){
-
+		for (auto primindex = 0; primindex < glmesh.primitives.size(); primindex++)
+		{
 			_vertices.clear();
 			_indices.clear();
 
 			std::string meshname = calculate_gltf_mesh_name(model, meshindex, primindex);
-
 			auto& primitive = glmesh.primitives[primindex];
 			
 			extract_gltf_indices(primitive, model, _indices);
@@ -917,15 +911,10 @@ void extract_assimp_meshes(const aiScene* scene, const fs::path& input, const fs
 			vert.position[1] = mesh->mVertices[v].y;
 			vert.position[2] = mesh->mVertices[v].z;
 
+			vert.normal[0] = mesh->mNormals[v].x;
+			vert.normal[1] = mesh->mNormals[v].y;
+			vert.normal[2] = mesh->mNormals[v].z;
 			
-
-				vert.normal[0] = mesh->mNormals[v].x;
-				vert.normal[1] = mesh->mNormals[v].y;
-				vert.normal[2] = mesh->mNormals[v].z;
-			
-
-			
-
 			if (mesh->GetNumUVChannels() >= 1)
 			{
 				vert.uv[0] = mesh->mTextureCoords[0][v].x;
@@ -935,6 +924,7 @@ void extract_assimp_meshes(const aiScene* scene, const fs::path& input, const fs
 				vert.uv[0] =0;
 				vert.uv[1] = 0;
 			}
+
 			if (mesh->HasVertexColors(0))
 			{
 				vert.color[0] = mesh->mColors[0][v].r;

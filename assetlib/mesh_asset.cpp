@@ -141,7 +141,8 @@ assets::MeshBounds assets::calculateBounds(Vertex_f32_PNCV* vertices, size_t cou
 	float min[3] = { std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max() };
 	float max[3] = { std::numeric_limits<float>::min(),std::numeric_limits<float>::min(),std::numeric_limits<float>::min() };
 
-	for (int i = 0; i < count; i++) {
+	for (int i = 0; i < count; i++)
+	{
 		min[0] = std::min(min[0], vertices[i].position[0]);
 		min[1] = std::min(min[1], vertices[i].position[1]);
 		min[2] = std::min(min[2], vertices[i].position[2]);

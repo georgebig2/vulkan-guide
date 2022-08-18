@@ -55,6 +55,7 @@ VertexInputDescription Vertex::get_vertex_description()
 	description.attributes.push_back(uvAttribute);
 	return description;
 }
+
 using namespace glm;
 vec2 OctNormalWrap(vec2 v)
 {
