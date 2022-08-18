@@ -186,7 +186,8 @@ public:
 	Handle<DrawMesh> getMeshHandle(Mesh* m);
 	
 
-	AllocatedBuffer<Vertex> mergedVertexBuffer;
+	AllocatedBuffer<VertexP> mergedVertexBufferP;
+	AllocatedBuffer<VertexA> mergedVertexBufferA;
 	AllocatedBuffer<uint32_t> mergedIndexBuffer;
 
 	AllocatedBuffer<GPUObjectData> objectDataBuffer;

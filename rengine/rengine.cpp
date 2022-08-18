@@ -709,45 +709,54 @@ void REngine::upload_mesh(Mesh& mesh)
 {
 	ZoneScopedNC("Upload Mesh", tracy::Color::Orange);
 
-	const size_t vertex_buffer_size = mesh._vertices.size() * sizeof(Vertex);
+	const size_t vertex_buffer_size[2] = { mesh._vertices_p.size() * sizeof(VertexP), mesh._vertices_a.size() * sizeof(VertexA) };
 	const size_t index_buffer_size = mesh._indices.size() * sizeof(uint32_t);
-	const size_t bufferSize = vertex_buffer_size + index_buffer_size;
-	//allocate vertex buffer
-	VkBufferCreateInfo vertexBufferInfo = {};
-	vertexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	vertexBufferInfo.pNext = nullptr;
-	//this is the total size, in bytes, of the buffer we are allocating
-	vertexBufferInfo.size = vertex_buffer_size;
-	//this buffer is going to be used as a Vertex Buffer
-	vertexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	//const size_t bufferSize = vertex_buffer_size + index_buffer_size;
 
-	//allocate vertex buffer
+	VkBufferCreateInfo vertexBufferInfo[2] = {};
+	vertexBufferInfo[0].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertexBufferInfo[0].pNext = nullptr;
+	vertexBufferInfo[0].size = vertex_buffer_size[0];
+	vertexBufferInfo[0].usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	vertexBufferInfo[1].sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertexBufferInfo[1].pNext = nullptr;
+	vertexBufferInfo[1].size = vertex_buffer_size[1];
+	vertexBufferInfo[1].usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+
 	VkBufferCreateInfo indexBufferInfo = {};
 	indexBufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	indexBufferInfo.pNext = nullptr;
-	//this is the total size, in bytes, of the buffer we are allocating
 	indexBufferInfo.size = index_buffer_size;
-	//this buffer is going to be used as a Vertex Buffer
 	indexBufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
 	//let the VMA library know that this data should be writeable by CPU, but also readable by GPU
 	VmaAllocationCreateInfo vmaallocInfo = {};
 	vmaallocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-	AllocatedBufferUntyped stagingBuffer;
 	{
-		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vmaallocInfo,
-			&mesh._vertexBuffer._buffer,
-			&mesh._vertexBuffer._allocation,
+		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo[0], &vmaallocInfo,
+			&mesh._vertexBuffer_p._buffer,
+			&mesh._vertexBuffer_p._allocation,
 			nullptr));
-
 		char* data;
-		vmaMapMemory(_allocator, mesh._vertexBuffer._allocation, (void**)&data);
-		memcpy(data, mesh._vertices.data(), vertex_buffer_size);
-		vmaUnmapMemory(_allocator, mesh._vertexBuffer._allocation);
-
+		vmaMapMemory(_allocator, mesh._vertexBuffer_p._allocation, (void**)&data);
+		memcpy(data, mesh._vertices_p.data(), vertex_buffer_size[0]);
+		vmaUnmapMemory(_allocator, mesh._vertexBuffer_p._allocation);
 		_mainDeletionQueue.push_function([=]() {
-			vmaDestroyBuffer(_allocator, mesh._vertexBuffer._buffer, mesh._vertexBuffer._allocation);
+			vmaDestroyBuffer(_allocator, mesh._vertexBuffer_p._buffer, mesh._vertexBuffer_p._allocation);
+			});
+	}
+	//copy paste!
+	{
+		VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo[1], &vmaallocInfo,
+			&mesh._vertexBuffer_a._buffer,
+			&mesh._vertexBuffer_a._allocation,
+			nullptr));
+		char* data;
+		vmaMapMemory(_allocator, mesh._vertexBuffer_a._allocation, (void**)&data);
+		memcpy(data, mesh._vertices_a.data(), vertex_buffer_size[1]);
+		vmaUnmapMemory(_allocator, mesh._vertexBuffer_a._allocation);
+		_mainDeletionQueue.push_function([=]() {
+			vmaDestroyBuffer(_allocator, mesh._vertexBuffer_a._buffer, mesh._vertexBuffer_a._allocation);
 			});
 	}
 

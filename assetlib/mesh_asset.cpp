@@ -13,6 +13,10 @@ static assets::VertexFormat parse_format(const char* f) {
 	{
 		return assets::VertexFormat::P32N8C8V16;
 	}
+	else if (strcmp(f, "P32_V16N8C8") == 0)
+	{
+		return assets::VertexFormat::P32_V16N8C8;
+	}
 	else
 	{
 		return assets::VertexFormat::Unknown;
@@ -21,12 +25,10 @@ static assets::VertexFormat parse_format(const char* f) {
 
 assets::MeshInfo assets::read_mesh_info(AssetFile* file)
 {
-	MeshInfo info;
-
 	nlohmann::json metadata = nlohmann::json::parse(file->json);
-
-	
-	info.vertexBuferSize = metadata["vertex_buffer_size"];		
+	MeshInfo info;
+	info.vertexBuferSize[0] = metadata["vertex_buffer_size0"];
+	info.vertexBuferSize[1] = metadata["vertex_buffer_size1"];
 	info.indexBuferSize = metadata["index_buffer_size"];
 	info.indexSize = (uint8_t) metadata["index_size"];
 	info.originalFile = metadata["original_file"];
@@ -53,31 +55,30 @@ assets::MeshInfo assets::read_mesh_info(AssetFile* file)
     return info;
 }
 
-void assets::unpack_mesh(MeshInfo* info, const char* sourcebuffer, size_t sourceSize, char*& vertexBufer, char*& indexBuffer)
+void assets::unpack_mesh(MeshInfo* info, const char* sourcebuffer, size_t sourceSize, char* vertexBufers[], int maxVB, char*& indexBuffer)
 {
 	//decompressing into temporal vector. TODO: streaming decompress directly on the buffers
 	static std::vector<char> decompressedBuffer(1024*1024*96,0);
-	if (decompressedBuffer.size() < info->vertexBuferSize + info->indexBuferSize)
-		decompressedBuffer.resize(info->vertexBuferSize + info->indexBuferSize);
+	auto size = info->vertexBuferSize[0] + info->vertexBuferSize[1] + info->indexBuferSize;
+	if (decompressedBuffer.size() < size)
+		decompressedBuffer.resize(size);
 
-	LZ4_decompress_safe(sourcebuffer, decompressedBuffer.data(), static_cast<int>(sourceSize), static_cast<int>(info->vertexBuferSize + info->indexBuferSize));
-	vertexBufer = decompressedBuffer.data();
-	//copy vertex buffer
-	//memcpy(vertexBufer, decompressedBuffer.data(), info->vertexBuferSize);
+	LZ4_decompress_safe(sourcebuffer, decompressedBuffer.data(), static_cast<int>(sourceSize), 	static_cast<int>(size));
+	assert(maxVB >= 2);
+	vertexBufers[0] = decompressedBuffer.data();
+	vertexBufers[1] = decompressedBuffer.data() + info->vertexBuferSize[0];
 
-	//copy index buffer
-	indexBuffer = decompressedBuffer.data() + info->vertexBuferSize;
-	//memcpy(indexBuffer, decompressedBuffer.data() + info->vertexBuferSize, info->indexBuferSize);
+	indexBuffer = decompressedBuffer.data() + info->vertexBuferSize[0] + +info->vertexBuferSize[1];
 }
 
-assets::AssetFile assets::pack_mesh(MeshInfo* info, char* vertexData, char* indexData)
+assets::AssetFile assets::pack_mesh(MeshInfo* info, char* vertexData[], int numVB, char* indexData)
 {
     AssetFile file;
 	file.type[0] = 'M';
 	file.type[1] = 'E';
 	file.type[2] = 'S';
 	file.type[3] = 'H';
-	file.version = 1;
+	file.version = 2;
 
 	nlohmann::json metadata;
 	if (info->vertexFormat == VertexFormat::P32N8C8V16) {
@@ -87,7 +88,12 @@ assets::AssetFile assets::pack_mesh(MeshInfo* info, char* vertexData, char* inde
 	{
 		metadata["vertex_format"] = "PNCV_F32";
 	}
-	metadata["vertex_buffer_size"] = info->vertexBuferSize;
+	else if (info->vertexFormat == VertexFormat::P32_V16N8C8)
+	{
+		metadata["vertex_format"] = "P32_V16N8C8";
+	}
+	metadata["vertex_buffer_size0"] = info->vertexBuferSize[0];
+	metadata["vertex_buffer_size1"] = info->vertexBuferSize[1];
 	metadata["index_buffer_size"] = info->indexBuferSize;
 	metadata["index_size"] = info->indexSize;
 	metadata["original_file"] = info->originalFile;
@@ -107,17 +113,15 @@ assets::AssetFile assets::pack_mesh(MeshInfo* info, char* vertexData, char* inde
 
 	metadata["bounds"] = boundsData;
 
-	size_t fullsize = info->vertexBuferSize + info->indexBuferSize;
+	size_t fullsize = info->vertexBuferSize[0] + info->vertexBuferSize[1] + info->indexBuferSize;
 
 	std::vector<char> merged_buffer;
 	merged_buffer.resize(fullsize);
 
-	//copy vertex buffer
-	memcpy(merged_buffer.data(), vertexData, info->vertexBuferSize);
-
-	//copy index buffer
-	memcpy(merged_buffer.data() + info->vertexBuferSize, indexData, info->indexBuferSize);
-
+	assert(numVB >= 2);
+	memcpy(merged_buffer.data(), vertexData[0], info->vertexBuferSize[0]);
+	memcpy(merged_buffer.data() + info->vertexBuferSize[0], vertexData[1], info->vertexBuferSize[1]);
+	memcpy(merged_buffer.data() + info->vertexBuferSize[0] + info->vertexBuferSize[1], indexData, info->indexBuferSize);
 
 	//compress buffer and copy it into the file struct
 	size_t compressStaging = LZ4_compressBound(static_cast<int>(fullsize));
@@ -132,49 +136,4 @@ assets::AssetFile assets::pack_mesh(MeshInfo* info, char* vertexData, char* inde
 	file.json = metadata.dump();
 
 	return file;
-}
-
-assets::MeshBounds assets::calculateBounds(Vertex_f32_PNCV* vertices, size_t count)
-{
-	MeshBounds bounds;
-
-	float min[3] = { std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max() };
-	float max[3] = { std::numeric_limits<float>::min(),std::numeric_limits<float>::min(),std::numeric_limits<float>::min() };
-
-	for (int i = 0; i < count; i++)
-	{
-		min[0] = std::min(min[0], vertices[i].position[0]);
-		min[1] = std::min(min[1], vertices[i].position[1]);
-		min[2] = std::min(min[2], vertices[i].position[2]);
-
-		max[0] = std::max(max[0], vertices[i].position[0]);
-		max[1] = std::max(max[1], vertices[i].position[1]);
-		max[2] = std::max(max[2], vertices[i].position[2]);
-	}
-
-	bounds.extents[0] = (max[0] - min[0]) / 2.0f;
-	bounds.extents[1] = (max[1] - min[1]) / 2.0f;
-	bounds.extents[2] = (max[2] - min[2]) / 2.0f;
-
-	bounds.origin[0] = bounds.extents[0] + min[0];
-	bounds.origin[1] = bounds.extents[1] + min[1];
-	bounds.origin[2] = bounds.extents[2] + min[2];
-
-	//go through the vertices again to calculate the exact bounding sphere radius
-	float r2 = 0;
-	for (int i = 0; i < count; i++) {
-
-		float offset[3];
-		offset[0] = vertices[i].position[0] - bounds.origin[0];
-		offset[1] = vertices[i].position[1] - bounds.origin[1];
-		offset[2] = vertices[i].position[2] - bounds.origin[2];
-
-		//pithagoras
-		float distance = offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2];
-		r2 = std::max(r2, distance);
-	}
-
-	bounds.radius = std::sqrt(r2);
-
-	return bounds;
 }

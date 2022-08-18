@@ -4,57 +4,78 @@
 #include <iostream>
 #include <asset_loader.h>
 #include <mesh_asset.h>
-//#include "glm/common.hpp"
-//#include "glm/detail/func_geometric.inl"
-//#include "logger.h"
 
-VertexInputDescription Vertex::get_vertex_description()
+constexpr bool logMeshUpload = false;
+
+
+VertexInputDescription get_vertex_description(CRenderPass pass)
 {
 	VertexInputDescription description;
 
-	//we will have just 1 vertex buffer binding, with a per-vertex rate
-	VkVertexInputBindingDescription mainBinding = {};
-	mainBinding.binding = 0;
-	mainBinding.stride = sizeof(Vertex);
-	mainBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	if (pass == CRenderPass::SHADOW)
+	{
+		VkVertexInputBindingDescription mainBinding = {};
+		mainBinding.binding = 0;
+		mainBinding.stride = sizeof(VertexP);
+		mainBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-	description.bindings.push_back(mainBinding);
+		description.bindings.push_back(mainBinding);
 
-	//Position will be stored at Location 0
-	VkVertexInputAttributeDescription positionAttribute = {};
-	positionAttribute.binding = 0;
-	positionAttribute.location = 0;
-	positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
-	positionAttribute.offset = offsetof(Vertex, position);
+		VkVertexInputAttributeDescription positionAttribute = {};
+		positionAttribute.binding = 0;
+		positionAttribute.location = 0;
+		positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		positionAttribute.offset = offsetof(VertexP, position);
+		description.attributes.push_back(positionAttribute);
 
-	//Normal will be stored at Location 1
-	VkVertexInputAttributeDescription normalAttribute = {};
-	normalAttribute.binding = 0;
-	normalAttribute.location = 1;
-	normalAttribute.format = VK_FORMAT_R8G8_UNORM;//VK_FORMAT_R32G32B32_SFLOAT;
-	normalAttribute.offset = offsetof(Vertex, oct_normal);
+		return description;
+	}
+	else
+	{
+		VkVertexInputBindingDescription binding[2] = {};
+		binding[0].binding = 0;
+		binding[0].stride = sizeof(VertexP);
+		binding[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-	//Position will be stored at Location 2
-	VkVertexInputAttributeDescription colorAttribute = {};
-	colorAttribute.binding = 0;
-	colorAttribute.location = 2;
-	colorAttribute.format = VK_FORMAT_R8G8B8_UNORM;//VK_FORMAT_R32G32B32_SFLOAT;
-	colorAttribute.offset = offsetof(Vertex, color);
+		binding[1].binding = 1;
+		binding[1].stride = sizeof(VertexA);
+		binding[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-	//UV will be stored at Location 2
-	VkVertexInputAttributeDescription uvAttribute = {};
-	uvAttribute.binding = 0;
-	uvAttribute.location = 3;
-	uvAttribute.format = VK_FORMAT_R32G32_SFLOAT;
-	uvAttribute.offset = offsetof(Vertex, uv);
+		description.bindings.push_back(binding[0]);
+		description.bindings.push_back(binding[1]);
 
+		VkVertexInputAttributeDescription positionAttribute = {};
+		positionAttribute.binding = 0;
+		positionAttribute.location = 0;
+		positionAttribute.format = VK_FORMAT_R32G32B32_SFLOAT;
+		positionAttribute.offset = offsetof(VertexP, position);
+		description.attributes.push_back(positionAttribute);
 
-	description.attributes.push_back(positionAttribute);
-	description.attributes.push_back(normalAttribute);
-	description.attributes.push_back(colorAttribute);
-	description.attributes.push_back(uvAttribute);
-	return description;
+		VkVertexInputAttributeDescription uvAttribute = {};
+		uvAttribute.binding = 1;
+		uvAttribute.location = 1;
+		uvAttribute.format = VK_FORMAT_R16G16_UNORM;// VK_FORMAT_R32G32_SFLOAT;
+		uvAttribute.offset = offsetof(VertexA, uv);
+		description.attributes.push_back(uvAttribute);
+
+		VkVertexInputAttributeDescription normalAttribute = {};
+		normalAttribute.binding = 1;
+		normalAttribute.location = 2;
+		normalAttribute.format = VK_FORMAT_R8G8_UNORM;//VK_FORMAT_R32G32B32_SFLOAT;
+		normalAttribute.offset = offsetof(VertexA, oct_normal);
+		description.attributes.push_back(normalAttribute);
+
+		VkVertexInputAttributeDescription colorAttribute = {};
+		colorAttribute.binding = 1;
+		colorAttribute.location = 3;
+		colorAttribute.format = VK_FORMAT_R8G8B8A8_UNORM;//VK_FORMAT_R32G32B32_SFLOAT;
+		colorAttribute.offset = offsetof(VertexA, color);
+		description.attributes.push_back(colorAttribute);
+
+		return description;
+	}
 }
+
 
 using namespace glm;
 vec2 OctNormalWrap(vec2 v)
@@ -97,20 +118,20 @@ vec3 OctNormalDecode(vec2 encN)
 }
 
 
-void Vertex::pack_normal(glm::vec3 n)
-{
-	vec2 oct = OctNormalEncode(n);
-
-	oct_normal.x = uint8_t(oct.x * 255);
-	oct_normal.y = uint8_t(oct.y * 255);
-}
-
-void Vertex::pack_color(glm::vec3 c)
-{
-	color.r = static_cast<uint8_t>(c.x * 255);
-	color.g = static_cast<uint8_t>(c.y * 255);
-	color.b = static_cast<uint8_t>(c.z * 255);
-}
+//void Vertex::pack_normal(glm::vec3 n)
+//{
+//	vec2 oct = OctNormalEncode(n);
+//
+//	oct_normal.x = uint8_t(oct.x * 255);
+//	oct_normal.y = uint8_t(oct.y * 255);
+//}
+//
+//void Vertex::pack_color(glm::vec3 c)
+//{
+//	color.r = static_cast<uint8_t>(c.x * 255);
+//	color.g = static_cast<uint8_t>(c.y * 255);
+//	color.b = static_cast<uint8_t>(c.z * 255);
+//}
 
 bool Mesh::load_from_meshasset(REngine* engine, const char* filename)
 {
@@ -124,8 +145,8 @@ bool Mesh::load_from_meshasset(REngine* engine, const char* filename)
 	
 	assets::MeshInfo meshinfo = assets::read_mesh_info(&file);
 
-	char* vertexBuffer = 0; char* indexBuffer = 0;
-	assets::unpack_mesh(&meshinfo, file.binaryBlob.data(), file.binaryBlob.size(), vertexBuffer, indexBuffer);
+	char* vertexBuffer[] = { 0,0 }; char* indexBuffer = 0;
+	assets::unpack_mesh(&meshinfo, file.binaryBlob.data(), file.binaryBlob.size(), vertexBuffer, 2, indexBuffer);
 
 	bounds.extents.x = meshinfo.bounds.extents[0];
 	bounds.extents.y = meshinfo.bounds.extents[1];
@@ -138,7 +159,8 @@ bool Mesh::load_from_meshasset(REngine* engine, const char* filename)
 	bounds.radius = meshinfo.bounds.radius;
 	bounds.valid = true;
 
-	_vertices.clear();
+	_vertices_p.clear();
+	_vertices_a.clear();
 	_indices.clear();
 
 	_indices.resize(meshinfo.indexBuferSize / sizeof(uint32_t));
@@ -146,7 +168,8 @@ bool Mesh::load_from_meshasset(REngine* engine, const char* filename)
 
 	if (meshinfo.vertexFormat == assets::VertexFormat::PNCV_F32)
 	{
-		assets::Vertex_f32_PNCV* unpackedVertices = (assets::Vertex_f32_PNCV*)vertexBuffer;
+		assert(0);
+	/*	assets::Vertex_f32_PNCV* unpackedVertices = (assets::Vertex_f32_PNCV*)vertexBuffer;
 
 		_vertices.resize(meshinfo.vertexBuferSize / sizeof(assets::Vertex_f32_PNCV));
 
@@ -167,12 +190,20 @@ bool Mesh::load_from_meshasset(REngine* engine, const char* filename)
 
 			_vertices[i].uv.x = unpackedVertices[i].uv[0];
 			_vertices[i].uv.y = unpackedVertices[i].uv[1];
-		}
+		}*/
 	}
 	else if (meshinfo.vertexFormat == assets::VertexFormat::P32N8C8V16)
 	{
-		_vertices.resize(meshinfo.vertexBuferSize / sizeof(assets::Vertex_P32N8C8V16));
-		memcpy(&_vertices[0], (assets::Vertex_P32N8C8V16*)vertexBuffer, meshinfo.vertexBuferSize);
+		assert(0);
+		//_vertices.resize(meshinfo.vertexBuferSize / sizeof(assets::Vertex_P32N8C8V16));
+		//memcpy(&_vertices[0], (assets::Vertex_P32N8C8V16*)vertexBuffer, meshinfo.vertexBuferSize);
+	}
+	else if (meshinfo.vertexFormat == assets::VertexFormat::P32_V16N8C8)
+	{
+		_vertices_p.resize(meshinfo.vertexBuferSize[0] / sizeof(assets::Vertex_P32));
+		memcpy(&_vertices_p[0], vertexBuffer[0], meshinfo.vertexBuferSize[0]);
+		_vertices_a.resize(meshinfo.vertexBuferSize[1] / sizeof(assets::Vertex_V16N8C8));
+		memcpy(&_vertices_a[0], vertexBuffer[1], meshinfo.vertexBuferSize[1]);
 	}
 		
 	if (logMeshUpload)

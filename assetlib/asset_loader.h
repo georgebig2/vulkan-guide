@@ -2,8 +2,10 @@
 #include <vector>
 #include <string>
 
-namespace assets {
-	struct AssetFile {
+namespace assets
+{
+	struct AssetFile
+	{
 		char type[4];
 		int version;
 		std::string json;

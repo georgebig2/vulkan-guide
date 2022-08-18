@@ -204,48 +204,56 @@ AllocatedBufferUntyped create_buffer(REngine*, size_t allocSize, VkBufferUsageFl
 
 void RenderScene::merge_meshes(REngine* engine)
 {
-	ZoneScopedNC("Mesh Merge", tracy::Color::Magenta)
+	ZoneScopedNC("Mesh Merge", tracy::Color::Magenta);
+
 	size_t total_vertices = 0;
 	size_t total_indices = 0;
-
 	for (auto& m : meshes)
 	{
 		m.firstIndex = static_cast<uint32_t>(total_indices);
 		m.firstVertex = static_cast<uint32_t>(total_vertices);
-
 		total_vertices += m.vertexCount;
 		total_indices += m.indexCount;
-
 		m.isMerged = true;
 	}
 
-	mergedVertexBuffer = create_buffer(engine, total_vertices * sizeof(Vertex), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+	mergedVertexBufferP = create_buffer(engine, total_vertices * sizeof(VertexP), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VMA_MEMORY_USAGE_GPU_ONLY);
+	mergedVertexBufferA = create_buffer(engine, total_vertices * sizeof(VertexA), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VMA_MEMORY_USAGE_GPU_ONLY);
 
 	mergedIndexBuffer = create_buffer(engine, total_indices * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 		VMA_MEMORY_USAGE_GPU_ONLY);
 
 	engine->_mainDeletionQueue.push_function([=]() {
-		vmaDestroyBuffer(engine->_allocator, mergedVertexBuffer._buffer, mergedVertexBuffer._allocation);
 		vmaDestroyBuffer(engine->_allocator, mergedIndexBuffer._buffer, mergedIndexBuffer._allocation);
+		vmaDestroyBuffer(engine->_allocator, mergedVertexBufferA._buffer, mergedVertexBufferA._allocation);
+		vmaDestroyBuffer(engine->_allocator, mergedVertexBufferP._buffer, mergedVertexBufferP._allocation);
 		});
 
 	engine->immediate_submit([&](VkCommandBuffer cmd)
 	{
 		for (auto& m : meshes)
 		{
-			VkBufferCopy vertexCopy;
-			vertexCopy.dstOffset = m.firstVertex * sizeof(Vertex);
-			vertexCopy.size = m.vertexCount * sizeof(Vertex);
-			vertexCopy.srcOffset = 0;
-
-			vkCmdCopyBuffer(cmd, m.original->_vertexBuffer._buffer, mergedVertexBuffer._buffer, 1, &vertexCopy);
+			{
+				VkBufferCopy vertexCopy;
+				vertexCopy.dstOffset = m.firstVertex * sizeof(VertexP);
+				vertexCopy.size = m.vertexCount * sizeof(VertexP);
+				vertexCopy.srcOffset = 0;
+				vkCmdCopyBuffer(cmd, m.original->_vertexBuffer_p._buffer, mergedVertexBufferP._buffer, 1, &vertexCopy);
+			}
+			{
+				VkBufferCopy vertexCopy;
+				vertexCopy.dstOffset = m.firstVertex * sizeof(VertexA);
+				vertexCopy.size = m.vertexCount * sizeof(VertexA);
+				vertexCopy.srcOffset = 0;
+				vkCmdCopyBuffer(cmd, m.original->_vertexBuffer_a._buffer, mergedVertexBufferA._buffer, 1, &vertexCopy);
+			}
 
 			VkBufferCopy indexCopy;
 			indexCopy.dstOffset = m.firstIndex * sizeof(uint32_t);
 			indexCopy.size = m.indexCount * sizeof(uint32_t);
 			indexCopy.srcOffset = 0;
-
 			vkCmdCopyBuffer(cmd, m.original->_indexBuffer._buffer, mergedIndexBuffer._buffer, 1, &indexCopy);
 		}
 	});
@@ -602,7 +610,7 @@ Handle<DrawMesh> RenderScene::getMeshHandle(Mesh* m)
 		newMesh.original = m;
 		newMesh.firstIndex = 0;
 		newMesh.firstVertex = 0;
-		newMesh.vertexCount = static_cast<uint32_t>(m->_vertices.size());
+		newMesh.vertexCount = static_cast<uint32_t>(m->_vertices_p.size());
 		newMesh.indexCount = static_cast<uint32_t>(m->_indices.size());
 
 		meshes.push_back(newMesh);

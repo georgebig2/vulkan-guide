@@ -663,8 +663,11 @@ void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescr
 		VkPipelineLayout lastLayout{ VK_NULL_HANDLE };
 		VkDescriptorSet lastMaterialSet{ VK_NULL_HANDLE };
 
-		VkDeviceSize offset = 0;
-		vkCmdBindVertexBuffers(cmd, 0, 1, &get_render_scene()->mergedVertexBuffer._buffer, &offset);
+		{
+			VkDeviceSize offset[] = { 0, 0 };
+			VkBuffer buffs[] = { get_render_scene()->mergedVertexBufferP._buffer, get_render_scene()->mergedVertexBufferA._buffer };
+			vkCmdBindVertexBuffers(cmd, 0, 2, buffs, offset); // shadow pass?
+		}
 
 		vkCmdBindIndexBuffer(cmd, get_render_scene()->mergedIndexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 
@@ -702,7 +705,7 @@ void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescr
 				{
 					assert(0);
 					VkDeviceSize offset = 0;
-					vkCmdBindVertexBuffers(cmd, 0, 1, &get_render_scene()->mergedVertexBuffer._buffer, &offset);
+					//vkCmdBindVertexBuffers(cmd, 0, 1, &get_render_scene()->mergedVertexBuffer._buffer, &offset);
 
 					vkCmdBindIndexBuffer(cmd, get_render_scene()->mergedIndexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
 					lastMesh = nullptr;
@@ -713,7 +716,7 @@ void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescr
 				assert(0);
 				//bind the mesh vertex buffer with offset 0
 				VkDeviceSize offset = 0;
-				vkCmdBindVertexBuffers(cmd, 0, 1, &drawMesh->_vertexBuffer._buffer, &offset);
+				//vkCmdBindVertexBuffers(cmd, 0, 1, &drawMesh->_vertexBuffer._buffer, &offset);
 
 				if (drawMesh->_indexBuffer._buffer != VK_NULL_HANDLE) {
 					vkCmdBindIndexBuffer(cmd, drawMesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
@@ -724,8 +727,8 @@ void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescr
 			bool bHasIndices = drawMesh->_indices.size() > 0;
 			if (!bHasIndices) {
 				stats.draws++;
-				stats.triangles += static_cast<int32_t>(drawMesh->_vertices.size() / 3) * instanceDraw.count;
-				vkCmdDraw(cmd, static_cast<uint32_t>(drawMesh->_vertices.size()), instanceDraw.count, 0, instanceDraw.first);
+				stats.triangles += static_cast<int32_t>(drawMesh->_vertices_p.size() / 3) * instanceDraw.count;
+				vkCmdDraw(cmd, static_cast<uint32_t>(drawMesh->_vertices_p.size()), instanceDraw.count, 0, instanceDraw.first);
 			}
 			else {
 				stats.triangles += static_cast<int32_t>(drawMesh->_indices.size() / 3) * instanceDraw.count;

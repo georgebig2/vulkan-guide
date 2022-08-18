@@ -209,69 +209,69 @@ void extract_mesh_from_obj(std::vector<tinyobj::shape_t>& shapes, tinyobj::attri
 
 bool convert_mesh(const fs::path& input, const fs::path& output)
 {
-	//attrib will contain the assets::Vertex_f32_PNCV arrays of the file
-	tinyobj::attrib_t attrib;
-	//shapes contains the info for each separate object in the file
-	std::vector<tinyobj::shape_t> shapes;
-	//materials contains the information about the material of each shape, but we wont use it.
-	std::vector<tinyobj::material_t> materials;
+	////attrib will contain the assets::Vertex_f32_PNCV arrays of the file
+	//tinyobj::attrib_t attrib;
+	////shapes contains the info for each separate object in the file
+	//std::vector<tinyobj::shape_t> shapes;
+	////materials contains the information about the material of each shape, but we wont use it.
+	//std::vector<tinyobj::material_t> materials;
 
-	//error and warning output from the load function
-	std::string warn;
-	std::string err;
-	auto pngstart = std::chrono::high_resolution_clock::now();
+	////error and warning output from the load function
+	//std::string warn;
+	//std::string err;
+	//auto pngstart = std::chrono::high_resolution_clock::now();
 
-	//load the OBJ file
-	tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, input.string().c_str(),
-		nullptr);
+	////load the OBJ file
+	//tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, input.string().c_str(),
+	//	nullptr);
 
-	auto pngend = std::chrono::high_resolution_clock::now();
+	//auto pngend = std::chrono::high_resolution_clock::now();
 
-	auto diff = pngend - pngstart;
+	//auto diff = pngend - pngstart;
 
-	std::cout << "obj took " << std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count() / 1000000.0 << "ms" << std::endl;
-	
-	//make sure to output the warnings to the console, in case there are issues with the file
-	if (!warn.empty()) {
-		std::cout << "WARN: " << warn << std::endl;
-	}
-	//if we have any error, print it to the console, and break the mesh loading. 
-	//This happens if the file cant be found or is malformed
-	if (!err.empty()) {
-		std::cerr << err << std::endl;
-		return false;
-	}
+	//std::cout << "obj took " << std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count() / 1000000.0 << "ms" << std::endl;
+	//
+	////make sure to output the warnings to the console, in case there are issues with the file
+	//if (!warn.empty()) {
+	//	std::cout << "WARN: " << warn << std::endl;
+	//}
+	////if we have any error, print it to the console, and break the mesh loading. 
+	////This happens if the file cant be found or is malformed
+	//if (!err.empty()) {
+	//	std::cerr << err << std::endl;
+	//	return false;
+	//}
 
-	using VertexFormat = assets::Vertex_f32_PNCV;
-	auto VertexFormatEnum = assets::VertexFormat::PNCV_F32;
+	//using VertexFormat = assets::Vertex_f32_PNCV;
+	//auto VertexFormatEnum = assets::VertexFormat::PNCV_F32;
 
-	std::vector<VertexFormat> _vertices;
-	std::vector<uint32_t> _indices;
+	//std::vector<VertexFormat> _vertices;
+	//std::vector<uint32_t> _indices;
 
-	extract_mesh_from_obj(shapes, attrib, _indices, _vertices);
+	//extract_mesh_from_obj(shapes, attrib, _indices, _vertices);
 
 
-	MeshInfo meshinfo;
-	meshinfo.vertexFormat = VertexFormatEnum;
-	meshinfo.vertexBuferSize = _vertices.size() * sizeof(VertexFormat);
-	meshinfo.indexBuferSize = _indices.size() * sizeof(uint32_t);
-	meshinfo.indexSize = sizeof(uint32_t);
-	meshinfo.originalFile = input.string();	
+	//MeshInfo meshinfo;
+	//meshinfo.vertexFormat = VertexFormatEnum;
+	//meshinfo.vertexBuferSize = _vertices.size() * sizeof(VertexFormat);
+	//meshinfo.indexBuferSize = _indices.size() * sizeof(uint32_t);
+	//meshinfo.indexSize = sizeof(uint32_t);
+	//meshinfo.originalFile = input.string();	
 
-	meshinfo.bounds = assets::calculateBounds(_vertices.data(), _vertices.size());
-	//pack mesh file
-	auto start = std::chrono::high_resolution_clock::now();
+	//meshinfo.bounds = assets::calculateBounds<VertexFormat>(_vertices.data(), _vertices.size());
+	////pack mesh file
+	//auto start = std::chrono::high_resolution_clock::now();
 
-	assets::AssetFile newFile = assets::pack_mesh(&meshinfo, (char*)_vertices.data(), (char*)_indices.data());
-	
-	auto  end = std::chrono::high_resolution_clock::now();
+	//assets::AssetFile newFile = assets::pack_mesh(&meshinfo, (char*)_vertices.data(), (char*)_indices.data());
+	//
+	//auto  end = std::chrono::high_resolution_clock::now();
 
-	diff = end - start;
+	//diff = end - start;
 
-	std::cout << "compression took " << std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count() / 1000000.0 << "ms" << std::endl;
+	//std::cout << "compression took " << std::chrono::duration_cast<std::chrono::nanoseconds>(diff).count() / 1000000.0 << "ms" << std::endl;
 
-	//save to disk
-	save_binaryfile(output.string().c_str(), newFile);
+	////save to disk
+	//save_binaryfile(output.string().c_str(), newFile);
 	
 	return true;
 }
@@ -308,6 +308,7 @@ void unpack_gltf_buffer(tinygltf::Model& model, tinygltf::Accessor& accesor, std
 		memcpy(targetptr, dataindex, elementSize);	
 	}
 }
+
 void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& model, std::vector<assets::Vertex_f32_PNCV>& _vertices)
 {
 	tinygltf::Accessor& pos_accesor = model.accessors[primitive.attributes["POSITION"]];
@@ -350,8 +351,6 @@ void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& mode
 			if (normal_accesor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
 			{
 				float* dtf = (float*)normal_data.data();
-
-				//vec3f 
 				_vertices[i].normal[0] = *(dtf + (i * 3) + 0);
 				_vertices[i].normal[1] = *(dtf + (i * 3) + 1);
 				_vertices[i].normal[2] = *(dtf + (i * 3) + 2);
@@ -406,6 +405,211 @@ void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& mode
 	//}
 }
 
+using namespace glm;
+vec2 OctNormalWrap(vec2 v)
+{
+	vec2 wrap;
+	wrap.x = (1.0f - glm::abs(v.y)) * (v.x >= 0.0f ? 1.0f : -1.0f);
+	wrap.y = (1.0f - glm::abs(v.x)) * (v.y >= 0.0f ? 1.0f : -1.0f);
+	return wrap;
+}
+
+vec2 OctNormalEncode(vec3 n)
+{
+	n /= (glm::abs(n.x) + glm::abs(n.y) + glm::abs(n.z));
+
+	vec2 wrapped = OctNormalWrap(n);
+
+	vec2 result;
+	result.x = n.z >= 0.0f ? n.x : wrapped.x;
+	result.y = n.z >= 0.0f ? n.y : wrapped.y;
+
+	result.x = result.x * 0.5f + 0.5f;
+	result.y = result.y * 0.5f + 0.5f;
+
+	return result;
+}
+
+void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& model, std::vector<assets::Vertex_P32N8C8V16>& _vertices)
+{
+	tinygltf::Accessor& pos_accesor = model.accessors[primitive.attributes["POSITION"]];
+	_vertices.resize(pos_accesor.count);
+
+	std::vector<uint8_t> pos_data;
+	unpack_gltf_buffer(model, pos_accesor, pos_data);
+
+	for (int i = 0; i < _vertices.size(); i++)
+	{
+		if (pos_accesor.type == TINYGLTF_TYPE_VEC3)
+		{
+			if (pos_accesor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
+			{
+				float* dtf = (float*)pos_data.data();
+				_vertices[i].position[0] = *(dtf + (i * 3) + 0);
+				_vertices[i].position[1] = *(dtf + (i * 3) + 1);
+				_vertices[i].position[2] = *(dtf + (i * 3) + 2);
+			}
+			else {
+				assert(false);
+			}
+		}
+		else {
+			assert(false);
+		}
+	}
+
+	tinygltf::Accessor& normal_accesor = model.accessors[primitive.attributes["NORMAL"]];
+
+	std::vector<uint8_t> normal_data;
+	unpack_gltf_buffer(model, normal_accesor, normal_data);
+
+
+	for (int i = 0; i < _vertices.size(); i++)
+	{
+		if (normal_accesor.type == TINYGLTF_TYPE_VEC3)
+		{
+			if (normal_accesor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
+			{
+				float* dtf = (float*)normal_data.data();
+				vec3 n;
+				n.x = *(dtf + (i * 3) + 0);
+				n.y = *(dtf + (i * 3) + 1);
+				n.z = *(dtf + (i * 3) + 2);
+
+				vec2 oct = OctNormalEncode(n);
+				_vertices[i].normal[0] = uint8_t(oct.x * 255);
+				_vertices[i].normal[1] = uint8_t(oct.y * 255);
+
+				_vertices[i].color[0] = 0;
+				_vertices[i].color[1] = 0;
+				_vertices[i].color[2] = 0;
+			}
+			else {
+				assert(false);
+			}
+		}
+		else {
+			assert(false);
+		}
+	}
+
+	tinygltf::Accessor& uv_accesor = model.accessors[primitive.attributes["TEXCOORD_0"]];
+
+	std::vector<uint8_t> uv_data;
+	unpack_gltf_buffer(model, uv_accesor, uv_data);
+
+	for (int i = 0; i < _vertices.size(); i++)
+	{
+		if (uv_accesor.type == TINYGLTF_TYPE_VEC2)
+		{
+			if (uv_accesor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
+			{
+				float* dtf = (float*)uv_data.data();
+				_vertices[i].uv[0] = *(dtf + (i * 2) + 0);
+				_vertices[i].uv[1] = *(dtf + (i * 2) + 1);
+			}
+			else {
+				assert(false);
+			}
+		}
+		else {
+			assert(false);
+		}
+	}
+}
+
+void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& model, std::vector<assets::Vertex_P32>& _vertices)
+{
+	tinygltf::Accessor& pos_accesor = model.accessors[primitive.attributes["POSITION"]];
+	_vertices.resize(pos_accesor.count);
+
+	std::vector<uint8_t> pos_data;
+	unpack_gltf_buffer(model, pos_accesor, pos_data);
+
+	for (int i = 0; i < _vertices.size(); i++)
+	{
+		if (pos_accesor.type == TINYGLTF_TYPE_VEC3)
+		{
+			if (pos_accesor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
+			{
+				float* dtf = (float*)pos_data.data();
+				_vertices[i].position[0] = *(dtf + (i * 3) + 0);
+				_vertices[i].position[1] = *(dtf + (i * 3) + 1);
+				_vertices[i].position[2] = *(dtf + (i * 3) + 2);
+			}
+			else {
+				assert(false);
+			}
+		}
+		else {
+			assert(false);
+		}
+	}
+}
+
+void extract_gltf_vertices(tinygltf::Primitive& primitive, tinygltf::Model& model, std::vector<assets::Vertex_V16N8C8>& _vertices)
+{
+	tinygltf::Accessor& normal_accesor = model.accessors[primitive.attributes["NORMAL"]];
+	_vertices.resize(normal_accesor.count);
+
+	std::vector<uint8_t> normal_data;
+	unpack_gltf_buffer(model, normal_accesor, normal_data);
+
+
+	for (int i = 0; i < _vertices.size(); i++)
+	{
+		if (normal_accesor.type == TINYGLTF_TYPE_VEC3)
+		{
+			if (normal_accesor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
+			{
+				float* dtf = (float*)normal_data.data();
+				vec3 n;
+				n.x = *(dtf + (i * 3) + 0);
+				n.y = *(dtf + (i * 3) + 1);
+				n.z = *(dtf + (i * 3) + 2);
+
+				vec2 oct = OctNormalEncode(n);
+				_vertices[i].normal[0] = uint8_t(oct.x * 255);
+				_vertices[i].normal[1] = uint8_t(oct.y * 255);
+
+				_vertices[i].color[0] = 0;
+				_vertices[i].color[1] = 0;
+				_vertices[i].color[2] = 0;
+				_vertices[i].color[3] = 0;
+			}
+			else {
+				assert(false);
+			}
+		}
+		else {
+			assert(false);
+		}
+	}
+
+	tinygltf::Accessor& uv_accesor = model.accessors[primitive.attributes["TEXCOORD_0"]];
+
+	std::vector<uint8_t> uv_data;
+	unpack_gltf_buffer(model, uv_accesor, uv_data);
+
+	for (int i = 0; i < _vertices.size(); i++)
+	{
+		if (uv_accesor.type == TINYGLTF_TYPE_VEC2)
+		{
+			if (uv_accesor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT)
+			{
+				float* dtf = (float*)uv_data.data();
+				_vertices[i].uv[0] = uint16_t((*(dtf + (i * 2) + 0))*65535);
+				_vertices[i].uv[1] = uint16_t((*(dtf + (i * 2) + 1))*65535);
+			}
+			else {
+				assert(false);
+			}
+		}
+		else {
+			assert(false);
+		}
+	}
+}
 
 void extract_gltf_indices(tinygltf::Primitive& primitive, tinygltf::Model& model, std::vector<uint32_t>& _primindices)
 {
@@ -488,11 +692,16 @@ bool extract_gltf_meshes(tinygltf::Model& model, const fs::path& input, const fs
 
 		auto& glmesh = model.meshes[meshindex];
 		
-
-		using VertexFormat = assets::Vertex_f32_PNCV;
-		auto VertexFormatEnum = assets::VertexFormat::PNCV_F32;
+		//using VertexFormat = assets::Vertex_f32_PNCV;
+		//auto VertexFormatEnum = assets::VertexFormat::PNCV_F32;
+		//using VertexFormat = assets::Vertex_P32N8C8V16;
+		//auto VertexFormatEnum = assets::VertexFormat::P32N8C8V16;
+		using VertexFormat = assets::Vertex_P32;
+		using VertexFormat2 = assets::Vertex_V16N8C8;
+		auto VertexFormatEnum = assets::VertexFormat::P32_V16N8C8;
 
 		std::vector<VertexFormat> _vertices;
+		std::vector<VertexFormat2> _vertices2;
 		std::vector<uint32_t> _indices;
 
 		for (auto primindex = 0; primindex < glmesh.primitives.size(); primindex++)
@@ -505,17 +714,18 @@ bool extract_gltf_meshes(tinygltf::Model& model, const fs::path& input, const fs
 			
 			extract_gltf_indices(primitive, model, _indices);
 			extract_gltf_vertices(primitive, model, _vertices);
-			
+			extract_gltf_vertices(primitive, model, _vertices2);
 
 			MeshInfo meshinfo;
 			meshinfo.vertexFormat = VertexFormatEnum;
-			meshinfo.vertexBuferSize = _vertices.size() * sizeof(VertexFormat);
+			meshinfo.vertexBuferSize[0] = _vertices.size() * sizeof(VertexFormat);
+			meshinfo.vertexBuferSize[1] = _vertices2.size() * sizeof(VertexFormat2);
 			meshinfo.indexBuferSize = _indices.size() * sizeof(uint32_t);
 			meshinfo.indexSize = sizeof(uint32_t);
 			meshinfo.originalFile = input.string();
-			meshinfo.bounds = assets::calculateBounds(_vertices.data(), _vertices.size());
-
-			assets::AssetFile newFile = assets::pack_mesh(&meshinfo, (char*)_vertices.data(), (char*)_indices.data());
+			meshinfo.bounds = assets::calculateBounds<VertexFormat>(_vertices.data(), _vertices.size());
+			char* vb[] = { (char*)_vertices.data(), (char*)_vertices2.data() };
+			assets::AssetFile newFile = assets::pack_mesh(&meshinfo, vb, 2, (char*)_indices.data());
 			auto meshpath = outputFolder; meshpath += "/"; meshpath += (meshname + ".mesh");
 			save_binaryfile(meshpath.string().c_str(), newFile);
 		}
@@ -790,7 +1000,7 @@ void extract_gltf_nodes(tinygltf::Model& model, const fs::path& input, const fs:
 	}
 
 	assets::AssetFile newFile = assets::pack_prefab(prefab);
-	auto scenefilepath = (outputFolder.parent_path()); scenefilepath += "/"; scenefilepath += input.stem();
+	auto scenefilepath = outputFolder; scenefilepath += "/"; scenefilepath += input.stem();
 	scenefilepath.replace_extension(".pfb");
 
 	save_binaryfile(scenefilepath.string().c_str(), newFile);
@@ -891,101 +1101,102 @@ void extract_assimp_materials(const aiScene* scene, const fs::path& input, const
 }
 void extract_assimp_meshes(const aiScene* scene, const fs::path& input, const fs::path& outputFolder, const ConverterState& convState)
 {
-	for (int meshindex = 0; meshindex < scene->mNumMeshes; meshindex++) {
+	//for (int meshindex = 0; meshindex < scene->mNumMeshes; meshindex++) {
 
-		auto mesh = scene->mMeshes[meshindex];
+	//	auto mesh = scene->mMeshes[meshindex];
 
-		using VertexFormat = assets::Vertex_f32_PNCV;
-		auto VertexFormatEnum = assets::VertexFormat::PNCV_F32;
+	//	using VertexFormat = assets::Vertex_f32_PNCV;
+	//	auto VertexFormatEnum = assets::VertexFormat::PNCV_F32;
 
-		std::vector<VertexFormat> _vertices;
-		std::vector<uint32_t> _indices;
-		
-		std::string meshname = calculate_assimp_mesh_name(scene, meshindex);
+	//	std::vector<VertexFormat> _vertices;
+	//	std::vector<uint32_t> _indices;
+	//	
+	//	std::string meshname = calculate_assimp_mesh_name(scene, meshindex);
 
-		_vertices.resize(mesh->mNumVertices);
-		for (int v = 0; v < mesh->mNumVertices; v++)
-		{
-			VertexFormat vert;
-			vert.position[0] = mesh->mVertices[v].x;
-			vert.position[1] = mesh->mVertices[v].y;
-			vert.position[2] = mesh->mVertices[v].z;
+	//	_vertices.resize(mesh->mNumVertices);
+	//	for (int v = 0; v < mesh->mNumVertices; v++)
+	//	{
+	//		VertexFormat vert;
+	//		vert.position[0] = mesh->mVertices[v].x;
+	//		vert.position[1] = mesh->mVertices[v].y;
+	//		vert.position[2] = mesh->mVertices[v].z;
 
-			vert.normal[0] = mesh->mNormals[v].x;
-			vert.normal[1] = mesh->mNormals[v].y;
-			vert.normal[2] = mesh->mNormals[v].z;
-			
-			if (mesh->GetNumUVChannels() >= 1)
-			{
-				vert.uv[0] = mesh->mTextureCoords[0][v].x;
-				vert.uv[1] = mesh->mTextureCoords[0][v].y;
-			}
-			else {
-				vert.uv[0] =0;
-				vert.uv[1] = 0;
-			}
+	//		vert.normal[0] = mesh->mNormals[v].x;
+	//		vert.normal[1] = mesh->mNormals[v].y;
+	//		vert.normal[2] = mesh->mNormals[v].z;
+	//		
+	//		if (mesh->GetNumUVChannels() >= 1)
+	//		{
+	//			vert.uv[0] = mesh->mTextureCoords[0][v].x;
+	//			vert.uv[1] = mesh->mTextureCoords[0][v].y;
+	//		}
+	//		else {
+	//			vert.uv[0] =0;
+	//			vert.uv[1] = 0;
+	//		}
 
-			if (mesh->HasVertexColors(0))
-			{
-				vert.color[0] = mesh->mColors[0][v].r;
-				vert.color[1] = mesh->mColors[0][v].g;
-				vert.color[2] = mesh->mColors[0][v].b;
-			}
-			else {
-				vert.color[0] =1;
-				vert.color[1] =1;
-				vert.color[2] =1;
-			}
+	//		if (mesh->HasVertexColors(0))
+	//		{
+	//			vert.color[0] = mesh->mColors[0][v].r;
+	//			vert.color[1] = mesh->mColors[0][v].g;
+	//			vert.color[2] = mesh->mColors[0][v].b;
+	//		}
+	//		else {
+	//			vert.color[0] =1;
+	//			vert.color[1] =1;
+	//			vert.color[2] =1;
+	//		}
 
-			_vertices[v] = vert;
-		}
-		_indices.resize(mesh->mNumFaces * 3);
-		for (int f= 0; f < mesh->mNumFaces; f++)
-		{
-			_indices[f * 3 + 0] = mesh->mFaces[f].mIndices[0];
-			_indices[f * 3 + 1] = mesh->mFaces[f].mIndices[1];
-			_indices[f * 3 + 2] = mesh->mFaces[f].mIndices[2];
+	//		_vertices[v] = vert;
+	//	}
+	//	_indices.resize(mesh->mNumFaces * 3);
+	//	for (int f= 0; f < mesh->mNumFaces; f++)
+	//	{
+	//		_indices[f * 3 + 0] = mesh->mFaces[f].mIndices[0];
+	//		_indices[f * 3 + 1] = mesh->mFaces[f].mIndices[1];
+	//		_indices[f * 3 + 2] = mesh->mFaces[f].mIndices[2];
 
-			//assimp fbx creates bad normals, just regen them
-			if (1)
-			{
-				int v0 = _indices[f * 3 + 0];
-				int v1 = _indices[f * 3 + 1];
-				int v2 = _indices[f * 3 + 2];
-				glm::vec3 p0{ _vertices[v0].position[0],
-					 _vertices[v0].position[1],
-					 _vertices[v0].position[2]
-				};
-				glm::vec3 p1{ _vertices[v1].position[0],
-					 _vertices[v1].position[1],
-					 _vertices[v1].position[2]
-				};
-				glm::vec3 p2{ _vertices[v2].position[0],
-					 _vertices[v2].position[1],
-					 _vertices[v2].position[2]
-				};
+	//		//assimp fbx creates bad normals, just regen them
+	//		if (1)
+	//		{
+	//			int v0 = _indices[f * 3 + 0];
+	//			int v1 = _indices[f * 3 + 1];
+	//			int v2 = _indices[f * 3 + 2];
+	//			glm::vec3 p0{ _vertices[v0].position[0],
+	//				 _vertices[v0].position[1],
+	//				 _vertices[v0].position[2]
+	//			};
+	//			glm::vec3 p1{ _vertices[v1].position[0],
+	//				 _vertices[v1].position[1],
+	//				 _vertices[v1].position[2]
+	//			};
+	//			glm::vec3 p2{ _vertices[v2].position[0],
+	//				 _vertices[v2].position[1],
+	//				 _vertices[v2].position[2]
+	//			};
 
-				glm::vec3 normal =  glm::normalize(glm::cross(p2 - p0, p1 - p0));
-				
-				memcpy(_vertices[v0].normal, &normal, sizeof(float) * 3);
-				memcpy(_vertices[v1].normal, &normal, sizeof(float) * 3);
-				memcpy(_vertices[v2].normal, &normal, sizeof(float) * 3);
-			}
-		}
+	//			glm::vec3 normal =  glm::normalize(glm::cross(p2 - p0, p1 - p0));
+	//			
+	//			memcpy(_vertices[v0].normal, &normal, sizeof(float) * 3);
+	//			memcpy(_vertices[v1].normal, &normal, sizeof(float) * 3);
+	//			memcpy(_vertices[v2].normal, &normal, sizeof(float) * 3);
+	//		}
+	//	}
 
-		MeshInfo meshinfo;
-		meshinfo.vertexFormat = VertexFormatEnum;
-		meshinfo.vertexBuferSize = _vertices.size() * sizeof(VertexFormat);
-		meshinfo.indexBuferSize = _indices.size() * sizeof(uint32_t);
-		meshinfo.indexSize = sizeof(uint32_t);
-		meshinfo.originalFile = input.string();
-		meshinfo.bounds = assets::calculateBounds(_vertices.data(), _vertices.size());
+	//	MeshInfo meshinfo;
+	//	meshinfo.vertexFormat = VertexFormatEnum;
+	//	meshinfo.vertexBuferSize = _vertices.size() * sizeof(VertexFormat);
+	//	meshinfo.indexBuferSize = _indices.size() * sizeof(uint32_t);
+	//	meshinfo.indexSize = sizeof(uint32_t);
+	//	meshinfo.originalFile = input.string();
+	//	meshinfo.bounds = assets::calculateBounds<VertexFormat>(_vertices.data(), _vertices.size());
 
-		assets::AssetFile newFile = assets::pack_mesh(&meshinfo, (char*)_vertices.data(), (char*)_indices.data());
-		auto meshpath = outputFolder; meshpath += "/"; meshpath += (meshname + ".mesh");
-		save_binaryfile(meshpath.string().c_str(), newFile);		
-	}	
+	//	assets::AssetFile newFile = assets::pack_mesh(&meshinfo, (char*)_vertices.data(), (char*)_indices.data());
+	//	auto meshpath = outputFolder; meshpath += "/"; meshpath += (meshname + ".mesh");
+	//	save_binaryfile(meshpath.string().c_str(), newFile);		
+	//}	
 }
+
 void extract_assimp_nodes(const aiScene* scene, const fs::path& input, const fs::path& outputFolder, const ConverterState& convState)
 {
 	
@@ -1128,6 +1339,7 @@ int main(int argc, char* argv[])
 				convert_image(p.path(), export_path);
 			}
 			if (p.path().extension() == ".obj") {
+				assert(0);
 				std::cout << "found a mesh" << std::endl;
 			
 				export_path.replace_extension(".mesh");
@@ -1155,14 +1367,13 @@ int main(int argc, char* argv[])
 					printf("Failed to parse glTF\n");
 					return -1;
 				}
-				else {
+				else
+				{
 					auto folder = export_path.parent_path(); folder += "/"; folder += (p.path().stem().string() + "_GLTF");
 					fs::create_directory(folder);
 			
 					extract_gltf_meshes(model, p.path(), folder, convstate);
-			
 					extract_gltf_materials(model, p.path(), folder, convstate);
-			
 					extract_gltf_nodes(model, p.path(), folder, convstate);
 				}
 			}

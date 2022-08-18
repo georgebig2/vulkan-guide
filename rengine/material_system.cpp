@@ -302,34 +302,22 @@ vkutil::Material* vkutil::MaterialSystem::get_material(const std::string& materi
 void vkutil::MaterialSystem::fill_builders()
 {
 	{
-		shadowBuilder.vertexDescription = Vertex::get_vertex_description();
-
+		shadowBuilder.vertexDescription = get_vertex_description(CRenderPass::SHADOW);
 		shadowBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-		
 		shadowBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
 		shadowBuilder._rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
 		shadowBuilder._rasterizer.depthBiasEnable = VK_TRUE;
-		
 		shadowBuilder._multisampling = vkinit::multisampling_state_create_info();
 		shadowBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
-
-		//default depthtesting
 		shadowBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_LESS);
 	}
 	{
-		forwardBuilder.vertexDescription = Vertex::get_vertex_description();
-		
+		forwardBuilder.vertexDescription = get_vertex_description(CRenderPass::FORWARD);
 		forwardBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-		
 		forwardBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
 		forwardBuilder._rasterizer.cullMode = VK_CULL_MODE_NONE;//BACK_BIT;
-		
 		forwardBuilder._multisampling = vkinit::multisampling_state_create_info();
-		
 		forwardBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
-
-		//default depthtesting
 		forwardBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_GREATER_OR_EQUAL);
 	}	
 }
