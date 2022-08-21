@@ -666,7 +666,7 @@ void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescr
 		{
 			VkDeviceSize offset[] = { 0, 0 };
 			VkBuffer buffs[] = { get_render_scene()->mergedVertexBufferP._buffer, get_render_scene()->mergedVertexBufferA._buffer };
-			vkCmdBindVertexBuffers(cmd, 0, 2, buffs, offset); // shadow pass?
+			vkCmdBindVertexBuffers(cmd, 0, pass.type == MeshpassType::DirectionalShadow ? 1 : 2, buffs, offset);
 		}
 
 		vkCmdBindIndexBuffer(cmd, get_render_scene()->mergedIndexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);

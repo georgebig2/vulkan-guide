@@ -52,12 +52,12 @@ struct FrameData
 
 	AllocatedImage _rawRenderImage;
 	AllocatedImage _depthImage;
-	AllocatedImage _depthPyramid;
 	AllocatedImage _shadowImage;
 
 	VkFramebuffer _framebuffer;
 	VkFramebuffer _forwardFramebuffer;
 	VkFramebuffer _shadowFramebuffer;
 
+	AllocatedImage _depthPyramid;
 	VkImageView depthPyramidMips[16] = {};
 };

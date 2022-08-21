@@ -1034,6 +1034,53 @@ VkResult REngine::get_surface_info(VkSurfaceCapabilitiesKHR& capabilities)
 	return res;
 }
 
+int REngine::create_depth_pyramid(int width, int height)
+{
+	int idx = 0;
+
+	// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
+	_depthPyramid[idx].width = previousPow2(width);
+	_depthPyramid[idx].height = previousPow2(height);
+	_depthPyramid[idx].levels = getImageMipLevels(_depthPyramid[0].width, _depthPyramid[0].height);
+
+
+	//the depth image will be a image with the format we selected and Depth Attachment usage flag
+	VkExtent3D pyramidExtent = { static_cast<uint32_t>(_depthPyramid[idx].width), static_cast<uint32_t>(_depthPyramid[idx].height), 1 };
+	VkImageCreateInfo pyramidInfo = vkinit::image_create_info(VK_FORMAT_R32_SFLOAT,
+		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, pyramidExtent);
+
+	pyramidInfo.mipLevels = _depthPyramid[idx].levels;
+
+	VK_CHECK(vmaCreateImage(_allocator, &pyramidInfo, &dimg_allocinfo, &frame._depthPyramid._image, &frame._depthPyramid._allocation, nullptr));
+	VkImageViewCreateInfo priview_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
+	priview_info.subresourceRange.levelCount = _depthPyramid[idx].levels;
+	VK_CHECK(vkCreateImageView(_device, &priview_info, nullptr, &frame._depthPyramid._defaultView));
+	{
+		auto dp = frame._depthPyramid;
+		_surfaceDeletionQueue.push_function([=]() {
+			vkDestroyImageView(_device, dp._defaultView, nullptr);
+			vmaDestroyImage(_allocator, dp._image, dp._allocation);
+			});
+	}
+	for (int32_t i = 0; i < _depthPyramid[idx].levels; ++i)
+	{
+		VkImageViewCreateInfo level_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
+		level_info.subresourceRange.levelCount = 1;
+		level_info.subresourceRange.baseMipLevel = i;
+
+		VkImageView pyramid;
+		vkCreateImageView(_device, &level_info, nullptr, &pyramid);
+		_surfaceDeletionQueue.push_function([=]() {
+			vkDestroyImageView(_device, pyramid, nullptr);
+			});
+
+		frame.depthPyramidMips[i] = pyramid;
+		assert(frame.depthPyramidMips[i]);
+	}
+
+	return idx;
+}
+
 void REngine::init_swapchain()
 {
 	VkSurfaceCapabilitiesKHR capabilities;
@@ -1177,53 +1224,10 @@ void REngine::init_swapchain()
 			}
 		}
 
+		auto idx = create_depth_pyramid(_windowExtent.width, _windowExtent.height);
 
 
-		// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
-		depthPyramidWidth = previousPow2(_windowExtent.width);
-		depthPyramidHeight = previousPow2(_windowExtent.height);
-		depthPyramidLevels = getImageMipLevels(depthPyramidWidth, depthPyramidHeight);
 
-		VkExtent3D pyramidExtent = {
-			static_cast<uint32_t>(depthPyramidWidth),
-			static_cast<uint32_t>(depthPyramidHeight),
-			1
-		};
-		//the depth image will be a image with the format we selected and Depth Attachment usage flag
-		VkImageCreateInfo pyramidInfo = vkinit::image_create_info(VK_FORMAT_R32_SFLOAT,
-			VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, pyramidExtent);
-
-		pyramidInfo.mipLevels = depthPyramidLevels;
-
-		vmaCreateImage(_allocator, &pyramidInfo, &dimg_allocinfo, &frame._depthPyramid._image, &frame._depthPyramid._allocation, nullptr);
-		VkImageViewCreateInfo priview_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
-		priview_info.subresourceRange.levelCount = depthPyramidLevels;
-		VK_CHECK(vkCreateImageView(_device, &priview_info, nullptr, &frame._depthPyramid._defaultView));
-		{
-			auto pdefaultView = frame._depthPyramid._defaultView;
-			auto pimage = frame._depthPyramid._image;
-			auto pallocation = frame._depthPyramid._allocation;
-			_surfaceDeletionQueue.push_function([=]() {
-				vkDestroyImageView(_device, pdefaultView, nullptr);
-				vmaDestroyImage(_allocator, pimage, pallocation);
-				});
-		}
-
-		for (int32_t i = 0; i < depthPyramidLevels; ++i)
-		{
-			VkImageViewCreateInfo level_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
-			level_info.subresourceRange.levelCount = 1;
-			level_info.subresourceRange.baseMipLevel = i;
-
-			VkImageView pyramid;
-			vkCreateImageView(_device, &level_info, nullptr, &pyramid);
-			_surfaceDeletionQueue.push_function([=]() {
-				vkDestroyImageView(_device, pyramid, nullptr);
-				});
-
-			frame.depthPyramidMips[i] = pyramid;
-			assert(frame.depthPyramidMips[i]);
-		}
 	}
 
 }
@@ -1626,10 +1630,6 @@ void REngine::draw()
 		forward_pass(clearValue, cmd);
 		reduce_depth(cmd);
 
-		{
-			//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Imgui Draw");
-			//ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
-		}
 		copy_render_to_swapchain(cmd);
 	}
 

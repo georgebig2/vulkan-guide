@@ -160,6 +160,8 @@ public:
 
     void init_swapchain();
 
+    int create_depth_pyramid(int width, int height);
+
     void draw();
     void hud_update();
 
@@ -208,9 +210,13 @@ public:
     VkSampler _shadowSampler;
     VkSampler _depthSampler;
 
-    int depthPyramidWidth;
-    int depthPyramidHeight;
-    int depthPyramidLevels;
+    struct DepthPyramid
+    {
+        int width = 0;
+        int height = 0;
+        int levels = 0;
+    };
+    DepthPyramid _depthPyramid[2];
 
     void init_commands();
     void init_sync_structures();

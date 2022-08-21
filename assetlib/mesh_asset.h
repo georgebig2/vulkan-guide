@@ -1,6 +1,6 @@
 #pragma once
 #include <asset_loader.h>
-
+#include <cmath>
 
 namespace assets
 {
