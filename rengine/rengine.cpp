@@ -981,31 +981,6 @@ std::string REngine::shader_path(std::string_view path)
 	return "shaders/" + std::string(path);
 }
 
-
-uint32_t previousPow2(uint32_t v)
-{
-	uint32_t r = 1;
-
-	while (r * 2 < v)
-		r *= 2;
-
-	return r;
-}
-
-uint32_t getImageMipLevels(uint32_t width, uint32_t height)
-{
-	uint32_t result = 1;
-
-	while (width > 1 || height > 1)
-	{
-		result++;
-		width /= 2;
-		height /= 2;
-	}
-
-	return result;
-}
-
 glm::mat4 DirectionalLight::get_projection()
 {
 	glm::mat4 projection = glm::orthoLH_ZO(-shadowExtent.x, shadowExtent.x, -shadowExtent.y, shadowExtent.y, -shadowExtent.z, shadowExtent.z);
@@ -1034,52 +1009,7 @@ VkResult REngine::get_surface_info(VkSurfaceCapabilitiesKHR& capabilities)
 	return res;
 }
 
-int REngine::create_depth_pyramid(int width, int height)
-{
-	int idx = 0;
 
-	// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
-	_depthPyramid[idx].width = previousPow2(width);
-	_depthPyramid[idx].height = previousPow2(height);
-	_depthPyramid[idx].levels = getImageMipLevels(_depthPyramid[0].width, _depthPyramid[0].height);
-
-
-	//the depth image will be a image with the format we selected and Depth Attachment usage flag
-	VkExtent3D pyramidExtent = { static_cast<uint32_t>(_depthPyramid[idx].width), static_cast<uint32_t>(_depthPyramid[idx].height), 1 };
-	VkImageCreateInfo pyramidInfo = vkinit::image_create_info(VK_FORMAT_R32_SFLOAT,
-		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, pyramidExtent);
-
-	pyramidInfo.mipLevels = _depthPyramid[idx].levels;
-
-	VK_CHECK(vmaCreateImage(_allocator, &pyramidInfo, &dimg_allocinfo, &frame._depthPyramid._image, &frame._depthPyramid._allocation, nullptr));
-	VkImageViewCreateInfo priview_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
-	priview_info.subresourceRange.levelCount = _depthPyramid[idx].levels;
-	VK_CHECK(vkCreateImageView(_device, &priview_info, nullptr, &frame._depthPyramid._defaultView));
-	{
-		auto dp = frame._depthPyramid;
-		_surfaceDeletionQueue.push_function([=]() {
-			vkDestroyImageView(_device, dp._defaultView, nullptr);
-			vmaDestroyImage(_allocator, dp._image, dp._allocation);
-			});
-	}
-	for (int32_t i = 0; i < _depthPyramid[idx].levels; ++i)
-	{
-		VkImageViewCreateInfo level_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
-		level_info.subresourceRange.levelCount = 1;
-		level_info.subresourceRange.baseMipLevel = i;
-
-		VkImageView pyramid;
-		vkCreateImageView(_device, &level_info, nullptr, &pyramid);
-		_surfaceDeletionQueue.push_function([=]() {
-			vkDestroyImageView(_device, pyramid, nullptr);
-			});
-
-		frame.depthPyramidMips[i] = pyramid;
-		assert(frame.depthPyramidMips[i]);
-	}
-
-	return idx;
-}
 
 void REngine::init_swapchain()
 {
@@ -1223,11 +1153,7 @@ void REngine::init_swapchain()
 					});
 			}
 		}
-
-		auto idx = create_depth_pyramid(_windowExtent.width, _windowExtent.height);
-
-
-
+				
 	}
 
 }
