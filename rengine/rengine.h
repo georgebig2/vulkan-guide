@@ -5,13 +5,12 @@
 #include <deque>
 #include <string_view>
 //#include <unordered_map>
-
 #include "common.h"
 #include <player_camera.h>
 #include "vk_types.h"
 #include "frame_data.h"
 
-
+#include "render_graph.h"
 
 //forward declarations
 namespace vkutil {
@@ -24,7 +23,7 @@ namespace vkutil {
 struct CullParams {
     glm::mat4 viewmat;
     glm::mat4 projmat;
-    bool occlusionCull;
+    RGName occlusionCull = 0;
     bool frustrumCull;
     float drawDist;
     bool aabb;
@@ -259,9 +258,9 @@ public:
     T* map_buffer(AllocatedBuffer<T>& buffer);
     void unmap_buffer(AllocatedBufferUntyped& buffer);
     void copy_render_to_swapchain(VkCommandBuffer cmd);
-    void shadow_pass(VkCommandBuffer cmd);
-    void reduce_depth(VkCommandBuffer cmd);
-    void forward_pass(VkClearValue clearValue, VkCommandBuffer cmd);
+    void shadow_pass(RenderGraph& graph, VkCommandBuffer cmd);
+    //void reduce_depth(VkCommandBuffer cmd);
+    void forward_pass(RenderGraph& graph, VkClearValue clearValue, VkCommandBuffer cmd);
     void init_descriptors();
     size_t pad_uniform_buffer_size(size_t originalSize);
     void init_scene();

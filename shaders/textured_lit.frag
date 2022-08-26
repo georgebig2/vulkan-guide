@@ -25,7 +25,7 @@ layout(set = 0, binding = 1) uniform  SceneData{
 layout(set = 0, binding = 2) uniform sampler2DShadow  shadowSampler;
 
 layout(set = 2, binding = 0) uniform sampler2D tex1;
-#define SHADOW_FACTOR 0.1
+//#define SHADOW_FACTOR 0.1
 
 float textureProj(vec4 P, vec2 offset)
 {
@@ -36,7 +36,7 @@ float textureProj(vec4 P, vec2 offset)
 	if (shadowCoord.z > -1.0 && shadowCoord.z < 1.0) 
 	{
 		vec3 sc = vec3(vec2(shadowCoord.st + offset),shadowCoord.z);
-		shadow =  texture(shadowSampler, sc);		
+		shadow = texture(shadowSampler, sc);		
 	}
 	return shadow;
 }
@@ -72,7 +72,7 @@ float filterPCF(vec4 sc)
 	vec2 s = gl_FragCoord.xy;
 	
 	uvec4 u = uvec4(s, uint(s.x) ^ uint(s.y), uint(s.x) + uint(s.y));
-    vec3 rand = pcg3d(u.xyz);//vec3(1,0,0);//
+    vec3 rand = pcg3d(u.xyz); //vec3(1,0,0);//
 	rand = normalize(rand);
 
 
@@ -111,7 +111,7 @@ void main()
 	else //only attempt shadowsample in normals that point towards light
 	if(lightAngle > 0.01)
 	{
-		shadow = mix(0.f,1.f , filterPCF(inShadowCoord / inShadowCoord.w));
+		shadow = mix(0.f, 1.f, filterPCF(inShadowCoord / inShadowCoord.w));
 	}
 
 
