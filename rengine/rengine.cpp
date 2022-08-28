@@ -1033,8 +1033,7 @@ void REngine::init_swapchain()
 	format.format = VK_FORMAT_R8G8B8A8_SRGB;
 	format.colorSpace = VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT;	//VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
 
-	vkb::destroy_swapchain(_swapchain);
-
+	
 	auto swap_ret = swapchainBuilder
 		//.use_default_format_selection()
 		.set_in_capabilities(&capabilities)
@@ -1367,6 +1366,8 @@ bool REngine::handle_surface_changes(bool force_update)
 		vkDeviceWaitIdle(_device);
 		_surfaceDeletionQueue.flush();
 
+		vkb::destroy_swapchain(_swapchain);
+
 		vkDestroySurfaceKHR(_instance.instance, _surface, nullptr);
 		auto res = create_surface(_instance.instance, &_surface);
 		assert(res);
@@ -1565,7 +1566,7 @@ void REngine::draw()
 		// shadow map pyramid
 		if (0)
 		{
-			auto depthTex = graph.create_texture(RES_SHADOW_MAP, get_current_frame()._shadowImage);
+			auto depthTex = graph.create_texture(RES_SHADOW_MAP, get_current_frame()._shadowImage._image);
 			reduce_depth(graph, cmd, depthTex, _shadowExtent, RES_DEPTH_PYRAMID_SHADOW);
 		}
 
@@ -1574,28 +1575,19 @@ void REngine::draw()
 
 		// forward depth pyramid
 		{
-			// do it early in the end of prev (forward) pass
-			VkImageMemoryBarrier depthReadBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
-				VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				VK_IMAGE_ASPECT_DEPTH_BIT);
-			vkCmdPipelineBarrier(cmd,
-				VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-				VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthReadBarrier);
-
-			auto depthTex = graph.create_texture(RES_DEPTH, get_current_frame()._depthImage);
+			auto depthTex = graph.create_texture(RES_DEPTH, get_current_frame()._depthImage._image);
 			reduce_depth(graph, cmd, depthTex, _windowExtent, RES_DEPTH_PYRAMID);
 
 			graph.execute();
 
-			// next pass with depth write will be forward pass
-			VkImageMemoryBarrier depthWriteBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
-				VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-				VK_IMAGE_ASPECT_DEPTH_BIT);
-			vkCmdPipelineBarrier(cmd,
-				VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT
-				, 0, 0, 0, 0, 1, &depthWriteBarrier);
+			//// next pass with depth write will be forward pass
+			//VkImageMemoryBarrier depthWriteBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
+			//	VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+			//	VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			//	VK_IMAGE_ASPECT_DEPTH_BIT);
+			//vkCmdPipelineBarrier(cmd,
+			//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT
+			//	, 0, 0, 0, 0, 1, &depthWriteBarrier);
 
 		}
 

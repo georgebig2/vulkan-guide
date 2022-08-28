@@ -20,24 +20,16 @@ AutoCVar_Float CVAR_SlopeBias("gpu.shadowBiasSlope", "Distance cull", 4.75f);
 AutoCVar_Int CVAR_FreezeShadows("gpu.freezeShadows", "Stop the rendering of shadows", 0, CVarFlags::EditCheckbox);
 AutoCVar_Int CVAR_Shadowcast("gpu.shadowcast", "Use shadowcasting", 1, CVarFlags::EditCheckbox);
 
-RGName RES_DEPTH= "Depth";
-RGName RES_SHADOW_MAP = "ShadowMap";
+RGName RES_DEPTH				= "Depth";
+RGName RES_SHADOW_MAP			= "ShadowMap";
 RGName RES_DEPTH_PYRAMID		= "DepthPyramid";
 RGName RES_DEPTH_PYRAMID_SHADOW = "DepthShadowPyramid";
+
+RGName PASS_PROLOGUE			= "Prologue";
+RGName PASS_EPILOGUE			= "Epilogue";
 RGName PASS_DEPTH_PYRAMID		= "#DepthPyramid";
-RGName PASS_FORWARD			    = "#Forward";
-RGName PASS_SHADOW				= "#Shadow";
-
-
-struct PoolTextureVal
-{
-	VkImage image = 0;
-	RGTexture::Desc desc;
-};
-
-PoolTextureVal get_pool_image(RGName name);
-VkImageView get_pool_image_view(VkImage image, int level);
-
+RGName PASS_FORWARD			    = "Forward";
+RGName PASS_SHADOW				= "Shadow";
 
 
 struct alignas(16) DepthReduceData
@@ -48,204 +40,372 @@ inline uint32_t getGroupCount(uint32_t threadCount, uint32_t localSize)
 {
 	return (threadCount + localSize - 1) / localSize;
 }
-
-//typedef RGTexture& RGTextureRef;
-//typedef RGPass&    RGPassRef;
-
-//struct PoolTextureKey
-//{
-//	RGTexture tex;
-//};
-struct PoolViewKey
-{
-	VkImage image;
+struct PoolViewKey {
+	int resource;
 	int level;
-
 	bool operator==(const PoolViewKey& other) const
 	{
-		return (image == other.image
+		return (resource == other.resource
 			&& level == other.level);
 	}
 };
-
 struct PoolViewKeyHash {
 	std::size_t operator()(const PoolViewKey& k) const
 	{
-		return ((std::hash<void*>()(k.image)
+		return ((std::hash<int>()(k.resource)
 			^ (std::hash<int>()(k.level) << 1)) >> 1);
 		//^ (hash<int>()(k.third) << 1);
 	}
 };
 
-typedef RGName PoolTextureKey;
+std::unordered_map<RGName, int> registry_textures;
+std::unordered_map<PoolViewKey, int, PoolViewKeyHash> registry_views;
 
-
-std::unordered_map<PoolTextureKey, PoolTextureVal> pool_textures;
-std::unordered_map<PoolViewKey, VkImageView, PoolViewKeyHash> pool_views;
-
-
-PoolTextureVal get_pool_image(RGName name)
+struct PoolTexture 
 {
-	auto key = PoolTextureKey{ name };
-	auto it = pool_textures.find(key);
-	if (it != pool_textures.end())
-		return it->second;
-	return PoolTextureVal();
+	RGTexture rgTex;
+	VkImage image = 0;
+};
+struct PoolView
+{
+	RGView rgView;
+	uint64_t writePasses = 0;
+	uint64_t readPasses = 0;
+	VkImageView imageView = 0;
+};
+
+std::vector<PoolTexture> textures;
+std::vector<PoolView> views;
+
+RGHandle get_texture_handle(RGName name)
+{
+	int h = -1;
+	auto it = registry_textures.find(name);
+	if (it == registry_textures.end()) {
+		h = (int)textures.size();
+		registry_textures.insert({ name, h });
+		textures.resize(h + 1);
+	}
+	else {
+		h = it->second;
+	}
+	return h;
 }
 
-VkImageView get_pool_image_view(VkImage image, int level)
+RGHandle get_view_handle(PoolViewKey key)
 {
-	auto key = PoolViewKey{ image, level };
-	auto it = pool_views.find(key);
-	if (it != pool_views.end())
-		return it->second;
-	return 0;
+	int h = -1;
+	auto it = registry_views.find(key);
+	if (it == registry_views.end()) {
+		h = (int)views.size();
+		registry_views.insert({ key, h });
+		views.resize(h + 1);
+	}
+	else {
+		h = it->second;
+	}
+	return h;
 }
 
-//struct PoolViewKeyHash {
-//	std::size_t operator()(const PoolViewKey& k) const
-//	{
-//		return k.hash();
-//	}
-//};
-
-RGHandle RenderGraph::create_texture(RGName name, const RGTexture::Desc& desc
-	//ERDGTextureFlags Flags
-)
+VkImage get_pool_image(RGName name, RGHandle* texHandle, RGTexture* rgTex)
 {
-	textures[numTextures++] = RGTexture(name, desc);
-	return numTextures - 1;
+	auto h = get_texture_handle(name);
+	if (rgTex)
+		*rgTex = textures[h].rgTex;
+	if (texHandle)
+		*texHandle = h;
+	return textures[h].image;
 }
-RGHandle RenderGraph::create_texture(RGName name, AllocatedImage image)
+
+VkImageView get_pool_image_view(RGHandle tex, int level)
 {
+	auto h = get_view_handle({ tex, level });
+	return views[h].imageView;
+}
+
+RenderGraph::RenderGraph(REngine* e) 
+	: engine(e)
+{
+	auto pass = add_pass(PASS_PROLOGUE, RGPASS_FLAG_GRAPHICS,
+		[=](RenderGraph& g)
+		{
+		});
+}
+
+
+RGHandle RenderGraph::create_texture(RGName name, const RGTexture::Desc& desc)
+{
+	auto h = get_texture_handle(name);
+	textures[h].rgTex = RGTexture(name, desc);
+	return h;
+}
+
+RGHandle RenderGraph::create_texture(RGName name, VkImage image)
+{
+	auto h = get_texture_handle(name);
 	RGTexture::Desc desc;
-	auto tex = RGTexture(name, desc);
-	tex.image = image;
-	textures[numTextures++] = tex;
-	return numTextures - 1;
+	textures[h].rgTex = RGTexture(name, desc);
+	textures[h].image = image;
+	return h;
 }
-const RGTexture& RenderGraph::get_texture(RGHandle handle) const
-{
-	return textures[handle];
-}
-
 
 RGHandle RenderGraph::create_view(RGHandle tex, const RGView::Desc& desc)
 {
-	views[numViews++] = RGView(textures[tex], tex, desc);
-	return numViews - 1;
-}
-const RGView& RenderGraph::get_view(RGHandle handle) const
-{
-	return views[handle];
+	auto h = get_view_handle({ tex, desc.level });
+	views[h].rgView = RGView(textures[tex].rgTex, tex, desc);
+	return h;
 }
 
-template </*typename ParameterStructType, */typename F>
-RGHandle RenderGraph::add_pass(RGName name,
-	/*const ParameterStructType* ParameterStruct, ERDGPassFlags Flags, */
-	F&& func)
+RGHandle RenderGraph::create_view(RGHandle tex, VkImageView view)
+{
+	auto h = get_view_handle({ tex, -1 });
+	RGView::Desc desc;
+	views[h].rgView = RGView(textures[tex].rgTex, tex, desc);
+	views[h].imageView = view;
+	return h;
+}
+
+VkImage RenderGraph::get_image(RGHandle handle) const
+{
+	return textures[handle].image;
+}
+
+VkImageView RenderGraph::get_image_view(RGHandle handle) const
+{
+	return views[handle].imageView;
+}
+
+
+template <typename F>
+RGHandle RenderGraph::add_pass(RGName name, RGPassFlags flags, F&& func)
 {
 	static_assert(sizeof(F) < 300, "DONT CAPTURE TOO MUCH IN THE LAMBDA");
-	RGPass pass(name);
-	pass.func = func;
-	passes[numPasses++] = pass;
+	RGPass pass(name, flags);
+	pass.func = func;				// todo: remove heap!!!
+	passes[numPasses++] = pass;			
 	return numPasses - 1;
 }
 
+void RenderGraph::pass_write(RGHandle& pass, RGHandle& view)
+{
+	passes[pass].write(view);
+	auto& v = views[view];
+	//auto t = v.texHandle;
+	//auto& tex = textures[t];
+	assert(pass >= 0 && pass < 64);
+	v.writePasses |= uint64_t(1) << pass;
+}
+void RenderGraph::pass_read(RGHandle& pass, RGHandle& view)
+{
+	passes[pass].read(view);
+	auto& v = views[view];
+	//auto t = v.texHandle;
+	//auto& tex = textures[t];
+	assert(pass >= 0 && pass < 64);
+	v.readPasses |= uint64_t(1) << pass;
+}
+
+
 void RenderGraph::execute()
 {
-	vkutil::VulkanScopeTimer timer(engine->get_current_frame()._mainCommandBuffer, engine->_profiler, "RG execute");
+	auto& cmd = engine->get_current_frame()._mainCommandBuffer;
+	vkutil::VulkanScopeTimer timer(cmd, engine->_profiler, "RG execute");
 
-	compile();
+	auto pass = add_pass(PASS_EPILOGUE, RGPASS_FLAG_GRAPHICS,
+		[=](RenderGraph& g)
+		{
+		});
+
+	std::array<RGIdx, MAX_PASSES> order;
+	compile(order);
+
 	for (int i = 0; i < numPasses; ++i)
 	{
-		auto& pass = passes[i];
+		auto pIdx = order[i];
+		auto& pass = passes[pIdx];
+
 		pass.func(*this);
+
+		// resource transition between adjacent passes
+		// split barriers?
+		// vk render passes for graphics passes
+		if (i < numPasses - 1)
+		{
+			auto pIdx2 = order[i + 1];
+			auto& nextPass = passes[pIdx2];
+
+			bool compute2compute = (pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
+
+			// w -> r
+			for (int8_t w = 0; w < pass.numWrites; ++w)
+			{
+				auto wV = pass.writes[w];
+				auto& wView = views[wV];
+				auto wT = wView.rgView.texHandle;
+				auto& wTex = textures[wT];
+
+				for (int8_t r = 0; r < nextPass.numReads; ++r)
+				{
+					auto rV = nextPass.reads[r];
+					auto& rView = views[rV];
+					auto rT = rView.rgView.texHandle;
+					auto& rTex = textures[rT];
+					if (wT == rT)
+					{
+						if (compute2compute)
+						{
+							VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
+								VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+								VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+								VK_IMAGE_ASPECT_COLOR_BIT);
+							vkCmdPipelineBarrier(cmd,
+								VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+								VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
+						}
+
+					}
+				}
+			}
+
+		}
 	}
 }
 
-void RenderGraph::compile()
+// use topological sorting for ordering passes writes/reads
+void RenderGraph::sort_passes(std::array<RGIdx, MAX_PASSES>& order)
 {
+	//std::array<RGIdx, MAX_PASSES> level;
+
+	// search enter passes
+	std::array<RGIdx, MAX_PASSES> zerosQ;
+	RGIdx backIdx = 0;
+	for (RGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
+	{
+		auto& pass = passes[pIdx];
+		bool ignore = (!pass.numReads && !pass.numWrites);
+		if (!ignore && !pass.inDegrees) {
+			zerosQ[backIdx++] = pIdx;
+		}
+		order[pIdx] = pIdx;
+	}
+
+	assert(backIdx <= 1);	// one enter for now
+	assert(backIdx > 0);
+	if (!backIdx)
+		return;
+
+	RGIdx frontIdx = 0;
+	RGIdx orderIdx = 0;
+	for (RGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
+	{
+		if (frontIdx >= backIdx)
+			break;
+
+		auto zero = zerosQ[frontIdx++];
+
+		// pass-ignores do things more complicated :(
+		for (;; ++orderIdx) {
+			auto& pass = passes[orderIdx];
+			bool ignore = (!pass.numReads && !pass.numWrites);
+			if (!ignore)
+				break;
+		}
+		order[orderIdx++] = zero;
+
+		auto& pass = passes[zero];
+		for (int8_t w = 0; w < pass.numWrites; ++w)
+		{
+			auto viewHandle = pass.writes[w];
+			auto& v = views[viewHandle];
+			//auto t = v.texHandle;
+			//auto& tex = textures[t];
+			for (RGIdx pIdx = 0; pIdx < 64; ++pIdx)
+			{
+				if (v.readPasses & (uint64_t(1) << pIdx))	// we can change order of neighbours
+				{
+					auto& neighbour = passes[pIdx];
+					assert(neighbour.inDegrees > 0);
+					if (!--neighbour.inDegrees) {
+						zerosQ[backIdx++] = pIdx;
+					}
+				}
+			}
+		}
+	}
+}
+
+void RenderGraph::compile(std::array<RGIdx, MAX_PASSES>& order)
+{
+	sort_passes(order);
+	//cull passes
+
 	// check textures
-	for (int i = 0; i < numTextures; ++i)
+	auto numt = textures.size();
+	for (size_t i = 0; i < numt; ++i)
 	{
 		auto& tex = textures[i];
-		if (!tex.image._image)				// external tex?
+		if (!tex.image)				// external tex?
 		{
 			// cache textures (per frame?)
-			VkImage image = get_pool_image(tex.name).image;
-			if (!image)
-			{
-				VkExtent3D extent = { tex.desc.w, tex.desc.h, tex.desc.d };
-				VkImageCreateInfo info = vkinit::image_create_info(tex.desc.format,
-					VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,		//???
-					extent);
-				info.mipLevels = tex.desc.levels;
+			VkExtent3D extent = { (uint32_t)tex.rgTex.desc.w, (uint32_t)tex.rgTex.desc.h, (uint32_t)tex.rgTex.desc.d };
+			VkImageCreateInfo info = vkinit::image_create_info(tex.rgTex.desc.format,
+				VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,		//???
+				extent);
+			info.mipLevels = tex.rgTex.desc.levels;
 
-				VmaAllocationCreateInfo allocInfo = {};
-				allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-				allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			VmaAllocationCreateInfo allocInfo = {};
+			allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+			allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-				AllocatedImage newImage;
-				VK_CHECK(vmaCreateImage(engine->_allocator, &info, &allocInfo, &newImage._image, &newImage._allocation, nullptr));
+			AllocatedImage newImage;
+			VK_CHECK(vmaCreateImage(engine->_allocator, &info, &allocInfo, &newImage._image, &newImage._allocation, nullptr));
 
-				VkImageMemoryBarrier initB = vkinit::image_barrier(newImage._image,
-					0, VK_ACCESS_SHADER_WRITE_BIT,
-					VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,	// ??
-					VK_IMAGE_ASPECT_COLOR_BIT);
-				vkCmdPipelineBarrier(engine->get_current_frame()._mainCommandBuffer,
-					VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,	// ??
-					VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &initB);
+			VkImageMemoryBarrier initB = vkinit::image_barrier(newImage._image,
+				0, VK_ACCESS_SHADER_WRITE_BIT,
+				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,	// ??
+				VK_IMAGE_ASPECT_COLOR_BIT);
+			vkCmdPipelineBarrier(engine->get_current_frame()._mainCommandBuffer,
+				VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,	// ??
+				VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &initB);
 
-				image = newImage._image;
-				pool_textures.emplace(tex.name, PoolTextureVal{ image, tex.desc });
-
-				auto allocator = engine->_allocator;
-				auto alloc = newImage._allocation;
-				engine->_surfaceDeletionQueue.push_function([=]() {
-					pool_textures.erase(tex.name);
-					vmaDestroyImage(allocator, image, alloc);
-					});
-			}
-
-			assert(image);
-			tex.image._image = image;
+			auto allocator = engine->_allocator;
+			auto alloc = newImage._allocation;
+			engine->_surfaceDeletionQueue.push_function([=]() {
+				textures[i].image = 0;
+				vmaDestroyImage(allocator, newImage._image, alloc);
+				});
+	
+			assert(newImage._image);
+			tex.image = newImage._image;
 		}
 	}
 
 	// check views
-	for (int i = 0; i < numViews; ++i)
+	auto numv = views.size();
+	for (int i = 0; i < numv; ++i)
 	{
 		auto& view = views[i];
-		auto& tex = textures[view.texHandle];
-		view.image._image = tex.image._image;
+		auto& tex = textures[view.rgView.texHandle];
+		assert(tex.image);
 
-		VkImageView imageView = tex.image._defaultView;
-		if (!imageView) {
-			imageView = get_pool_image_view(view.image._image, view.desc.level);
-		}
-		if (!imageView)
+		if (!view.imageView && tex.rgTex.desc.format != VK_FORMAT_UNDEFINED)
 		{
-			VkImageViewCreateInfo viewInfo = vkinit::imageview_create_info(tex.desc.format, view.image._image,
+			VkImageViewCreateInfo viewInfo = vkinit::imageview_create_info(tex.rgTex.desc.format, tex.image,
 				VK_IMAGE_ASPECT_COLOR_BIT); //??
-			viewInfo.subresourceRange.levelCount = view.desc.level == -1 ? tex.desc.levels : 1;
-			viewInfo.subresourceRange.baseMipLevel = view.desc.level == -1 ? 0 : view.desc.level;
-			VK_CHECK(vkCreateImageView(engine->_device, &viewInfo, nullptr, &view.image._defaultView));
-			view.viewInfo = viewInfo;
-
-			imageView = view.image._defaultView;
-			auto key = PoolViewKey{ view.image._image, view.desc.level };
-			pool_views.emplace(key, imageView);
+			viewInfo.subresourceRange.levelCount = view.rgView.desc.level == -1 ? tex.rgTex.desc.levels : 1;
+			viewInfo.subresourceRange.baseMipLevel = view.rgView.desc.level == -1 ? 0 : view.rgView.desc.level;
+			VkImageView newView;
+			VK_CHECK(vkCreateImageView(engine->_device, &viewInfo, nullptr, &newView));
 
 			auto device = engine->_device;
 			engine->_surfaceDeletionQueue.push_function([=]() {
-				pool_views.erase(key);
-				vkDestroyImageView(device, imageView, nullptr);
+				views[i].imageView = 0;
+				vkDestroyImageView(device, newView, nullptr);
 				});
-		}
 
-		assert(imageView);
-		view.image._defaultView = imageView;
+			assert(newView);
+			view.imageView = newView;
+		}
 	}
 }
 
@@ -258,9 +418,9 @@ uint32_t previousPow2(uint32_t v)
 		r *= 2;
 	return r;
 }
-uint32_t getImageMipLevels(uint32_t width, uint32_t height)
+int getImageMipLevels(uint32_t width, uint32_t height)
 {
-	uint32_t result = 1;
+	int result = 1;
 	while (width > 1 || height > 1) {
 		result++;
 		width /= 2;
@@ -283,22 +443,22 @@ void reduce_depth(RenderGraph& graph, VkCommandBuffer cmd, RGHandle inDepthTex, 
 		auto defaultView = graph.create_view(pyrTex, desc);
 	}
 
-	for (int32_t i = 0; i < depthPyramidLevels; ++i)
+	for (int i = 0; i < depthPyramidLevels; ++i)
 	{
 		auto desc = RGView::Desc(i);
-		auto destView = graph.create_view(pyrTex, desc);
+		auto destView = graph.create_view(pyrTex, desc);	//rt/uav + bind index
 
 		RGHandle sourceView;
 		if (i == 0) {
 			auto desc = RGView::Desc(-1);
-			sourceView = graph.create_view(inDepthTex, desc);
+			sourceView = graph.create_view(inDepthTex, desc);	//srv + bind index
 		}
 		else {
 			auto desc = RGView::Desc(i - 1);
 			sourceView = graph.create_view(pyrTex, desc);
 		}
 
-		graph.add_pass(PASS_DEPTH_PYRAMID,
+		auto pass = graph.add_pass(PASS_DEPTH_PYRAMID, RGPASS_FLAG_COMPUTE,
 			[=](RenderGraph& g)
 			{
 				if (i == 0) {
@@ -306,15 +466,15 @@ void reduce_depth(RenderGraph& graph, VkCommandBuffer cmd, RGHandle inDepthTex, 
 				}
 
 				VkDescriptorImageInfo destTarget = {};
-				destTarget.sampler = g.engine->_depthSampler;
-				destTarget.imageView = g.get_view(destView).image._defaultView;
-				destTarget.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+				destTarget.imageView = g.get_image_view(destView);
+				assert(destTarget.imageView);
+				destTarget.imageLayout = VK_IMAGE_LAYOUT_GENERAL;	//compute
 
 				VkDescriptorImageInfo sourceTarget = {};
 				sourceTarget.sampler = g.engine->_depthSampler;
-				auto& rec = g.get_view(sourceView);
-				sourceTarget.imageView = rec.image._defaultView;
-				sourceTarget.imageLayout = i == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL;
+				sourceTarget.imageView = g.get_image_view(sourceView);
+				assert(sourceTarget.imageView);
+				sourceTarget.imageLayout = i == 0 ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL; //compute?
 
 				VkDescriptorSet depthSet;
 				vkutil::DescriptorBuilder::begin(g.engine->_descriptorLayoutCache, g.engine->get_current_frame().dynamicDescriptorAllocator)
@@ -332,16 +492,18 @@ void reduce_depth(RenderGraph& graph, VkCommandBuffer cmd, RGHandle inDepthTex, 
 
 				vkCmdDispatch(cmd, getGroupCount(reduceData.imageSize.x, 32), getGroupCount(reduceData.imageSize.y, 32), 1);
 
-				auto destImage = g.get_texture(pyrTex).image._image;
-				VkImageMemoryBarrier reduceBarrier = vkinit::image_barrier(destImage,
-					VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-					VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
-					VK_IMAGE_ASPECT_COLOR_BIT);
-				vkCmdPipelineBarrier(cmd,
-					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-					VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &reduceBarrier);
+				//auto destImage = g.get_image(pyrTex);
+				//VkImageMemoryBarrier reduceBarrier = vkinit::image_barrier(destImage,
+				//	VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+				//	VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+				//	VK_IMAGE_ASPECT_COLOR_BIT);
+				//vkCmdPipelineBarrier(cmd,
+				//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				//	VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &reduceBarrier);
 
 			});
+		graph.pass_write(pass, destView);
+		graph.pass_read(pass, sourceView);
 	}
 }
 
@@ -579,7 +741,11 @@ void REngine::init_copy_renderpass(VkFormat swachainImageFormat)
 
 void REngine::forward_pass(RenderGraph& graph, VkClearValue clearValue, VkCommandBuffer cmd)
 {
-	graph.add_pass(PASS_FORWARD,
+	auto depthTex = graph.create_texture(RES_DEPTH, get_current_frame()._depthImage._image);
+//	auto desc = RGView::Desc(-1); 	// ?
+	auto depthView = graph.create_view(depthTex, get_current_frame()._depthImage._defaultView);
+
+	auto pass = graph.add_pass(PASS_FORWARD, RGPASS_FLAG_GRAPHICS,
 		[=](RenderGraph& g)
 		{
 			vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu forward pass");
@@ -630,7 +796,23 @@ void REngine::forward_pass(RenderGraph& graph, VkClearValue clearValue, VkComman
 			//finalize the render pass
 			vkCmdEndRenderPass(cmd);
 
+			// do it early in the end of prev (forward) pass
+			VkImageMemoryBarrier depthReadBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
+				VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+				VK_IMAGE_ASPECT_DEPTH_BIT);
+			vkCmdPipelineBarrier(cmd,
+				VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthReadBarrier);
+
 		});
+	graph.pass_write(pass, depthView);
+	// do vkCreateRenderPass (_renderPass) and vkCreateFramebuffer(_forwardFramebuffer) in compile graph state? (if not compute)
+	// pipeline?
+	//VkImageView attachments[2] = { frame._rawRenderImage._defaultView, frame._depthImage._defaultView };
+//	pass.set_rt(_forwardFramebuffer);
+	
+	//pass.set_srv(get_current_frame()._shadowImage._defaultView, 2);
 }
 
 void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
@@ -699,7 +881,7 @@ void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
 
 void REngine::shadow_pass(RenderGraph& graph, VkCommandBuffer cmd)
 {
-	graph.add_pass(PASS_SHADOW,
+	auto pass = graph.add_pass(PASS_SHADOW, RGPASS_FLAG_GRAPHICS,
 		[=](RenderGraph& g)
 		{
 			vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu shadow pass");
@@ -811,11 +993,13 @@ void REngine::execute_compute_cull(VkCommandBuffer cmd, MeshPass& pass, CullPara
 	VkDescriptorBufferInfo finalInfo = pass.compactedInstanceBuffer.get_info();		//!!
 	VkDescriptorBufferInfo indirectInfo = pass.drawIndirectBuffer.get_info();
 
-	auto image = get_pool_image(RES_DEPTH_PYRAMID);
-	if (!image.image)
+	RGTexture rgImage;
+	RGHandle texHandle;
+	auto image = get_pool_image(RES_DEPTH_PYRAMID, &texHandle, &rgImage);
+	if (!image)
 		return;
 
-	auto imageView = get_pool_image_view(image.image, -1); //srv
+	auto imageView = get_pool_image_view(texHandle, -1); //srv
 	assert(imageView);
 	VkDescriptorImageInfo depthPyramid;
 	depthPyramid.sampler = _depthSampler;
@@ -857,7 +1041,7 @@ void REngine::execute_compute_cull(VkCommandBuffer cmd, MeshPass& pass, CullPara
 	//cullData.lodStep = 1.5f;
 	//cullData.pyramidWidth = static_cast<float>(depthPyramidWidth);
 	//cullData.pyramidHeight = static_cast<float>(depthPyramidHeight);
-	cullData.pyramid = image.desc.w + (image.desc.h << 16);
+	cullData.pyramid = rgImage.desc.w + (rgImage.desc.h << 16);
 	cullData.view = params.viewmat;//get_view_matrix();
 
 	cullData.flags |= params.aabb ? 8 : 0;

@@ -1,8 +1,9 @@
 #pragma once
 #include <array>
 
-typedef int	RGHandle;
+typedef int16_t	RGHandle;
 typedef const char* RGName;
+typedef uint8_t RGIdx;
 
 extern RGName RES_DEPTH;
 extern RGName RES_SHADOW_MAP;
@@ -28,13 +29,13 @@ public:
 		Desc() {}
 		int w = -1, h = 1, d = 1;
 		int levels = 1;
-		VkFormat format;
+		VkFormat format = VK_FORMAT_UNDEFINED;
 	} desc;
 
 	RGTexture(RGName name, const Desc& d) : RGResource(name), desc(d) {}
 	RGTexture() {}
 
-	AllocatedImage image;
+	//AllocatedImage image;
 };
 
 
@@ -52,49 +53,85 @@ public:
 	RGView() {}
 	RGHandle texHandle = 0;
 
-	AllocatedImage image;
-	VkImageViewCreateInfo viewInfo = {}; // debug only
+	//AllocatedImage image;
+	//VkImageViewCreateInfo viewInfo = {}; // debug only
 };
 
-class RenderGraph;
+enum RGPassFlags
+{
+	RGPASS_FLAG_GRAPHICS = 0,
+	RGPASS_FLAG_COMPUTE = 1,
+};
+
+//class RenderGraph;
 class RGPass
 {
+	friend class RenderGraph;
 public:
-	RGPass(RGName n) : name(n) {}
+	RGPass(RGName n, RGPassFlags f) : name(n), flags(f) {}
 	RGPass() {}
-	RGName name;
-	std::function<void(RenderGraph&)> func;
-};
 
+	void write(RGHandle& view)
+	{
+		assert(view >= 0);
+		writes[numWrites++] = view;
+	}
+	void read(RGHandle& view)
+	{
+		assert(view >= 0);
+		reads[numReads++] = view;
+		inDegrees = numReads;
+	}
+
+private:
+	int8_t numWrites = 0;
+	int8_t numReads = 0;
+	RGPassFlags flags = {};
+
+	int8_t inDegrees = 0;
+
+	std::array<RGHandle, 8> writes = {};
+	std::array<RGHandle, 8> reads = {};
+
+	std::function<void(RenderGraph&)> func; // todo: remove heap!!!	//use stack allocator
+	RGName name;
+};
 
 
 class RenderGraph
 {
 public:
-	RenderGraph(REngine* e) : engine(e) {}
+	RenderGraph(REngine* e);
 
 	RGHandle create_texture(RGName name, const RGTexture::Desc& desc); 	//ERDGTextureFlags Flags
-	RGHandle create_texture(RGName name, AllocatedImage image);
-	const RGTexture& get_texture(RGHandle handle) const;
-
+	RGHandle create_texture(RGName name, VkImage image);
+	
 	RGHandle create_view(RGHandle tex, const RGView::Desc& desc);
-	const RGView& get_view(RGHandle handle) const;
+	RGHandle create_view(RGHandle tex, VkImageView view);
 
-	template </*typename ParameterStructType, */typename F>
-	RGHandle add_pass(RGName name, /*const ParameterStructType* ParameterStruct, ERDGPassFlags Flags, */ F&& func);
+	VkImage get_image(RGHandle handle) const;
+	VkImageView get_image_view(RGHandle handle) const;
+
+	template <typename F>
+	RGHandle add_pass(RGName name, RGPassFlags flags, F&& func);
+
+	void pass_write(RGHandle& pass, RGHandle& view);
+	void pass_read(RGHandle& pass, RGHandle& view);
 
 	void execute();
 
 	REngine* engine;
 
 private:
+	static constexpr int MAX_PASSES = 32;
 
-	void compile();
+	void compile(std::array<RGIdx, MAX_PASSES>& order);
+	void sort_passes(std::array<RGIdx, MAX_PASSES>& order);
 
-	std::array<RGTexture, 32>  textures;
-	int numTextures = 0;
-	std::array<RGView, 64>	   views;
-	int numViews = 0;
-	std::array<RGPass, 32>	   passes;
-	int numPasses = 0;
+	//static constexpr int MAX_VIEWS = 64;
+
+	//RGIdx numViews = 0;
+	RGIdx numPasses = 0;
+	//std::array<RGView, MAX_VIEWS>	   views;
+	std::array<RGPass, MAX_PASSES>	   passes;
 };
