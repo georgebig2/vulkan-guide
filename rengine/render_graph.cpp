@@ -210,7 +210,7 @@ std::tuple<RGIdx,bool,bool> RenderGraph::find_next_resource_pass(RGHandle res, R
 	bool reads = false;
 	bool writes = false;
 
-	for (int i = curPassIdx + 1; i < numPasses; ++i) 
+	for (RGIdx i = curPassIdx + 1; i < numPasses; ++i)
 	{
 		auto pIdx = order[i];
 		auto& nextPass = passes[pIdx];
@@ -231,10 +231,10 @@ std::tuple<RGIdx,bool,bool> RenderGraph::find_next_resource_pass(RGHandle res, R
 		}
 
 		if (reads || writes)
-			return std::make_tuple(pIdx, reads, writes);
+			return std::make_tuple(i, reads, writes);
 	}
 
-	return std::make_tuple(-1, false, false);
+	return std::make_tuple(numPasses, false, false);
 }
 
 
@@ -249,7 +249,8 @@ void RenderGraph::execute()
 	// todo: cull passes
 
 	std::array<RGIdx, MAX_PASSES> order;
-	sort_passes(order);
+	sort_dependences(order);
+	optimize(order);
 
 	for (int i = 0; i < numPasses; ++i)
 	{
@@ -277,64 +278,61 @@ void RenderGraph::execute()
 		// parallel queues (compute/graphics)
 		// resourse aliasing
 		// barriers between frames?
-		if (i < numPasses - 1)
+		for (int8_t w = 0; w < pass.numWrites; ++w)
 		{
-			for (int8_t w = 0; w < pass.numWrites; ++w)
+			auto wV = pass.writes[w];
+
+			auto [ii, nextReads, nextWrites] = find_next_resource_pass(wV, i, order);
+			if (nextReads || nextWrites)
 			{
-				auto wV = pass.writes[w];
+				auto nextPidx = order[ii];
+				auto& nextPass = passes[nextPidx];
+				assert(!nextWrites);					// w -> w?
 
-				auto [nextPidx, nextReads, nextWrites] = find_next_resource_pass(wV, i, order);
-				if (nextReads || nextWrites)
+				// w -> r
+				if (nextReads)
 				{
-					auto& nextPass = passes[nextPidx];
-					assert(!nextWrites);					// w -> w?
-
-					// w -> r
-					if (nextReads)
+					auto& wView = views[wV];
+					auto wT = wView.rgView.texHandle;
+					auto& wTex = textures[wT];
+					bool compute2compute = (pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
+					bool graphics2compute = !(pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
+					if (compute2compute)
 					{
-						auto& wView = views[wV];
-						auto wT = wView.rgView.texHandle;
-						auto& wTex = textures[wT];
-						bool compute2compute = (pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
-						bool graphics2compute = !(pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
-						if (compute2compute)
-						{
-							VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
-								VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-								VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
-								VK_IMAGE_ASPECT_COLOR_BIT);
-							vkCmdPipelineBarrier(cmd,
-								VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-								VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
-						}
-						else if (graphics2compute)		// do transition in EndRenderPass?
-						{
-							VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
-								VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-								VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-								VK_IMAGE_ASPECT_DEPTH_BIT);
-							vkCmdPipelineBarrier(cmd,
-								VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-								VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
-						}
+						VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
+							VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+							VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+							VK_IMAGE_ASPECT_COLOR_BIT);
+						vkCmdPipelineBarrier(cmd,
+							VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+							VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
+					}
+					else if (graphics2compute)		// do transition in EndRenderPass?
+					{
+						VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
+							VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+							VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+							VK_IMAGE_ASPECT_DEPTH_BIT);
+						vkCmdPipelineBarrier(cmd,
+							VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+							VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
 					}
 				}
+			}
 				
-			}
+		}
 
-			// r->w, r->r ?
-			for (int8_t r = 0; r < pass.numReads; ++r)
-			{
-			}
-
+		// r->w, r->r ?
+		for (int8_t r = 0; r < pass.numReads; ++r)
+		{
 		}
 	}
 }
 
 // use topological sorting for ordering passes writes/reads
-void RenderGraph::sort_passes(std::array<RGIdx, MAX_PASSES>& order)
+void RenderGraph::sort_dependences(std::array<RGIdx, MAX_PASSES>& order)
 {
-	//std::array<RGIdx, MAX_PASSES> level;
+	RGIdx level = 0;
 
 	// search enter passes
 	std::array<RGIdx, MAX_PASSES> zerosQ;
@@ -345,6 +343,7 @@ void RenderGraph::sort_passes(std::array<RGIdx, MAX_PASSES>& order)
 		bool ignore = (!pass.numReads && !pass.numWrites);
 		if (!ignore && !pass.inDegrees) {
 			zerosQ[backIdx++] = pIdx;
+			pass.depthLevel = level;
 		}
 		order[pIdx] = pIdx;
 	}
@@ -371,14 +370,14 @@ void RenderGraph::sort_passes(std::array<RGIdx, MAX_PASSES>& order)
 				break;
 		}
 		order[orderIdx++] = zero;
+		level++;
 
 		auto& pass = passes[zero];
 		for (int8_t w = 0; w < pass.numWrites; ++w)
 		{
 			auto viewHandle = pass.writes[w];
 			auto& v = views[viewHandle];
-			//auto t = v.texHandle;
-			//auto& tex = textures[t];
+
 			for (RGIdx pIdx = 0; pIdx < 64; ++pIdx)
 			{
 				if (v.readPasses & (uint64_t(1) << pIdx))	// we can change order of neighbours
@@ -387,13 +386,74 @@ void RenderGraph::sort_passes(std::array<RGIdx, MAX_PASSES>& order)
 					assert(neighbour.inDegrees > 0);
 					if (!--neighbour.inDegrees) {
 						zerosQ[backIdx++] = pIdx;
+						neighbour.depthLevel = level;
 					}
 				}
 			}
 		}
 	}
+}
 
-	// try to "shrink" split barriers (more passes beetween begin/end)
+// try to "shrink" split barriers (more passes between w/r)
+void RenderGraph::optimize(std::array<RGIdx, MAX_PASSES>& order)
+{
+	// generate all valid shuffles?
+
+	auto random_shuffle = [&]()
+	{
+		for (RGIdx i = numPasses - 1; i > 0; --i)
+		{
+			auto ii = std::rand() % (i + 1);
+			auto o1 = order[i];
+			auto o2 = order[ii];
+			auto& p1 = passes[o1];
+			auto& p2 = passes[o2];
+			bool ignore1 = (!p1.numReads && !p1.numWrites);
+			bool ignore2 = (!p2.numReads && !p2.numWrites);
+			if (p1.depthLevel == p2.depthLevel && !ignore1 && !ignore2)
+				std::swap(order[i], order[ii]);
+		}
+	};
+
+	std::array<RGIdx, MAX_PASSES> maxOrder;
+	int maxCost = 0;
+	for (int i = 0; i < 100; ++i)
+	{
+		int cost = calc_cost(order);
+		if (cost > maxCost)
+		{
+			maxCost = cost;
+			maxOrder = order;
+		}
+		random_shuffle();
+	}
+	order = maxOrder;
+}
+
+int RenderGraph::calc_cost(std::array<RGIdx, MAX_PASSES>& order)
+{
+	int cost = 0;
+	for (int i = 0; i < numPasses; ++i)
+	{
+		auto pIdx = order[i];
+		auto& pass = passes[pIdx];
+		bool ignore = (!pass.numReads && !pass.numWrites);
+		if (ignore)
+			continue;
+
+		for (int8_t w = 0; w < pass.numWrites; ++w)
+		{
+			auto wV = pass.writes[w];
+
+			auto [ii, nextReads, nextWrites] = find_next_resource_pass(wV, i, order);
+			assert(!nextWrites);
+			if (nextReads)
+			{
+				cost += ii - i;
+			}
+		}
+	}
+	return cost;
 }
 
 

@@ -89,6 +89,7 @@ private:
 	RGPassFlags flags = {};
 
 	int8_t inDegrees = 0;
+	RGIdx depthLevel = 0;
 
 	std::array<RGHandle, 8> writes = {};
 	std::array<RGHandle, 8> reads = {};
@@ -125,7 +126,10 @@ public:
 private:
 	static constexpr int MAX_PASSES = 32;
 
-	void sort_passes(std::array<RGIdx, MAX_PASSES>& order);
+	void sort_dependences(std::array<RGIdx, MAX_PASSES>& order);
+	void optimize(std::array<RGIdx, MAX_PASSES>& order);
+	int  calc_cost(std::array<RGIdx, MAX_PASSES>& order);
+
 	std::tuple<RGIdx, bool, bool> find_next_resource_pass(RGHandle res, RGIdx curPassIdx, const std::array<RGIdx, MAX_PASSES>& order);
 
 	void check_physical_texture(RGHandle tex, RGPass& pass);
