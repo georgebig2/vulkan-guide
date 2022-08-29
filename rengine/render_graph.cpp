@@ -226,17 +226,15 @@ void RenderGraph::execute()
 
 		pass.func(*this);
 
-		// resource transition between adjacent passes
+		// resource transition between passes
 		// split barriers?
 		// vk render passes for graphics passes
+		// parallel passes?
+		// parallel queues (compute/graphics)
+		// r->w, r->r, w->w
+		// resourse aliasing
 		if (i < numPasses - 1)
 		{
-			auto pIdx2 = order[i + 1];
-			auto& nextPass = passes[pIdx2];
-
-			bool compute2compute = (pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
-
-			// w -> r
 			for (int8_t w = 0; w < pass.numWrites; ++w)
 			{
 				auto wV = pass.writes[w];
@@ -244,27 +242,58 @@ void RenderGraph::execute()
 				auto wT = wView.rgView.texHandle;
 				auto& wTex = textures[wT];
 
-				for (int8_t r = 0; r < nextPass.numReads; ++r)
+				for (int ii = i + 1; ii < numPasses; ++ii)
 				{
-					auto rV = nextPass.reads[r];
-					auto& rView = views[rV];
-					auto rT = rView.rgView.texHandle;
-					auto& rTex = textures[rT];
-					if (wT == rT)
-					{
-						if (compute2compute)
-						{
-							VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
-								VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-								VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
-								VK_IMAGE_ASPECT_COLOR_BIT);
-							vkCmdPipelineBarrier(cmd,
-								VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-								VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
-						}
+					auto pIdx2 = order[ii];
+					auto& nextPass = passes[pIdx2];
+					bool compute2compute = (pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
+					bool graphics2compute = !(pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
 
+					// w -> r
+					for (int8_t r = 0; r < nextPass.numReads; ++r)
+					{
+						auto rV = nextPass.reads[r];
+						auto& rView = views[rV];
+						auto rT = rView.rgView.texHandle;
+						auto& rTex = textures[rT];
+						if (wT == rT)
+						{
+							if (compute2compute)
+							{
+								VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
+									VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+									VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+									VK_IMAGE_ASPECT_COLOR_BIT);
+								vkCmdPipelineBarrier(cmd,
+									VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+									VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
+
+								ii = numPasses;
+								break;
+							}
+
+							// do transition in EndRenderPass?
+							else if (graphics2compute)
+							{
+								// do it early in the end of prev (forward) pass
+								VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
+									VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+									VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+									VK_IMAGE_ASPECT_DEPTH_BIT);
+								vkCmdPipelineBarrier(cmd,
+									VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+									VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
+
+								ii = numPasses;
+								break;
+							}
+						}
 					}
+
+					// w -> w?
+
 				}
+
 			}
 
 		}
@@ -332,12 +361,14 @@ void RenderGraph::sort_passes(std::array<RGIdx, MAX_PASSES>& order)
 			}
 		}
 	}
+
+	// try to "shrink" split barriers (more passes beetween begin/end)
 }
 
 void RenderGraph::compile(std::array<RGIdx, MAX_PASSES>& order)
 {
-	sort_passes(order);
 	//cull passes
+	sort_passes(order);
 
 	// check textures
 	auto numt = textures.size();
@@ -796,14 +827,14 @@ void REngine::forward_pass(RenderGraph& graph, VkClearValue clearValue, VkComman
 			//finalize the render pass
 			vkCmdEndRenderPass(cmd);
 
-			// do it early in the end of prev (forward) pass
-			VkImageMemoryBarrier depthReadBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
-				VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-				VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-				VK_IMAGE_ASPECT_DEPTH_BIT);
-			vkCmdPipelineBarrier(cmd,
-				VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-				VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthReadBarrier);
+			//// do it early in the end of prev (forward) pass
+			//VkImageMemoryBarrier depthReadBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
+			//	VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+			//	VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			//	VK_IMAGE_ASPECT_DEPTH_BIT);
+			//vkCmdPipelineBarrier(cmd,
+			//	VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			//	VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthReadBarrier);
 
 		});
 	graph.pass_write(pass, depthView);
