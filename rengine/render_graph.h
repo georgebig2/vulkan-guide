@@ -125,13 +125,12 @@ public:
 private:
 	static constexpr int MAX_PASSES = 32;
 
-	void compile(std::array<RGIdx, MAX_PASSES>& order);
 	void sort_passes(std::array<RGIdx, MAX_PASSES>& order);
+	std::tuple<RGIdx, bool, bool> find_next_resource_pass(RGHandle res, RGIdx curPassIdx, const std::array<RGIdx, MAX_PASSES>& order);
 
-	//static constexpr int MAX_VIEWS = 64;
+	void check_physical_texture(RGHandle tex, RGPass& pass);
+	void check_physical_view(RGHandle view);
 
-	//RGIdx numViews = 0;
 	RGIdx numPasses = 0;
-	//std::array<RGView, MAX_VIEWS>	   views;
 	std::array<RGPass, MAX_PASSES>	   passes;
 };

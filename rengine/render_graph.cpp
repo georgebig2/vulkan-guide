@@ -205,24 +205,66 @@ void RenderGraph::pass_read(RGHandle& pass, RGHandle& view)
 	v.readPasses |= uint64_t(1) << pass;
 }
 
+std::tuple<RGIdx,bool,bool> RenderGraph::find_next_resource_pass(RGHandle res, RGIdx curPassIdx, const std::array<RGIdx, MAX_PASSES>& order)
+{
+	bool reads = false;
+	bool writes = false;
+
+	for (int i = curPassIdx + 1; i < numPasses; ++i) 
+	{
+		auto pIdx = order[i];
+		auto& nextPass = passes[pIdx];
+	
+		for (int8_t r = 0; r < nextPass.numReads; ++r) {
+			auto rV = nextPass.reads[r];
+			if (res == rV) {
+				reads = true;
+				break;
+			}
+		}
+		for (int8_t w = 0; w < nextPass.numWrites; ++w) {
+			auto wV = nextPass.writes[w];
+			if (res == wV) {
+				writes = true;
+				break;
+			}
+		}
+
+		if (reads || writes)
+			return std::make_tuple(pIdx, reads, writes);
+	}
+
+	return std::make_tuple(-1, false, false);
+}
+
+
 
 void RenderGraph::execute()
 {
 	auto& cmd = engine->get_current_frame()._mainCommandBuffer;
 	vkutil::VulkanScopeTimer timer(cmd, engine->_profiler, "RG execute");
 
-	auto pass = add_pass(PASS_EPILOGUE, RGPASS_FLAG_GRAPHICS,
-		[=](RenderGraph& g)
-		{
-		});
+	add_pass(PASS_EPILOGUE, RGPASS_FLAG_GRAPHICS, [=](RenderGraph& g){});
+
+	// todo: cull passes
 
 	std::array<RGIdx, MAX_PASSES> order;
-	compile(order);
+	sort_passes(order);
 
 	for (int i = 0; i < numPasses; ++i)
 	{
 		auto pIdx = order[i];
 		auto& pass = passes[pIdx];
+
+		// create write resources
+		for (int8_t w = 0; w < pass.numWrites; ++w)
+		{
+			auto wV = pass.writes[w];
+			auto& wView = views[wV];
+			auto wT = wView.rgView.texHandle;
+			check_physical_texture(wT, pass);
+			check_physical_view(wV);
+		}
 
 		pass.func(*this);
 
@@ -233,67 +275,55 @@ void RenderGraph::execute()
 		// parallel queues (compute/graphics)
 		// r->w, r->r, w->w
 		// resourse aliasing
+		// barriers between frames?
 		if (i < numPasses - 1)
 		{
 			for (int8_t w = 0; w < pass.numWrites; ++w)
 			{
 				auto wV = pass.writes[w];
-				auto& wView = views[wV];
-				auto wT = wView.rgView.texHandle;
-				auto& wTex = textures[wT];
 
-				for (int ii = i + 1; ii < numPasses; ++ii)
+				auto [nextPidx, nextReads, nextWrites] = find_next_resource_pass(wV, i, order);
+				if (nextReads || nextWrites)
 				{
-					auto pIdx2 = order[ii];
-					auto& nextPass = passes[pIdx2];
-					bool compute2compute = (pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
-					bool graphics2compute = !(pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
+					auto& nextPass = passes[nextPidx];
+					assert(!nextWrites);					// w -> w?
 
 					// w -> r
-					for (int8_t r = 0; r < nextPass.numReads; ++r)
+					if (nextReads)
 					{
-						auto rV = nextPass.reads[r];
-						auto& rView = views[rV];
-						auto rT = rView.rgView.texHandle;
-						auto& rTex = textures[rT];
-						if (wT == rT)
+						auto& wView = views[wV];
+						auto wT = wView.rgView.texHandle;
+						auto& wTex = textures[wT];
+						bool compute2compute = (pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
+						bool graphics2compute = !(pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
+						if (compute2compute)
 						{
-							if (compute2compute)
-							{
-								VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
-									VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-									VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
-									VK_IMAGE_ASPECT_COLOR_BIT);
-								vkCmdPipelineBarrier(cmd,
-									VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-									VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
-
-								ii = numPasses;
-								break;
-							}
-
-							// do transition in EndRenderPass?
-							else if (graphics2compute)
-							{
-								// do it early in the end of prev (forward) pass
-								VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
-									VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-									VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-									VK_IMAGE_ASPECT_DEPTH_BIT);
-								vkCmdPipelineBarrier(cmd,
-									VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-									VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
-
-								ii = numPasses;
-								break;
-							}
+							VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
+								VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+								VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+								VK_IMAGE_ASPECT_COLOR_BIT);
+							vkCmdPipelineBarrier(cmd,
+								VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+								VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
+						}
+						else if (graphics2compute)		// do transition in EndRenderPass?
+						{
+							VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
+								VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+								VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+								VK_IMAGE_ASPECT_DEPTH_BIT);
+							vkCmdPipelineBarrier(cmd,
+								VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+								VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
 						}
 					}
-
-					// w -> w?
-
 				}
+				
+			}
 
+			// r->w, r->r ?
+			for (int8_t r = 0; r < pass.numReads; ++r)
+			{
 			}
 
 		}
@@ -365,78 +395,75 @@ void RenderGraph::sort_passes(std::array<RGIdx, MAX_PASSES>& order)
 	// try to "shrink" split barriers (more passes beetween begin/end)
 }
 
-void RenderGraph::compile(std::array<RGIdx, MAX_PASSES>& order)
+
+void RenderGraph::check_physical_texture(RGHandle h, RGPass& pass)
 {
-	//cull passes
-	sort_passes(order);
+	auto& tex = textures[h];
+	if (tex.image)
+		return;
 
-	// check textures
-	auto numt = textures.size();
-	for (size_t i = 0; i < numt; ++i)
-	{
-		auto& tex = textures[i];
-		if (!tex.image)				// external tex?
-		{
-			// cache textures (per frame?)
-			VkExtent3D extent = { (uint32_t)tex.rgTex.desc.w, (uint32_t)tex.rgTex.desc.h, (uint32_t)tex.rgTex.desc.d };
-			VkImageCreateInfo info = vkinit::image_create_info(tex.rgTex.desc.format,
-				VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,		//???
-				extent);
-			info.mipLevels = tex.rgTex.desc.levels;
+	// cache textures (per frame?)
+	VkExtent3D extent = { (uint32_t)tex.rgTex.desc.w, (uint32_t)tex.rgTex.desc.h, (uint32_t)tex.rgTex.desc.d };
+	VkImageCreateInfo info = vkinit::image_create_info(tex.rgTex.desc.format,
+		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,		//???
+		extent);
+	info.mipLevels = tex.rgTex.desc.levels;
 
-			VmaAllocationCreateInfo allocInfo = {};
-			allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-			allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	VmaAllocationCreateInfo allocInfo = {};
+	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-			AllocatedImage newImage;
-			VK_CHECK(vmaCreateImage(engine->_allocator, &info, &allocInfo, &newImage._image, &newImage._allocation, nullptr));
+	AllocatedImage newImage;
+	VK_CHECK(vmaCreateImage(engine->_allocator, &info, &allocInfo, &newImage._image, &newImage._allocation, nullptr));
 
-			VkImageMemoryBarrier initB = vkinit::image_barrier(newImage._image,
-				0, VK_ACCESS_SHADER_WRITE_BIT,
-				VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,	// ??
-				VK_IMAGE_ASPECT_COLOR_BIT);
-			vkCmdPipelineBarrier(engine->get_current_frame()._mainCommandBuffer,
-				VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,	// ??
-				VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &initB);
-
-			auto allocator = engine->_allocator;
-			auto alloc = newImage._allocation;
-			engine->_surfaceDeletionQueue.push_function([=]() {
-				textures[i].image = 0;
-				vmaDestroyImage(allocator, newImage._image, alloc);
-				});
-	
-			assert(newImage._image);
-			tex.image = newImage._image;
-		}
+	bool compute = (pass.flags & RGPASS_FLAG_COMPUTE);
+	assert(compute);
+	if (compute) 
+ 	{
+		VkImageMemoryBarrier initB = vkinit::image_barrier(newImage._image,
+			0, VK_ACCESS_SHADER_WRITE_BIT,
+			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
+			VK_IMAGE_ASPECT_COLOR_BIT);
+		vkCmdPipelineBarrier(engine->get_current_frame()._mainCommandBuffer,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &initB);
 	}
 
-	// check views
-	auto numv = views.size();
-	for (int i = 0; i < numv; ++i)
+	auto allocator = engine->_allocator;
+	auto alloc = newImage._allocation;
+	engine->_surfaceDeletionQueue.push_function([=]() {
+		textures[h].image = 0;
+		vmaDestroyImage(allocator, newImage._image, alloc);
+		});
+
+	assert(newImage._image);
+	tex.image = newImage._image;
+}
+
+
+void RenderGraph::check_physical_view(RGHandle h)
+{
+	auto& view = views[h];
+	auto& tex = textures[view.rgView.texHandle];
+	assert(tex.image);
+
+	if (!view.imageView && tex.rgTex.desc.format != VK_FORMAT_UNDEFINED)
 	{
-		auto& view = views[i];
-		auto& tex = textures[view.rgView.texHandle];
-		assert(tex.image);
+		VkImageViewCreateInfo viewInfo = vkinit::imageview_create_info(tex.rgTex.desc.format, tex.image,
+			VK_IMAGE_ASPECT_COLOR_BIT); //??
+		viewInfo.subresourceRange.levelCount = view.rgView.desc.level == -1 ? tex.rgTex.desc.levels : 1;
+		viewInfo.subresourceRange.baseMipLevel = view.rgView.desc.level == -1 ? 0 : view.rgView.desc.level;
+		VkImageView newView;
+		VK_CHECK(vkCreateImageView(engine->_device, &viewInfo, nullptr, &newView));
 
-		if (!view.imageView && tex.rgTex.desc.format != VK_FORMAT_UNDEFINED)
-		{
-			VkImageViewCreateInfo viewInfo = vkinit::imageview_create_info(tex.rgTex.desc.format, tex.image,
-				VK_IMAGE_ASPECT_COLOR_BIT); //??
-			viewInfo.subresourceRange.levelCount = view.rgView.desc.level == -1 ? tex.rgTex.desc.levels : 1;
-			viewInfo.subresourceRange.baseMipLevel = view.rgView.desc.level == -1 ? 0 : view.rgView.desc.level;
-			VkImageView newView;
-			VK_CHECK(vkCreateImageView(engine->_device, &viewInfo, nullptr, &newView));
+		auto device = engine->_device;
+		engine->_surfaceDeletionQueue.push_function([=]() {
+			views[h].imageView = 0;
+			vkDestroyImageView(device, newView, nullptr);
+			});
 
-			auto device = engine->_device;
-			engine->_surfaceDeletionQueue.push_function([=]() {
-				views[i].imageView = 0;
-				vkDestroyImageView(device, newView, nullptr);
-				});
-
-			assert(newView);
-			view.imageView = newView;
-		}
+		assert(newView);
+		view.imageView = newView;
 	}
 }
 
@@ -469,10 +496,6 @@ void reduce_depth(RenderGraph& graph, VkCommandBuffer cmd, RGHandle inDepthTex, 
 
 	auto desc = RGTexture::Desc(depthPyramidWidth, depthPyramidHeight, VK_FORMAT_R32_SFLOAT, depthPyramidLevels);
 	auto pyrTex = graph.create_texture(outRes, desc);
-	{
-		auto desc = RGView::Desc(-1); 	// default view for srvs with all mips
-		auto defaultView = graph.create_view(pyrTex, desc);
-	}
 
 	for (int i = 0; i < depthPyramidLevels; ++i)
 	{
@@ -535,7 +558,16 @@ void reduce_depth(RenderGraph& graph, VkCommandBuffer cmd, RGHandle inDepthTex, 
 			});
 		graph.pass_write(pass, destView);
 		graph.pass_read(pass, sourceView);
+		
+		// default view for srvs with all mips
+		if (i == depthPyramidLevels - 1) 
+		{
+			auto desc = RGView::Desc(-1);
+			auto defaultView = graph.create_view(pyrTex, desc);
+			graph.pass_write(pass, defaultView);
+		}
 	}
+
 }
 
 
