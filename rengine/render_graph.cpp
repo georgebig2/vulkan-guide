@@ -269,11 +269,12 @@ void RenderGraph::execute()
 		pass.func(*this);
 
 		// resource transition between passes
-		// split barriers?
 		// vk render passes for graphics passes
+		// r->w, r->r, w->w
+		// grouping barriers after pass
+		// split barriers?
 		// parallel passes?
 		// parallel queues (compute/graphics)
-		// r->w, r->r, w->w
 		// resourse aliasing
 		// barriers between frames?
 		if (i < numPasses - 1)
