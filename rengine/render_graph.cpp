@@ -412,7 +412,7 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 }
 
 // try to "shrink" split barriers (more passes between w/r)
-std::tuple<int, int> RenderPassGraph::optimize(OrderList& order)
+std::tuple<int, int> RenderPassGraph::optimize(OrderList& out)
 {
 	// generate all valid shuffles?
 
@@ -421,34 +421,35 @@ std::tuple<int, int> RenderPassGraph::optimize(OrderList& order)
 		for (RPGIdx i = numPasses - 1; i > 0; --i)
 		{
 			auto ii = std::rand() % (i + 1);
-			auto o1 = order[i];
-			auto o2 = order[ii];
+			auto o1 = out[i];
+			auto o2 = out[ii];
 			auto& p1 = passes[o1];
 			auto& p2 = passes[o2];
 			bool ignore1 = (!p1.numReads && !p1.numWrites);
 			bool ignore2 = (!p2.numReads && !p2.numWrites);
 			if (p1.depthLevel == p2.depthLevel && !ignore1 && !ignore2)
-				std::swap(order[i], order[ii]);
+				std::swap(out[i], out[ii]);
 		}
 	};
 	
-	auto baseCost = calc_cost(order);
+	auto baseCost = calc_cost(out);
 
 	OrderList maxOrder;
 	int maxCost = 0;
 	for (int i = 0; i < 100; ++i)
 	{
-		int cost = calc_cost(order);
+		int cost = calc_cost(out);
 		if (cost > maxCost)
 		{
 			maxCost = cost;
-			maxOrder = order;
+			maxOrder = out;
 		}
 		random_shuffle();
 	}
 	if (maxCost > 0)
-		order = maxOrder;
+		out = maxOrder;
 
+	assert(!has_duplicates(out, numPasses));
 	return std::make_tuple(baseCost, maxCost);
 }
 
