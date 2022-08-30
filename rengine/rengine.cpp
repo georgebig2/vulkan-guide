@@ -1385,13 +1385,13 @@ bool REngine::handle_surface_changes(bool force_update)
 
 AutoCVar_Int CVAR_OcclusionCullGPU("culling.enableOcclusionGPU", "Perform occlusion culling in gpu", 1, CVarFlags::EditCheckbox);
 
-void reduce_depth(RenderGraph& graph, VkCommandBuffer cmd, RGHandle inDepthTex, VkExtent2D ext, RGName outRes);
+void reduce_depth(RenderPassGraph& graph, VkCommandBuffer cmd, RPGHandle inDepthTex, VkExtent2D ext, RPGName outRes);
 
 void REngine::draw()
 {
 	ZoneScopedN("Engine Draw");
 
-	RenderGraph graph(this);
+	RenderPassGraph graph(this);
 
 
 	stats.drawcalls = 0;

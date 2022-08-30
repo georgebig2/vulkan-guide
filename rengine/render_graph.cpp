@@ -20,16 +20,16 @@ AutoCVar_Float CVAR_SlopeBias("gpu.shadowBiasSlope", "Distance cull", 4.75f);
 AutoCVar_Int CVAR_FreezeShadows("gpu.freezeShadows", "Stop the rendering of shadows", 0, CVarFlags::EditCheckbox);
 AutoCVar_Int CVAR_Shadowcast("gpu.shadowcast", "Use shadowcasting", 1, CVarFlags::EditCheckbox);
 
-RGName RES_DEPTH				= "Depth";
-RGName RES_SHADOW_MAP			= "ShadowMap";
-RGName RES_DEPTH_PYRAMID		= "DepthPyramid";
-RGName RES_DEPTH_PYRAMID_SHADOW = "DepthShadowPyramid";
+RPGName RES_DEPTH				= "Depth";
+RPGName RES_SHADOW_MAP			= "ShadowMap";
+RPGName RES_DEPTH_PYRAMID		= "DepthPyramid";
+RPGName RES_DEPTH_PYRAMID_SHADOW = "DepthShadowPyramid";
 
-RGName PASS_PROLOGUE			= "Prologue";
-RGName PASS_EPILOGUE			= "Epilogue";
-RGName PASS_DEPTH_PYRAMID		= "#DepthPyramid";
-RGName PASS_FORWARD			    = "Forward";
-RGName PASS_SHADOW				= "Shadow";
+RPGName PASS_PROLOGUE			= "Prologue";
+RPGName PASS_EPILOGUE			= "Epilogue";
+RPGName PASS_DEPTH_PYRAMID		= "#DepthPyramid";
+RPGName PASS_FORWARD			    = "Forward";
+RPGName PASS_SHADOW				= "Shadow";
 
 
 struct alignas(16) DepthReduceData
@@ -58,17 +58,17 @@ struct PoolViewKeyHash {
 	}
 };
 
-std::unordered_map<RGName, int> registry_textures;
+std::unordered_map<RPGName, int> registry_textures;
 std::unordered_map<PoolViewKey, int, PoolViewKeyHash> registry_views;
 
 struct PoolTexture 
 {
-	RGTexture rgTex;
+	RPGTexture rgTex;
 	VkImage image = 0;
 };
 struct PoolView
 {
-	RGView rgView;
+	RPGView rgView;
 	uint64_t writePasses = 0;
 	uint64_t readPasses = 0;
 	VkImageView imageView = 0;
@@ -77,7 +77,7 @@ struct PoolView
 std::vector<PoolTexture> textures;
 std::vector<PoolView> views;
 
-RGHandle get_texture_handle(RGName name)
+RPGHandle get_texture_handle(RPGName name)
 {
 	int h = -1;
 	auto it = registry_textures.find(name);
@@ -92,7 +92,7 @@ RGHandle get_texture_handle(RGName name)
 	return h;
 }
 
-RGHandle get_view_handle(PoolViewKey key)
+RPGHandle get_view_handle(PoolViewKey key)
 {
 	int h = -1;
 	auto it = registry_views.find(key);
@@ -107,7 +107,7 @@ RGHandle get_view_handle(PoolViewKey key)
 	return h;
 }
 
-VkImage get_pool_image(RGName name, RGHandle* texHandle, RGTexture* rgTex)
+VkImage get_pool_image(RPGName name, RPGHandle* texHandle, RPGTexture* rgTex)
 {
 	auto h = get_texture_handle(name);
 	if (rgTex)
@@ -117,76 +117,73 @@ VkImage get_pool_image(RGName name, RGHandle* texHandle, RGTexture* rgTex)
 	return textures[h].image;
 }
 
-VkImageView get_pool_image_view(RGHandle tex, int level)
+VkImageView get_pool_image_view(RPGHandle tex, int level)
 {
 	auto h = get_view_handle({ tex, level });
 	return views[h].imageView;
 }
 
-RenderGraph::RenderGraph(REngine* e) 
+RenderPassGraph::RenderPassGraph(REngine* e) 
 	: engine(e)
 {
-	auto pass = add_pass(PASS_PROLOGUE, RGPASS_FLAG_GRAPHICS,
-		[=](RenderGraph& g)
-		{
-		});
+	//auto pass = add_pass(PASS_PROLOGUE, RGPASS_FLAG_GRAPHICS, [=](RenderPassGraph& g) {});
 }
 
 
-RGHandle RenderGraph::create_texture(RGName name, const RGTexture::Desc& desc)
+RPGHandle RenderPassGraph::create_texture(RPGName name, const RPGTexture::Desc& desc)
 {
 	auto h = get_texture_handle(name);
-	textures[h].rgTex = RGTexture(name, desc);
+	textures[h].rgTex = RPGTexture(name, desc);
 	return h;
 }
 
-RGHandle RenderGraph::create_texture(RGName name, VkImage image)
+RPGHandle RenderPassGraph::create_texture(RPGName name, VkImage image)
 {
 	auto h = get_texture_handle(name);
-	RGTexture::Desc desc;
-	textures[h].rgTex = RGTexture(name, desc);
+	RPGTexture::Desc desc;
+	textures[h].rgTex = RPGTexture(name, desc);
 	textures[h].image = image;
 	return h;
 }
 
-RGHandle RenderGraph::create_view(RGHandle tex, const RGView::Desc& desc)
+RPGHandle RenderPassGraph::create_view(RPGHandle tex, const RPGView::Desc& desc)
 {
 	auto h = get_view_handle({ tex, desc.level });
-	views[h].rgView = RGView(textures[tex].rgTex, tex, desc);
+	views[h].rgView = RPGView(textures[tex].rgTex, tex, desc);
 	return h;
 }
 
-RGHandle RenderGraph::create_view(RGHandle tex, VkImageView view)
+RPGHandle RenderPassGraph::create_view(RPGHandle tex, VkImageView view)
 {
 	auto h = get_view_handle({ tex, -1 });
-	RGView::Desc desc;
-	views[h].rgView = RGView(textures[tex].rgTex, tex, desc);
+	RPGView::Desc desc;
+	views[h].rgView = RPGView(textures[tex].rgTex, tex, desc);
 	views[h].imageView = view;
 	return h;
 }
 
-VkImage RenderGraph::get_image(RGHandle handle) const
+VkImage RenderPassGraph::get_image(RPGHandle handle) const
 {
 	return textures[handle].image;
 }
 
-VkImageView RenderGraph::get_image_view(RGHandle handle) const
+VkImageView RenderPassGraph::get_image_view(RPGHandle handle) const
 {
 	return views[handle].imageView;
 }
 
 
 template <typename F>
-RGHandle RenderGraph::add_pass(RGName name, RGPassFlags flags, F&& func)
+RPGHandle RenderPassGraph::add_pass(RPGName name, RPGPassFlags flags, F&& func)
 {
 	static_assert(sizeof(F) < 300, "DONT CAPTURE TOO MUCH IN THE LAMBDA");
-	RGPass pass(name, flags);
+	RPGPass pass(name, flags);
 	pass.func = func;				// todo: remove heap!!!
 	passes[numPasses++] = pass;			
 	return numPasses - 1;
 }
 
-void RenderGraph::pass_write(RGHandle& pass, RGHandle& view)
+void RenderPassGraph::pass_write(RPGHandle& pass, RPGHandle& view)
 {
 	passes[pass].write(view);
 	auto& v = views[view];
@@ -195,7 +192,7 @@ void RenderGraph::pass_write(RGHandle& pass, RGHandle& view)
 	assert(pass >= 0 && pass < 64);
 	v.writePasses |= uint64_t(1) << pass;
 }
-void RenderGraph::pass_read(RGHandle& pass, RGHandle& view)
+void RenderPassGraph::pass_read(RPGHandle& pass, RPGHandle& view)
 {
 	passes[pass].read(view);
 	auto& v = views[view];
@@ -205,12 +202,12 @@ void RenderGraph::pass_read(RGHandle& pass, RGHandle& view)
 	v.readPasses |= uint64_t(1) << pass;
 }
 
-std::tuple<RGIdx,bool,bool> RenderGraph::find_next_resource_pass(RGHandle res, RGIdx curPassIdx, const std::array<RGIdx, MAX_PASSES>& order)
+std::tuple<RPGIdx,bool,bool> RenderPassGraph::find_next_resource_pass(RPGHandle res, RPGIdx curPassIdx, const OrderList& order)
 {
 	bool reads = false;
 	bool writes = false;
 
-	for (RGIdx i = curPassIdx + 1; i < numPasses; ++i)
+	for (RPGIdx i = curPassIdx + 1; i < numPasses; ++i)
 	{
 		auto pIdx = order[i];
 		auto& nextPass = passes[pIdx];
@@ -239,18 +236,22 @@ std::tuple<RGIdx,bool,bool> RenderGraph::find_next_resource_pass(RGHandle res, R
 
 
 
-void RenderGraph::execute()
+void RenderPassGraph::execute()
 {
 	auto& cmd = engine->get_current_frame()._mainCommandBuffer;
 	vkutil::VulkanScopeTimer timer(cmd, engine->_profiler, "RG execute");
 
-	add_pass(PASS_EPILOGUE, RGPASS_FLAG_GRAPHICS, [=](RenderGraph& g){});
+	test(); // only debug!
+
+	//add_pass(PASS_EPILOGUE, RGPASS_FLAG_GRAPHICS, [=](RenderPassGraph& g){});
 
 	// todo: cull passes
 
-	std::array<RGIdx, MAX_PASSES> order;
-	sort_dependences(order);
+	OrderList order;
+	auto newNumPasses = sort_dependences(order);
+	assert(newNumPasses == numPasses);
 	optimize(order);
+	validate_graph(*this);		// only debug!
 
 	for (int i = 0; i < numPasses; ++i)
 	{
@@ -329,47 +330,51 @@ void RenderGraph::execute()
 	}
 }
 
-// use topological sorting for ordering passes writes/reads
-void RenderGraph::sort_dependences(std::array<RGIdx, MAX_PASSES>& order)
+bool has_duplicates(const OrderList& order, int len)
 {
-	RGIdx level = 0;
+	OrderList copy = order;
+	std::sort(&copy[0], &copy[len]);
+	bool hasDuplicates = std::adjacent_find(&copy[0], &copy[len]) != &copy[len];
+	return hasDuplicates;
+}
+
+// use topological sorting for ordering passes writes/reads
+RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
+{
+	RPGIdx level = 0;
 
 	// search enter passes
-	std::array<RGIdx, MAX_PASSES> zerosQ;
-	RGIdx backIdx = 0;
-	for (RGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
+	OrderList zerosQ;
+	RPGIdx backIdx = 0;
+	for (RPGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
 	{
 		auto& pass = passes[pIdx];
+		pass.inDegrees = pass.numReads;
 		bool ignore = (!pass.numReads && !pass.numWrites);
 		if (!ignore && !pass.inDegrees) {
 			zerosQ[backIdx++] = pIdx;
 			pass.depthLevel = level;
 		}
-		order[pIdx] = pIdx;
+		out[pIdx] = pIdx;
 	}
+	assert(!has_duplicates(out, numPasses));
 
-	assert(backIdx <= 1);	// one enter for now
-	assert(backIdx > 0);
+	//assert(backIdx <= 1);	// one enter for now
+	//assert(backIdx > 0);
 	if (!backIdx)
-		return;
+		return 0;
 
-	RGIdx frontIdx = 0;
-	RGIdx orderIdx = 0;
-	for (RGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
+	OrderList order;
+	RPGIdx frontIdx = 0;
+	RPGIdx orderIdx = 0;
+	for (RPGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
 	{
 		if (frontIdx >= backIdx)
 			break;
 
 		auto zero = zerosQ[frontIdx++];
-
-		// pass-ignores do things more complicated :(
-		for (;; ++orderIdx) {
-			auto& pass = passes[orderIdx];
-			bool ignore = (!pass.numReads && !pass.numWrites);
-			if (!ignore)
-				break;
-		}
 		order[orderIdx++] = zero;
+		assert(!has_duplicates(order, orderIdx));
 		level++;
 
 		auto& pass = passes[zero];
@@ -378,7 +383,7 @@ void RenderGraph::sort_dependences(std::array<RGIdx, MAX_PASSES>& order)
 			auto viewHandle = pass.writes[w];
 			auto& v = views[viewHandle];
 
-			for (RGIdx pIdx = 0; pIdx < 64; ++pIdx)
+			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
 			{
 				if (v.readPasses & (uint64_t(1) << pIdx))	// we can change order of neighbours
 				{
@@ -392,16 +397,28 @@ void RenderGraph::sort_dependences(std::array<RGIdx, MAX_PASSES>& order)
 			}
 		}
 	}
+
+	for (RPGIdx pIdx = 0, i = 0; pIdx < numPasses && i < orderIdx; ++pIdx)
+	{
+		auto& pass = passes[pIdx];
+		bool ignore = (!pass.numReads && !pass.numWrites);
+		if (!ignore) {
+			auto nIdx = order[i++];
+			std::swap(out[pIdx], out[nIdx]);
+		}
+	}
+	assert(!has_duplicates(out, numPasses));
+	return numPasses;
 }
 
 // try to "shrink" split barriers (more passes between w/r)
-void RenderGraph::optimize(std::array<RGIdx, MAX_PASSES>& order)
+std::tuple<int, int> RenderPassGraph::optimize(OrderList& order)
 {
 	// generate all valid shuffles?
 
 	auto random_shuffle = [&]()
 	{
-		for (RGIdx i = numPasses - 1; i > 0; --i)
+		for (RPGIdx i = numPasses - 1; i > 0; --i)
 		{
 			auto ii = std::rand() % (i + 1);
 			auto o1 = order[i];
@@ -414,8 +431,10 @@ void RenderGraph::optimize(std::array<RGIdx, MAX_PASSES>& order)
 				std::swap(order[i], order[ii]);
 		}
 	};
+	
+	auto baseCost = calc_cost(order);
 
-	std::array<RGIdx, MAX_PASSES> maxOrder;
+	OrderList maxOrder;
 	int maxCost = 0;
 	for (int i = 0; i < 100; ++i)
 	{
@@ -427,10 +446,13 @@ void RenderGraph::optimize(std::array<RGIdx, MAX_PASSES>& order)
 		}
 		random_shuffle();
 	}
-	order = maxOrder;
+	if (maxCost > 0)
+		order = maxOrder;
+
+	return std::make_tuple(baseCost, maxCost);
 }
 
-int RenderGraph::calc_cost(std::array<RGIdx, MAX_PASSES>& order)
+int RenderPassGraph::calc_cost(OrderList& order)
 {
 	int cost = 0;
 	for (int i = 0; i < numPasses; ++i)
@@ -456,8 +478,109 @@ int RenderGraph::calc_cost(std::array<RGIdx, MAX_PASSES>& order)
 	return cost;
 }
 
+// generate random render graph and test it
+bool RenderPassGraph::test()
+{
+	const RPGHandle numViews = 55;
+	const uint8_t maxResourceReaders = 8;
+	const char* passesNames[] = { "a","b","c","d","e","f","g","j","i","k","l","m","n","o","p","r","q","s","t","y","v","w","z"};
+	int numTries = 100;
 
-void RenderGraph::check_physical_texture(RGHandle h, RGPass& pass)
+	RenderPassGraph g(engine);
+	auto desc = RPGTexture::Desc();
+	auto tex = g.create_texture("TestTexture", desc);
+
+	// create passes
+	RPGIdx numPasses = sizeof(passesNames) / sizeof(const char*);
+	for (RPGIdx i = 0; i < numPasses; ++i)
+	{
+		auto p = g.add_pass(passesNames[i], RGPASS_FLAG_GRAPHICS, [=](RenderPassGraph& g) {});
+	}
+
+	// each view gets one pass writer(producer)
+	for (RPGHandle i = 0; i < numViews; ++i)
+	{
+		auto desc = RPGView::Desc(i);
+		auto v = g.create_view(tex, desc);
+		views[v].readPasses = 0;
+		views[v].writePasses = 0;
+		for (int t = 0; t < numTries; ++t)
+		{
+			RPGHandle pw = std::rand() % numPasses + 0;
+			auto& pass = g.passes[pw];
+			if (pass.numWrites < 8) {
+				g.pass_write(pw, v);
+				break;
+			}
+		}
+	}
+
+	// each view is read by several passes (except last one)
+	for (RPGHandle i = 0; i < numViews-1; ++i)
+	{
+		auto desc = RPGView::Desc(i);
+		auto v = g.create_view(tex, desc);
+
+		uint8_t numR = std::rand() % maxResourceReaders;
+		for (uint8_t r = 0; r <= numR; ++r)
+		{
+			for (int t = 0; t < numTries; ++t) 
+			{
+				RPGHandle pr = std::rand() % (numPasses - 1) + 1;  // first pass is graph enter
+				auto& pass = g.passes[pr];
+				if (pass.numReads < 8 && std::find(&pass.reads[0], &pass.reads[pass.numReads], v) == &pass.reads[pass.numReads])
+				{
+					auto restorePass = pass;
+					auto restoreView = views[v];
+
+					g.pass_read(pr, v);
+					auto valid = validate_graph(g);
+
+					// rewind (maybe dangerous!)
+					if (!valid) {
+						pass = restorePass;
+						views[v] = restoreView;
+						if (t == numTries - 1) {
+							//assert(0);
+						}
+						continue;
+					}
+					break;
+				}
+			}
+		}
+	}
+
+	// todo: cull passes
+	OrderList order;
+	auto newNumPasses = g.sort_dependences(order);
+	g.numPasses = newNumPasses;
+
+	auto [baseCost, optCost] = g.optimize(order);
+
+	LOG_INFO("rdp");
+	for (RPGIdx i = 0; i < numPasses; ++i)
+	{
+		auto pIdx = order[i];
+		auto& pass = g.passes[pIdx];
+		LOG_LINE(pass.name);
+	}
+	LOG_LINE(" {}->{} ", baseCost, optCost);
+
+	auto res = validate_graph(g);
+	assert(res);
+	return res;
+}
+
+bool RenderPassGraph::validate_graph(RenderPassGraph& g)
+{
+	OrderList order;
+	auto res = g.sort_dependences(order) > 0;
+	return res;
+}
+
+
+void RenderPassGraph::check_physical_texture(RPGHandle h, RPGPass& pass)
 {
 	auto& tex = textures[h];
 	if (tex.image)
@@ -502,7 +625,7 @@ void RenderGraph::check_physical_texture(RGHandle h, RGPass& pass)
 }
 
 
-void RenderGraph::check_physical_view(RGHandle h)
+void RenderPassGraph::check_physical_view(RPGHandle h)
 {
 	auto& view = views[h];
 	auto& tex = textures[view.rgView.texHandle];
@@ -548,33 +671,33 @@ int getImageMipLevels(uint32_t width, uint32_t height)
 	return result;
 }
 
-void reduce_depth(RenderGraph& graph, VkCommandBuffer cmd, RGHandle inDepthTex, VkExtent2D ext, RGName outRes)
+void reduce_depth(RenderPassGraph& graph, VkCommandBuffer cmd, RPGHandle inDepthTex, VkExtent2D ext, RPGName outRes)
 {
 	// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
 	auto depthPyramidWidth = previousPow2(ext.width);
 	auto depthPyramidHeight = previousPow2(ext.height);
 	auto depthPyramidLevels = getImageMipLevels(depthPyramidWidth, depthPyramidHeight);
 
-	auto desc = RGTexture::Desc(depthPyramidWidth, depthPyramidHeight, VK_FORMAT_R32_SFLOAT, depthPyramidLevels);
+	auto desc = RPGTexture::Desc(depthPyramidWidth, depthPyramidHeight, VK_FORMAT_R32_SFLOAT, depthPyramidLevels);
 	auto pyrTex = graph.create_texture(outRes, desc);
 
 	for (int i = 0; i < depthPyramidLevels; ++i)
 	{
-		auto desc = RGView::Desc(i);
+		auto desc = RPGView::Desc(i);
 		auto destView = graph.create_view(pyrTex, desc);	//rt/uav + bind index
 
-		RGHandle sourceView;
+		RPGHandle sourceView;
 		if (i == 0) {
-			auto desc = RGView::Desc(-1);
+			auto desc = RPGView::Desc(-1);
 			sourceView = graph.create_view(inDepthTex, desc);	//srv + bind index
 		}
 		else {
-			auto desc = RGView::Desc(i - 1);
+			auto desc = RPGView::Desc(i - 1);
 			sourceView = graph.create_view(pyrTex, desc);
 		}
 
 		auto pass = graph.add_pass(PASS_DEPTH_PYRAMID, RGPASS_FLAG_COMPUTE,
-			[=](RenderGraph& g)
+			[=](RenderPassGraph& g)
 			{
 				if (i == 0) {
 					vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, g.engine->_depthReducePipeline);
@@ -623,7 +746,7 @@ void reduce_depth(RenderGraph& graph, VkCommandBuffer cmd, RGHandle inDepthTex, 
 		// default view for srvs with all mips
 		if (i == depthPyramidLevels - 1) 
 		{
-			auto desc = RGView::Desc(-1);
+			auto desc = RPGView::Desc(-1);
 			auto defaultView = graph.create_view(pyrTex, desc);
 			graph.pass_write(pass, defaultView);
 		}
@@ -863,14 +986,14 @@ void REngine::init_copy_renderpass(VkFormat swachainImageFormat)
 		});
 }
 
-void REngine::forward_pass(RenderGraph& graph, VkClearValue clearValue, VkCommandBuffer cmd)
+void REngine::forward_pass(RenderPassGraph& graph, VkClearValue clearValue, VkCommandBuffer cmd)
 {
 	auto depthTex = graph.create_texture(RES_DEPTH, get_current_frame()._depthImage._image);
-//	auto desc = RGView::Desc(-1); 	// ?
+//	auto desc = RPGView::Desc(-1); 	// ?
 	auto depthView = graph.create_view(depthTex, get_current_frame()._depthImage._defaultView);
 
 	auto pass = graph.add_pass(PASS_FORWARD, RGPASS_FLAG_GRAPHICS,
-		[=](RenderGraph& g)
+		[=](RenderPassGraph& g)
 		{
 			vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu forward pass");
 			vkutil::VulkanPipelineStatRecorder timer2(cmd, _profiler, "Forward Primitives");
@@ -1003,10 +1126,10 @@ void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
 	execute_draw_commands(cmd, pass, ObjectDataSet, dynamic_offsets, GlobalSet);
 }
 
-void REngine::shadow_pass(RenderGraph& graph, VkCommandBuffer cmd)
+void REngine::shadow_pass(RenderPassGraph& graph, VkCommandBuffer cmd)
 {
 	auto pass = graph.add_pass(PASS_SHADOW, RGPASS_FLAG_GRAPHICS,
-		[=](RenderGraph& g)
+		[=](RenderPassGraph& g)
 		{
 			vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu shadow pass");
 			vkutil::VulkanPipelineStatRecorder timer2(cmd, _profiler, "Shadow Primitives");
@@ -1117,8 +1240,8 @@ void REngine::execute_compute_cull(VkCommandBuffer cmd, MeshPass& pass, CullPara
 	VkDescriptorBufferInfo finalInfo = pass.compactedInstanceBuffer.get_info();		//!!
 	VkDescriptorBufferInfo indirectInfo = pass.drawIndirectBuffer.get_info();
 
-	RGTexture rgImage;
-	RGHandle texHandle;
+	RPGTexture rgImage;
+	RPGHandle texHandle;
 	auto image = get_pool_image(RES_DEPTH_PYRAMID, &texHandle, &rgImage);
 	if (!image)
 		return;

@@ -1,26 +1,26 @@
 #pragma once
 #include <array>
 
-typedef int16_t	RGHandle;
-typedef const char* RGName;
-typedef uint8_t RGIdx;
+typedef int16_t	RPGHandle;
+typedef const char* RPGName;
+typedef uint8_t RPGIdx;
 
-extern RGName RES_DEPTH;
-extern RGName RES_SHADOW_MAP;
-extern RGName RES_DEPTH_PYRAMID;
-extern RGName RES_DEPTH_PYRAMID_SHADOW;
-extern RGName PASS_DEPTH_PYRAMID;
+extern RPGName RES_DEPTH;
+extern RPGName RES_SHADOW_MAP;
+extern RPGName RES_DEPTH_PYRAMID;
+extern RPGName RES_DEPTH_PYRAMID_SHADOW;
+extern RPGName PASS_DEPTH_PYRAMID;
 
 
-class RGResource
+class RPGResource
 {
 public:
-	RGResource(RGName n) : name(n) {}
-	RGResource() : name(0) {}
-	RGName name;
+	RPGResource(RPGName n) : name(n) {}
+	RPGResource() : name(0) {}
+	RPGName name;
 };
 
-class RGTexture : public RGResource
+class RPGTexture : public RPGResource
 {
 public:
 	struct Desc
@@ -32,14 +32,12 @@ public:
 		VkFormat format = VK_FORMAT_UNDEFINED;
 	} desc;
 
-	RGTexture(RGName name, const Desc& d) : RGResource(name), desc(d) {}
-	RGTexture() {}
-
-	//AllocatedImage image;
+	RPGTexture(RPGName name, const Desc& d) : RPGResource(name), desc(d) {}
+	RPGTexture() {}
 };
 
 
-class RGView : public RGResource
+class RPGView : public RPGResource
 {
 public:
 	struct Desc
@@ -49,92 +47,92 @@ public:
 		int level;
 	} desc;
 
-	RGView(RGTexture& tex, RGHandle h, const Desc& d) : RGResource(tex.name), texHandle(h), desc(d) {}
-	RGView() {}
-	RGHandle texHandle = 0;
-
-	//AllocatedImage image;
-	//VkImageViewCreateInfo viewInfo = {}; // debug only
+	RPGView(RPGTexture& tex, RPGHandle h, const Desc& d) : RPGResource(tex.name), texHandle(h), desc(d) {}
+	RPGView() {}
+	RPGHandle texHandle = 0;
 };
 
-enum RGPassFlags
+enum RPGPassFlags
 {
 	RGPASS_FLAG_GRAPHICS = 0,
 	RGPASS_FLAG_COMPUTE = 1,
 };
 
-//class RenderGraph;
-class RGPass
-{
-	friend class RenderGraph;
-public:
-	RGPass(RGName n, RGPassFlags f) : name(n), flags(f) {}
-	RGPass() {}
+constexpr int MAX_PASSES = 32;
+typedef std::array<RPGIdx, MAX_PASSES> OrderList;
 
-	void write(RGHandle& view)
+class RPGPass
+{
+	friend class RenderPassGraph;
+public:
+	RPGPass(RPGName n, RPGPassFlags f) : name(n), flags(f) {}
+	RPGPass() {}
+
+	void write(RPGHandle& view)
 	{
 		assert(view >= 0);
 		writes[numWrites++] = view;
 	}
-	void read(RGHandle& view)
+	void read(RPGHandle& view)
 	{
 		assert(view >= 0);
 		reads[numReads++] = view;
-		inDegrees = numReads;
+		//inDegrees = numReads;
 	}
 
 private:
 	int8_t numWrites = 0;
 	int8_t numReads = 0;
-	RGPassFlags flags = {};
+	RPGPassFlags flags = {};
 
 	int8_t inDegrees = 0;
-	RGIdx depthLevel = 0;
+	RPGIdx depthLevel = 0;
 
-	std::array<RGHandle, 8> writes = {};
-	std::array<RGHandle, 8> reads = {};
+	std::array<RPGHandle, 8> writes = {};
+	std::array<RPGHandle, 8> reads = {};
 
-	std::function<void(RenderGraph&)> func; // todo: remove heap!!!	//use stack allocator
-	RGName name;
+	std::function<void(RenderPassGraph&)> func; // todo: remove heap!!!	//use stack allocator
+	RPGName name;
 };
 
 
-class RenderGraph
+class RenderPassGraph
 {
 public:
-	RenderGraph(REngine* e);
+	RenderPassGraph(REngine* e);
 
-	RGHandle create_texture(RGName name, const RGTexture::Desc& desc); 	//ERDGTextureFlags Flags
-	RGHandle create_texture(RGName name, VkImage image);
+	RPGHandle create_texture(RPGName name, const RPGTexture::Desc& desc); 	//ERDGTextureFlags Flags
+	RPGHandle create_texture(RPGName name, VkImage image);
 	
-	RGHandle create_view(RGHandle tex, const RGView::Desc& desc);
-	RGHandle create_view(RGHandle tex, VkImageView view);
+	RPGHandle create_view(RPGHandle tex, const RPGView::Desc& desc);
+	RPGHandle create_view(RPGHandle tex, VkImageView view);
 
-	VkImage get_image(RGHandle handle) const;
-	VkImageView get_image_view(RGHandle handle) const;
+	VkImage get_image(RPGHandle handle) const;
+	VkImageView get_image_view(RPGHandle handle) const;
 
 	template <typename F>
-	RGHandle add_pass(RGName name, RGPassFlags flags, F&& func);
+	RPGHandle add_pass(RPGName name, RPGPassFlags flags, F&& func);
 
-	void pass_write(RGHandle& pass, RGHandle& view);
-	void pass_read(RGHandle& pass, RGHandle& view);
+	void pass_write(RPGHandle& pass, RPGHandle& view);
+	void pass_read(RPGHandle& pass, RPGHandle& view);
 
 	void execute();
 
 	REngine* engine;
 
 private:
-	static constexpr int MAX_PASSES = 32;
+	RPGIdx sort_dependences(OrderList& order);
+	std::tuple<int, int> optimize(OrderList& order);
+	int  calc_cost(OrderList& order);
 
-	void sort_dependences(std::array<RGIdx, MAX_PASSES>& order);
-	void optimize(std::array<RGIdx, MAX_PASSES>& order);
-	int  calc_cost(std::array<RGIdx, MAX_PASSES>& order);
+	std::tuple<RPGIdx, bool, bool> find_next_resource_pass(RPGHandle res, RPGIdx curPassIdx, const OrderList& order);
 
-	std::tuple<RGIdx, bool, bool> find_next_resource_pass(RGHandle res, RGIdx curPassIdx, const std::array<RGIdx, MAX_PASSES>& order);
+	void check_physical_texture(RPGHandle tex, RPGPass& pass);
+	void check_physical_view(RPGHandle view);
 
-	void check_physical_texture(RGHandle tex, RGPass& pass);
-	void check_physical_view(RGHandle view);
+	bool test();
+	bool validate_graph(RenderPassGraph& g);
 
-	RGIdx numPasses = 0;
-	std::array<RGPass, MAX_PASSES>	   passes;
+	RPGIdx numPasses = 0;
+	std::array<RPGPass, MAX_PASSES>	   passes;
 };

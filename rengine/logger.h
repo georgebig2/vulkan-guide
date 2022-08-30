@@ -11,28 +11,33 @@
 #define LOG_INFO(message,...) LogHandler::Get().log(LogType::Info,message, ##__VA_ARGS__);
 #define LOG_WARNING(message,...) LogHandler::Get().log(LogType::Warning,message, ##__VA_ARGS__);
 #define LOG_SUCCESS(message,...) LogHandler::Get().log(LogType::Success,message, ##__VA_ARGS__);
+#define LOG_LINE(message,...) LogHandler::Get().log(LogType::Line,message, ##__VA_ARGS__);
 
 enum class LogType {
 	Fatal,
 	Error,
 	Info,
 	Warning,
-	Success
+	Success,
+	Line
 };
 
 class LogHandler {
 public:
 	template <typename... Args>
-	inline static void print(std::string_view message, Args... args)
+	inline static void print(std::string_view message, bool endl, Args... args)
 	{
 		fmt::print((message), args...);
-		fmt::print("\n");
+		if (endl)
+			fmt::print("\n");
 	}
 
 	template <typename... Args>
 	inline static void log(LogType type,std::string_view message, Args... args)
 	{
-		print_time();
+		if (type != LogType::Line)
+			print_time();
+
 		switch (type)
 		{
 		case LogType::Fatal:
@@ -55,9 +60,13 @@ public:
 			fmt::print(fg(fmt::color::white),
 				"[INFO]    ");
 			break;
-		}		
+		case LogType::Line:
+			fmt::print(fg(fmt::color::white),
+				"");
+			break;
+		}
 		
-		print(message, args...);
+		print(message, type != LogType::Line, args...);
 
 		if (type == LogType::Fatal)
 		{
