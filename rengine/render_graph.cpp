@@ -538,7 +538,7 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 		auto wp = (wo - dpx * (numPasses - 1)) / numPasses;
 		auto xp = xo + (wp + dpx) * i;
 		auto yp = yo;
-		doc << svg::Rectangle(Point(xp, yp), wp, hp, Color::Green);
+		doc << svg::Rectangle(Point(xp, yp), wp, hp, pass.numWrites ? Color::Green : Color::Grey);
 		doc << Text(Point(xp+wp/3, yp + hp / 2), pass.name, Color::White, Font(14, "Verdana"));
 
 		// draw resources
