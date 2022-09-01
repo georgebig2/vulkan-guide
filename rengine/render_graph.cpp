@@ -31,6 +31,7 @@ RPGName PASS_DEPTH_PYRAMID		= "#DepthPyramid";
 RPGName PASS_FORWARD			    = "Forward";
 RPGName PASS_SHADOW				= "Shadow";
 
+constexpr bool ALLOW_MULTIPLE_RESOURCE_WRITERS = false;
 
 struct alignas(16) DepthReduceData
 {
@@ -385,7 +386,9 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 				if (v.readPasses & (uint64_t(1) << pIdx))	// we can change order of neighbours
 				{
 					auto& neighbour = passes[pIdx];
-					assert(neighbour.inDegrees > 0);
+					assert(neighbour.inDegrees > 0 || ALLOW_MULTIPLE_RESOURCE_WRITERS);
+					if (ALLOW_MULTIPLE_RESOURCE_WRITERS && !neighbour.inDegrees)
+						continue;
 					if (!--neighbour.inDegrees) {
 						zerosQ[backIdx++] = pIdx;
 						neighbour.depthLevel = pass.depthLevel + 1;
@@ -415,6 +418,7 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 		auto& pass = passes[i];
 		if (!sorted[i]) {
 			out[pIdx++] = i;
+			passes[i].depthLevel = -1;
 		}
 	}
 
@@ -429,8 +433,7 @@ std::tuple<int, int> RenderPassGraph::optimize(OrderList& out)
 
 	auto random_shuffle = [&]()
 	{
-		for (RPGIdx i = numPasses - 1; i > 0; --i)
-		{
+		for (RPGIdx i = numPasses - 1; i > 0; --i) {
 			auto ii = std::rand() % (i + 1);
 			auto o1 = out[i];
 			auto o2 = out[ii];
@@ -442,20 +445,34 @@ std::tuple<int, int> RenderPassGraph::optimize(OrderList& out)
 				std::swap(out[i], out[ii]);
 		}
 	};
-	
+	auto random_shuffle2 = [&]()
+	{
+		for (RPGIdx i = 0; i < numPasses - 1; ++i) {
+			auto o1 = out[i];
+			auto o2 = out[i + 1];
+			auto& p1 = passes[o1];
+			auto& p2 = passes[o2];
+			bool ignore1 = (!p1.numReads && !p1.numWrites);
+			bool ignore2 = (!p2.numReads && !p2.numWrites);
+			if (p1.depthLevel == p2.depthLevel && !ignore1 && !ignore2 && (std::rand() < RAND_MAX/2)) {
+				std::swap(out[i], out[i + 1]);
+			}
+		}
+	};
+
 	auto baseCost = calc_cost(out);
 
 	OrderList maxOrder;
 	int maxCost = 0;
-	for (int i = 0; i < 100; ++i)
+	for (int i = 0; i < numPasses*10; ++i)
 	{
 		int cost = calc_cost(out);
-		if (cost > maxCost)
+		if (cost >= maxCost)
 		{
 			maxCost = cost;
 			maxOrder = out;
 		}
-		random_shuffle();
+		random_shuffle2();
 	}
 	if (maxCost > 0)
 		out = maxOrder;
@@ -480,7 +497,7 @@ int RenderPassGraph::calc_cost(OrderList& order)
 			auto wV = pass.writes[w];
 
 			auto [ii, nextReads, nextWrites] = find_next_resource_pass(wV, i, order);
-			assert(!nextWrites);
+			assert(!nextWrites || ALLOW_MULTIPLE_RESOURCE_WRITERS);
 			if (nextReads)
 			{
 				cost += ii - i;
@@ -517,6 +534,10 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 	Dimensions dimensions(width, height);
 	Document doc(fileName, Layout(dimensions, Layout::TopLeft));
 	doc << svg::Rectangle(Point(0, 0), width, height, Color::Black);
+
+	auto cost = calc_cost(order);
+	char label[128]; std::sprintf(label, "Cost: %d", cost);
+	doc << Text(Point(width/2, height/32), label, Color::White, Font(18, "Verdana"));
 
 	// collect resources
 	RPGHandle minResIdx = -1, maxResIdx = 0;
@@ -555,7 +576,7 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 		auto xp = xo + (wp + dpx) * i;
 		auto yp = yo;
 		doc << svg::Rectangle(Point(xp, yp), wp, hp, passColor);
-		char label[128]; std::sprintf(label, "%s %d", pass.name, pass.depthLevel);
+		char label[128]; std::sprintf(label, "%d %s", pass.depthLevel, pass.name);
 		doc << Text(Point(xp+wp/3, yp + hp / 2), label, Color::White, Font(14, "Verdana"));
 
 		// draw resources
@@ -572,7 +593,7 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 			while (1)
 			{
 				auto [iii, nextReads, nextWrites] = find_next_resource_pass(wV, ii, order);
-				assert(!nextWrites);
+				assert(!nextWrites || ALLOW_MULTIPLE_RESOURCE_WRITERS);
 				if (!nextReads)
 					break;
 				xw = xp;
@@ -620,9 +641,9 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 bool RenderPassGraph::test()
 {
 	const RPGHandle numViews = 25;
-	const char* passesNames[] = { "a","b","c","d","e","f", "g", "j", "i", "k", "l", "m", "n", "o" };// , "p", "r", "q", "s", "t", "y", "v", "w", "z"
-	const uint8_t maxPassReads = 3;
-	const uint8_t maxPassWrites = 2;
+	const char* passesNames[] = { "a","b","c","d","e","f", "g", "j", "i", "k", "l", "m", "n", "o" , "p", "r", "q", "s", "t" };//, "y", "v", "w", "z" };
+	const uint8_t maxPassReads = 4;
+	const uint8_t maxPassWrites = 4;
 	int numTries = 100;
 
 	std::srand(time(0));
@@ -646,19 +667,20 @@ bool RenderPassGraph::test()
 		auto v = g.create_view(tex, desc);
 		views[v].readPasses = 0;
 		views[v].writePasses = 0;
-		for (int t = 0; t < numTries; ++t)
+		for (int t = 0; t < maxPassWrites; ++t)
 		{
 			RPGHandle pw = std::rand() % numPasses + 0;
 			auto& pass = g.passes[pw];
 			//assert(std::find(&pass.writes[0], &pass.writes[pass.numWrites], v) == &pass.writes[pass.numWrites]);
 			if (pass.numWrites < maxPassWrites 
-				//&& std::find(&pass.writes[0], &pass.writes[pass.numWrites], v) == &pass.writes[pass.numWrites]
-			//	&& std::find(&pass.reads[0], &pass.reads[pass.numReads], v) == &pass.reads[pass.numReads]
+				&& std::find(&pass.writes[0], &pass.writes[pass.numWrites], v) == &pass.writes[pass.numWrites]
+				&& std::find(&pass.reads[0], &pass.reads[pass.numReads], v) == &pass.reads[pass.numReads]
 				) 
 			{
 				//!(views[v].writePasses & (uint64_t(1) << pw))) {
 				g.pass_write(pw, v);
-				break;
+				if (!ALLOW_MULTIPLE_RESOURCE_WRITERS)
+					break;
 			}
 		}
 	}
@@ -711,6 +733,8 @@ bool RenderPassGraph::test()
 	if (firstTime) {
 		g.export_svg("dep.svg", order);
 	}
+	auto res0 = validate_graph(g);
+	assert(res0);
 
 	auto [baseCost, optCost] = g.optimize(order);
 	if (firstTime) {
@@ -746,9 +770,14 @@ bool RenderPassGraph::validate_graph(RenderPassGraph& g)
 			for (int8_t r = 0; r < pass.numReads; ++r)
 			{
 				auto rV = pass.reads[r];
+		
+				// nobody writes this res?
+				if (!views[rV].writePasses)
+					return false;
+				
 				auto [ii, nextReads, nextWrites] = g.find_next_resource_pass(rV, i, order);
 				// read before write?
-				if (nextWrites)
+				if (nextWrites && !ALLOW_MULTIPLE_RESOURCE_WRITERS)
 					return false;
 
 				// read and write the same resource in one pass?
