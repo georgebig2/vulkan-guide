@@ -1,7 +1,7 @@
 #pragma once
 #include <array>
 
-typedef int16_t	RPGHandle;
+typedef uint16_t	RPGHandle;
 typedef const char* RPGName;
 typedef uint8_t RPGIdx;
 
@@ -130,8 +130,10 @@ private:
 	void check_physical_texture(RPGHandle tex, RPGPass& pass);
 	void check_physical_view(RPGHandle view);
 
-	bool test();
 	bool validate_graph(RenderPassGraph& g);
+
+	bool test();
+	void export_svg(const char* fileName, OrderList& order);
 
 	RPGIdx numPasses = 0;
 	std::array<RPGPass, MAX_PASSES>	   passes;
