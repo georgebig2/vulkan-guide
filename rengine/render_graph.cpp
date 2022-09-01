@@ -395,17 +395,29 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 		}
 	}
 
-	//zerosQ = out;
-	for (RPGIdx pIdx = 0, i = 0; pIdx < numPasses && i < orderIdx; ++pIdx)
+	OrderList sorted = { 0 };
+	RPGIdx pIdx = 0;
+	for (RPGIdx i = 0; pIdx < numPasses && i < orderIdx; ++pIdx)
 	{
 		auto& pass = passes[pIdx];
 		bool ignore = (!pass.numReads && !pass.numWrites);
 		if (!ignore) {
 			auto nIdx = order[i++];
-			if (pIdx < nIdx)
-				std::swap(out[pIdx], out[nIdx]);
+			out[pIdx] = nIdx;
+			sorted[nIdx] = 1;
+		}
+		else {
+			sorted[pIdx] = 1;
 		}
 	}
+	for (RPGIdx i = 0; i < numPasses; ++i)
+	{
+		auto& pass = passes[i];
+		if (!sorted[i]) {
+			out[pIdx++] = i;
+		}
+	}
+
 	assert(!has_duplicates(out, numPasses));
 	return numPasses;
 }
@@ -556,7 +568,6 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 			auto xw = xo;
 			auto ww = wo;
 			//doc << svg::Rectangle(Point(xw, yw), ww, hw, Color::Grey);
-
 			auto ii = i;
 			while (1)
 			{
@@ -610,10 +621,11 @@ bool RenderPassGraph::test()
 {
 	const RPGHandle numViews = 25;
 	const char* passesNames[] = { "a","b","c","d","e","f", "g", "j", "i", "k", "l", "m", "n", "o" };// , "p", "r", "q", "s", "t", "y", "v", "w", "z"
-	const uint8_t maxResourceReaders = 8;
+	const uint8_t maxPassReads = 3;
+	const uint8_t maxPassWrites = 2;
 	int numTries = 100;
 
-	//std::srand(time(0));
+	std::srand(time(0));
 
 	RenderPassGraph g(engine);
 	auto desc = RPGTexture::Desc();
@@ -626,6 +638,7 @@ bool RenderPassGraph::test()
 		auto p = g.add_pass(passesNames[i], RGPASS_FLAG_GRAPHICS, [=](RenderPassGraph& g) {});
 	}
 
+	// todo: multiple writers to one resource?
 	// each view gets one pass writer(producer)
 	for (RPGHandle i = 0; i < numViews; ++i)
 	{
@@ -637,14 +650,19 @@ bool RenderPassGraph::test()
 		{
 			RPGHandle pw = std::rand() % numPasses + 0;
 			auto& pass = g.passes[pw];
-			if (pass.numWrites < 8) {
+			//assert(std::find(&pass.writes[0], &pass.writes[pass.numWrites], v) == &pass.writes[pass.numWrites]);
+			if (pass.numWrites < maxPassWrites 
+				//&& std::find(&pass.writes[0], &pass.writes[pass.numWrites], v) == &pass.writes[pass.numWrites]
+			//	&& std::find(&pass.reads[0], &pass.reads[pass.numReads], v) == &pass.reads[pass.numReads]
+				) 
+			{
+				//!(views[v].writePasses & (uint64_t(1) << pw))) {
 				g.pass_write(pw, v);
 				break;
 			}
 		}
 	}
 
-	// todo: multiple writers
 	// cpu w/r
 	// each view(resource) is read by several passes (except last one)
 	for (RPGHandle i = 0; i < numViews-1; ++i)
@@ -652,14 +670,17 @@ bool RenderPassGraph::test()
 		auto desc = RPGView::Desc(i);
 		auto v = g.create_view(tex, desc);
 
-		uint8_t numR = std::rand() % maxResourceReaders;
+		uint8_t numR = std::rand() % maxPassReads;
 		for (uint8_t r = 0; r <= numR; ++r)
 		{
 			for (int t = 0; t < numTries; ++t) 
 			{
 				RPGHandle pr = std::rand() % (numPasses - 1) + 1;  // first pass is graph enter
 				auto& pass = g.passes[pr];
-				if (pass.numReads < maxResourceReaders && std::find(&pass.reads[0], &pass.reads[pass.numReads], v) == &pass.reads[pass.numReads])
+				if (pass.numReads < maxPassReads 
+					&& std::find(&pass.reads[0], &pass.reads[pass.numReads], v) == &pass.reads[pass.numReads]
+					&& std::find(&pass.writes[0], &pass.writes[pass.numWrites], v) == &pass.writes[pass.numWrites]
+					)
 				{
 					auto restorePass = pass;
 					auto restoreView = views[v];
