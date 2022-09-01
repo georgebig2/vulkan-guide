@@ -341,19 +341,17 @@ bool has_duplicates(const OrderList& order, int len)
 // use topological sorting for ordering passes writes/reads
 RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 {
-	RPGIdx level = 0;
-
 	// search enter passes
 	OrderList zerosQ;
 	RPGIdx backIdx = 0;
 	for (RPGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
 	{
 		auto& pass = passes[pIdx];
+		pass.depthLevel = 0;
 		pass.inDegrees = pass.numReads;
 		bool ignore = (!pass.numReads && !pass.numWrites);
 		if (!ignore && !pass.inDegrees) {
-			zerosQ[backIdx++] = pIdx;
-			pass.depthLevel = level;
+			zerosQ[backIdx++] = pIdx;		// we can change order
 		}
 		out[pIdx] = pIdx;
 	}
@@ -375,7 +373,6 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 		auto zero = zerosQ[frontIdx++];
 		order[orderIdx++] = zero;
 		assert(!has_duplicates(order, orderIdx));
-		level++;
 
 		auto& pass = passes[zero];
 		for (int8_t w = 0; w < pass.numWrites; ++w)
@@ -391,20 +388,22 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 					assert(neighbour.inDegrees > 0);
 					if (!--neighbour.inDegrees) {
 						zerosQ[backIdx++] = pIdx;
-						neighbour.depthLevel = level;
+						neighbour.depthLevel = pass.depthLevel + 1;
 					}
 				}
 			}
 		}
 	}
 
+	//zerosQ = out;
 	for (RPGIdx pIdx = 0, i = 0; pIdx < numPasses && i < orderIdx; ++pIdx)
 	{
 		auto& pass = passes[pIdx];
 		bool ignore = (!pass.numReads && !pass.numWrites);
 		if (!ignore) {
 			auto nIdx = order[i++];
-			std::swap(out[pIdx], out[nIdx]);
+			if (pIdx < nIdx)
+				std::swap(out[pIdx], out[nIdx]);
 		}
 	}
 	assert(!has_duplicates(out, numPasses));
@@ -485,7 +484,7 @@ using namespace svg;
 
 void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 {
-	const bool parallel = false;
+	const int maxThreads = 1;
 	const auto width = 2170;
 	const auto height = 1100;
 	const auto xo = width / 9;
@@ -527,19 +526,24 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 	doc << svg::Rectangle(Point(xo, yo + hp/2), wo, height/512, Color::White);
 	doc << (svg::Polygon(Color::White, Stroke(1, arrowColorR)) << Point(xo + wo, yo + hp/2) << Point(xo + wo-wax, yo + hp / 2 - hax) << Point(xo + wo-wax, yo + hp / 2+hax));
 
-
 	for (int i = 0; i < numPasses; ++i)
 	{
 		auto pIdx = order[i];
 		auto& pass = passes[pIdx];
-		//bool ignore = (!pass.numReads && !pass.numWrites);
 
 		// draw pass
+		Color passColor = Color::Green;
+		if (!pass.numWrites)
+			passColor = Color::Grey;//.alpha = 0.5f;
+		if (pass.depthLevel % 2) {
+			passColor.red /= 2; passColor.green /= 2; passColor.blue /= 2;
+		}
 		auto wp = (wo - dpx * (numPasses - 1)) / numPasses;
 		auto xp = xo + (wp + dpx) * i;
 		auto yp = yo;
-		doc << svg::Rectangle(Point(xp, yp), wp, hp, pass.numWrites ? Color::Green : Color::Grey);
-		doc << Text(Point(xp+wp/3, yp + hp / 2), pass.name, Color::White, Font(14, "Verdana"));
+		doc << svg::Rectangle(Point(xp, yp), wp, hp, passColor);
+		char label[128]; std::sprintf(label, "%s %d", pass.name, pass.depthLevel);
+		doc << Text(Point(xp+wp/3, yp + hp / 2), label, Color::White, Font(14, "Verdana"));
 
 		// draw resources
 		for (int8_t w = 0; w < pass.numWrites; ++w)
@@ -607,7 +611,8 @@ bool RenderPassGraph::test()
 	const char* passesNames[] = { "a","b","c","d","e","f", "g", "j", "i", "k", "l", "m", "n", "o" };// , "p", "r", "q", "s", "t", "y", "v", "w", "z"
 	const uint8_t maxResourceReaders = 8;
 	int numTries = 100;
-	std::srand(time(0));
+
+	//std::srand(time(0));
 
 	RenderPassGraph g(engine);
 	auto desc = RPGTexture::Desc();
@@ -638,7 +643,9 @@ bool RenderPassGraph::test()
 		}
 	}
 
-	// each view is read by several passes (except last one)
+	// todo: multiple writers
+	// cpu w/r
+	// each view(resource) is read by several passes (except last one)
 	for (RPGHandle i = 0; i < numViews-1; ++i)
 	{
 		auto desc = RPGView::Desc(i);

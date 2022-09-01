@@ -217,7 +217,7 @@ namespace svg
                 ss << "rgba(" << red << "," << green << "," << blue << "," << alpha << ")";
             return ss.str();
         }
-    private:
+    //private:
         bool transparent;
         int red;
         int green;
