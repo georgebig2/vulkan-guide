@@ -123,14 +123,15 @@ public:
 private:
 	RPGIdx sort_dependences(OrderList& order);
 	std::tuple<int, int> optimize(OrderList& order);
-	int  calc_cost(OrderList& order);
+	int  calc_cost_wr(OrderList& order);
+	int  calc_cost_alias(OrderList& order);
 
 	std::tuple<RPGIdx, bool, bool> find_next_resource_pass(RPGHandle res, RPGIdx curPassIdx, const OrderList& order);
 
 	void check_physical_texture(RPGHandle tex, RPGPass& pass);
 	void check_physical_view(RPGHandle view);
 
-	bool validate_graph(RenderPassGraph& g);
+	bool validate();
 
 	bool test();
 	void export_svg(const char* fileName, OrderList& order);
