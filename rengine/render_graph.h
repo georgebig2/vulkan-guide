@@ -121,7 +121,9 @@ public:
 	REngine* engine;
 
 private:
+	template <bool Random=false>
 	RPGIdx sort_dependences(OrderList& order);
+
 	std::tuple<int, int> optimize(OrderList& order);
 	int  calc_cost_wr(OrderList& order);
 	int  calc_cost_alias(OrderList& order);

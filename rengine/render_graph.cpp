@@ -339,9 +339,14 @@ bool has_duplicates(const OrderList& order, int len)
 	return hasDuplicates;
 }
 
+#include <random>
+
 // use topological sorting for ordering passes writes/reads
+template <bool Random>
 RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 {
+	static auto randomEngine = std::default_random_engine(time(0));
+
 	// search enter passes
 	OrderList zerosQ;
 	RPGIdx backIdx = 0;
@@ -352,11 +357,15 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 		pass.inDegrees = pass.numReads;
 		bool ignore = (!pass.numReads && !pass.numWrites);
 		if (!ignore && !pass.inDegrees) {
-			zerosQ[backIdx++] = pIdx;		// we can change order
+			zerosQ[backIdx++] = pIdx;
 		}
 		out[pIdx] = pIdx;
 	}
 	assert(!has_duplicates(out, numPasses));
+
+	if (Random) {
+		std::shuffle(&zerosQ[0], &zerosQ[backIdx], randomEngine);
+	}
 
 	//assert(backIdx <= 1);	// one enter for now
 	//assert(backIdx > 0);
@@ -375,6 +384,7 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 		order[orderIdx++] = zero;
 		assert(!has_duplicates(order, orderIdx));
 
+		auto prevBack = backIdx;
 		auto& pass = passes[zero];
 		for (int8_t w = 0; w < pass.numWrites; ++w)
 		{
@@ -383,7 +393,7 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 
 			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
 			{
-				if (v.readPasses & (uint64_t(1) << pIdx))	// we can change order of neighbours
+				if (v.readPasses & (uint64_t(1) << pIdx))
 				{
 					auto& neighbour = passes[pIdx];
 					assert(neighbour.inDegrees > 0 || ALLOW_MULTIPLE_RESOURCE_WRITERS);
@@ -395,6 +405,9 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 					}
 				}
 			}
+		}
+		if (Random) {
+			std::shuffle(&zerosQ[prevBack], &zerosQ[backIdx], randomEngine);
 		}
 	}
 
@@ -472,6 +485,8 @@ std::tuple<int, int> RenderPassGraph::optimize(OrderList& out)
 			maxOrder = out;
 		}
 		random_shuffle2();
+		//auto res = sort_dependences<true>(out);
+		//assert(res);
 	}
 	if (maxCost > 0)
 		out = maxOrder;
