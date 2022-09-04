@@ -708,7 +708,7 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 	const auto hr = 2 * ho / 3;
 	const auto yr = yo + ho - hr;
 	auto hp = ho / 20;
-	Color arrowColorW(255, 0, 0, 0.9f);
+	Color arrowColorW(0, 255, 255, 0.9f);
 	Color arrowColorR(255, 255, 0, 0.9f);
 
 	Dimensions dimensions(width, height);
