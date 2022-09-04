@@ -41,24 +41,24 @@ struct PoolTexture
 struct PoolView
 {
 	RPGView rgView;
-	//uint64_t writePasses = 0;
 	RPGIdx writePass = RPGIdxNone;
 	uint64_t readPasses = 0;
 	VkImageView imageView = 0;
-	bool isAliased = false;
+	RPGIdx nextAliasRes = RPGIdxNone;
+	RPGIdx aliasOrigin = RPGIdxNone;
 };
 
-std::vector<PoolTexture> textures;
-std::vector<PoolView> views;
+std::vector<PoolTexture> gTextures;
+std::vector<PoolView> gViews;
 
 RPGHandle get_texture_handle(RPGName name)
 {
 	int h = -1;
 	auto it = registry_textures.find(name);
 	if (it == registry_textures.end()) {
-		h = (int)textures.size();
+		h = (int)gTextures.size();
 		registry_textures.insert({ name, h });
-		textures.resize(h + 1);
+		gTextures.resize(h + 1);
 	}
 	else {
 		h = it->second;
@@ -71,9 +71,9 @@ RPGHandle get_view_handle(PoolViewKey key)
 	int h = -1;
 	auto it = registry_views.find(key);
 	if (it == registry_views.end()) {
-		h = (int)views.size();
+		h = (int)gViews.size();
 		registry_views.insert({ key, h });
-		views.resize(h + 1);
+		gViews.resize(h + 1);
 	}
 	else {
 		h = it->second;
@@ -85,16 +85,16 @@ VkImage get_pool_image(RPGName name, RPGHandle* texHandle, RPGTexture* rgTex)
 {
 	auto h = get_texture_handle(name);
 	if (rgTex)
-		*rgTex = textures[h].rgTex;
+		*rgTex = gTextures[h].rgTex;
 	if (texHandle)
 		*texHandle = h;
-	return textures[h].image;
+	return gTextures[h].image;
 }
 
 VkImageView get_pool_image_view(RPGHandle tex, int level)
 {
 	auto h = get_view_handle({ tex, level });
-	return views[h].imageView;
+	return gViews[h].imageView;
 }
 
 RenderPassGraph::RenderPassGraph(REngine* e) 
@@ -107,7 +107,7 @@ RenderPassGraph::RenderPassGraph(REngine* e)
 RPGHandle RenderPassGraph::create_texture(RPGName name, const RPGTexture::Desc& desc)
 {
 	auto h = get_texture_handle(name);
-	textures[h].rgTex = RPGTexture(name, desc);
+	gTextures[h].rgTex = RPGTexture(name, desc);
 	return h;
 }
 
@@ -115,15 +115,15 @@ RPGHandle RenderPassGraph::create_texture(RPGName name, VkImage image)
 {
 	auto h = get_texture_handle(name);
 	RPGTexture::Desc desc;
-	textures[h].rgTex = RPGTexture(name, desc);
-	textures[h].image = image;
+	gTextures[h].rgTex = RPGTexture(name, desc);
+	gTextures[h].image = image;
 	return h;
 }
 
 RPGHandle RenderPassGraph::create_view(RPGHandle tex, const RPGView::Desc& desc)
 {
 	auto h = get_view_handle({ tex, desc.level });
-	views[h].rgView = RPGView(textures[tex].rgTex, tex, desc);
+	gViews[h].rgView = RPGView(gTextures[tex].rgTex, tex, desc);
 	return h;
 }
 
@@ -131,19 +131,19 @@ RPGHandle RenderPassGraph::create_view(RPGHandle tex, VkImageView view)
 {
 	auto h = get_view_handle({ tex, -1 });
 	RPGView::Desc desc;
-	views[h].rgView = RPGView(textures[tex].rgTex, tex, desc);
-	views[h].imageView = view;
+	gViews[h].rgView = RPGView(gTextures[tex].rgTex, tex, desc);
+	gViews[h].imageView = view;
 	return h;
 }
 
 VkImage RenderPassGraph::get_image(RPGHandle handle) const
 {
-	return textures[handle].image;
+	return gTextures[handle].image;
 }
 
 VkImageView RenderPassGraph::get_image_view(RPGHandle handle) const
 {
-	return views[handle].imageView;
+	return gViews[handle].imageView;
 }
 
 
@@ -162,7 +162,7 @@ RPGIdx RenderPassGraph::pass_write(RPGHandle& pass, RPGHandle& view)
 	}
 
 	passes[pass].write(idx);
-	auto& v = views[view];
+	auto& v = gViews[view];
 	//assert(pass >= 0 && pass < 64);
 	assert(v.writePass == RPGIdxNone || v.writePass == pass);
 	v.writePass = pass;
@@ -177,7 +177,7 @@ RPGIdx RenderPassGraph::pass_read(RPGHandle& pass, RPGHandle& view)
 	}
 
 	passes[pass].read(idx);
-	auto& v = views[view];
+	auto& v = gViews[view];
 	//auto t = v.texHandle;
 	//auto& tex = textures[t];
 	assert(pass >= 0 && pass < 64);
@@ -233,6 +233,7 @@ void RenderPassGraph::execute()
 	auto newNumPasses = sort_dependences(order);
 	assert(newNumPasses == numPasses);
 	optimize(order);
+	alias_resources(order);
 	assert(validate());
 
 	// resource transition between passes
@@ -254,9 +255,9 @@ void RenderPassGraph::execute()
 		{
 			auto idx = pass.writes[w];
 			auto wV = resources[idx];
-			auto& wView = views[wV];
-			assert(!wView.isAliased);		// not ready yet
-			if (!wView.isAliased) 
+			auto& wView = gViews[wV];
+			//assert(!wView.isAliased);		// not ready yet
+			//if (!wView.isAliased) 
 			{
 				auto wT = wView.rgView.texHandle;
 				check_physical_texture(wT, pass);
@@ -281,9 +282,9 @@ void RenderPassGraph::execute()
 				// w -> r
 				if (nextReads)
 				{
-					auto& wView = views[wV];
+					auto& wView = gViews[wV];
 					auto wT = wView.rgView.texHandle;
-					auto& wTex = textures[wT];
+					auto& wTex = gTextures[wT];
 					bool compute2compute = (pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
 					bool graphics2compute = !(pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
 					if (compute2compute)
@@ -316,15 +317,19 @@ void RenderPassGraph::execute()
 		{
 			auto idx = pass.reads[r];
 			auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
+			
+			auto rV = resources[idx];
+			auto& rView = gViews[rV];
+
 			if (nextReads || nextWrites)
 			{
 				assert(!nextWrites);			// r -> w?
 				
 				// todo: r -> r barrier
 			}
-			else if (pass.nextAliasRes != RPGIdxNone) 	// resource alias?
+			else if (rView.nextAliasRes != RPGIdxNone) 	// resource alias?
 			{
-				auto idx = pass.nextAliasRes;
+				auto idx = rView.nextAliasRes;
 				auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
 				if (nextReads || nextWrites)
 				{
@@ -395,7 +400,7 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 		{
 			auto idx = pass.writes[w];
 			auto viewHandle = resources[idx];
-			auto& v = views[viewHandle];
+			auto& v = gViews[viewHandle];
 
 			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
 			{
@@ -541,8 +546,8 @@ int RenderPassGraph::calc_cost_alias(OrderList& order)
 				continue;
 			auto idx1 = resources[i];
 			auto idx2 = resources[j];
-			auto& v1 = views[idx1];
-			auto& v2 = views[idx2];
+			auto& v1 = gViews[idx1];
+			auto& v2 = gViews[idx2];
 
 			auto get_span = [&iOrder](const PoolView& v) -> std::tuple<RPGIdx, RPGIdx>
 			{
@@ -572,6 +577,117 @@ int RenderPassGraph::calc_cost_alias(OrderList& order)
 	return cost;
 }
 
+void RenderPassGraph::alias_resources(OrderList& order)
+{
+	OrderList iOrder, destOrder, aliasOrder;
+
+	for (RPGIdx i = 0; i < numPasses; ++i)
+		iOrder[order[i]] = i;
+
+	// find all resources lifetimes
+	struct ResSpan
+	{
+		RPGIdx s = 0, e = 0;
+	};
+	std::array<ResSpan, MAX_RESOURCES> spans;
+	for (RPGIdx r = 0; r < numResources; ++r)
+	{
+		auto& v = gViews[resources[r]];
+		v.aliasOrigin = RPGIdxNone;
+		if (v.readPasses && v.writePass != RPGIdxNone)
+		{
+			spans[r].s = iOrder[v.writePass];
+			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
+				if (v.readPasses & (uint64_t(1) << pIdx)) {
+					auto o = iOrder[pIdx];
+					spans[r].e = std::max(spans[r].e, o);
+				}
+			}
+			assert(spans[r].e >= spans[r].s);
+		}
+	}
+
+	for (RPGIdx i = 0; i < numResources; ++i) {
+		destOrder[i] = i;
+		aliasOrder[i] = i;
+	}
+
+	// sort dest rest by first write
+	std::sort(&destOrder[0], &destOrder[numResources],
+		[&iOrder, this](RPGIdx idx1, RPGIdx idx2)
+		{
+			auto& v1 = gViews[resources[idx1]];
+			auto& v2 = gViews[resources[idx2]];
+			return iOrder[v1.writePass] < iOrder[v2.writePass];
+		});
+
+	// sort alias res by importance (memory?, longest w->r barrier)
+	std::sort(&aliasOrder[0], &aliasOrder[numResources],
+		[&iOrder, this](RPGIdx idx1, RPGIdx idx2)
+		{
+			auto& v1 = gViews[resources[idx1]];
+			auto& v2 = gViews[resources[idx2]];
+			return iOrder[v1.writePass] > iOrder[v2.writePass];
+		});
+
+	// do aliasing
+	for (RPGIdx a = 0; a < numResources; ++a)
+	{
+		auto idxA = aliasOrder[a];
+		if (!spans[idxA].s && !spans[idxA].e)	// "empty" res
+			continue;
+		auto rA = resources[idxA];
+		auto& vA = gViews[rA];
+		if (vA.imageView)		// dont alias physical resources
+			continue;
+
+		for (RPGIdx d = 0; d < numResources; ++d)
+		{
+			auto idxD = destOrder[d];
+			if (!spans[idxD].s && !spans[idxD].e)	// "empty" res
+				continue;
+			//assert(spans[idxA].s >= spans[idxD].s);
+			if (spans[idxA].s <= spans[idxD].s)
+				continue;
+
+			auto rD = resources[idxD];
+			auto& vD = gViews[rD];
+			if (vD.aliasOrigin != RPGIdxNone)	// already aliased?
+				continue;
+
+			// lets find end of hole
+			auto& as = spans[idxA];
+			auto idxP = idxD;
+			while (as.s > spans[idxD].s)
+			{
+				auto rD = resources[idxD];
+				auto& vD = gViews[rD];
+				if (vD.nextAliasRes == RPGIdxNone) {
+					idxD = RPGIdxNone;
+					break;
+				}
+				idxP = idxD;
+				idxD = vD.nextAliasRes;
+			}
+
+			if (idxD != RPGIdxNone && as.e >= spans[idxD].s)
+				continue;
+			if (as.s <= spans[idxP].e)
+				continue;
+
+			auto rP = resources[idxP];
+			auto& vP = gViews[rP];
+			vP.nextAliasRes = idxA;
+			vA.aliasOrigin = idxP;
+			{
+				auto rA = resources[idxA];
+				auto& vA = gViews[rA];
+				vA.nextAliasRes = idxD;
+			}
+			break;
+		}
+	}
+}
 
 
 #include "svg.h"
@@ -610,8 +726,8 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 	std::sort(&resOrder[0], &resOrder[numResources],
 		[&iOrder,this](RPGIdx idx1, RPGIdx idx2)
 		{
-			auto& v1 = views[resources[idx1]];
-			auto& v2 = views[resources[idx2]];
+			auto& v1 = gViews[resources[idx1]];
+			auto& v2 = gViews[resources[idx2]];
 			auto pidx1 = v1.writePass;
 			auto pidx2 = v2.writePass;
 			return iOrder[pidx1] < iOrder[pidx2];
@@ -644,8 +760,10 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 		for (int8_t w = 0; w < pass.numWrites; ++w)
 		{
 			auto idx = pass.writes[w];
+			auto wV = resources[idx];
+			auto& view = gViews[wV];
 			auto hw = (hr - dry * (numResources-1)) / numResources;
-			auto yw = yr + hr * iOrder[idx] / numResources;
+			auto yw = yr + hr * iOrder[view.aliasOrigin == RPGIdxNone ? idx : view.aliasOrigin] / numResources;
 
 			auto xw = xo;
 			auto ww = wo;
@@ -662,10 +780,17 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 				ii = iii;
 			}
 
-			doc << svg::Rectangle(Point(xw, yw), ww, hw, ii != i ? Color::Blue : Color::Grey);
-			auto wV = resources[idx];
-			char label[128]; std::sprintf(label, "%s-%d", views[wV].rgView.name, wV);
-			doc << Text(Point(xo/2, yw + hw / 2), label, Color::White, Font(12, "Verdana"));
+
+			Color resColor = ii != i ? Color::Blue : Color::Grey;
+			resColor.alpha = 0.8f;
+			if (view.aliasOrigin != RPGIdxNone) {
+				resColor.alpha = 0.3f;//resColor.red / 2; resColor.green
+				resColor.green = 128;
+			}
+
+			doc << svg::Rectangle(Point(xw, yw), ww, hw, resColor);
+			char label[128]; std::sprintf(label, "%s-%d", view.rgView.name, wV);
+			doc << Text(Point(xw+ww/2, yw + hw *8/10), label, Color::Silver, Font(12, "Verdana"));
 		}
 	}
 
@@ -681,8 +806,10 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 		for (int8_t w = 0; w < pass.numWrites; ++w) 
 		{
 			auto idx = pass.writes[w];
+			auto wV = resources[idx];
+			auto& view = gViews[wV];
 			auto yw = yp + hp;
-			auto hw = yr + hr * iOrder[idx] / numResources - yw;
+			auto hw = yr + hr * iOrder[view.aliasOrigin == RPGIdxNone ? idx : view.aliasOrigin] / numResources - yw;
 			auto xw = xp + wp - 1*wax -  wp*w / pass.numWrites / 2;
 			doc << svg::Rectangle(Point(xw, yw), wax, hw-hax, arrowColorW);
 			doc << (svg::Polygon(arrowColorW, Stroke(1, arrowColorW)) << Point(xw+wax/2, yw+hw) << Point(xw-wax, yw+hw-hax) << Point(xw+2*wax, yw+hw-hax));
@@ -690,8 +817,10 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 		for (int8_t r = 0; r < pass.numReads; ++r) 
 		{
 			auto idx = pass.reads[r];
+			auto rV = resources[idx];
+			auto& view = gViews[rV];
 			auto yw = yp + hp;
-			auto hw = yr + hr * iOrder[idx] / numResources - yw;
+			auto hw = yr + hr * iOrder[view.aliasOrigin == RPGIdxNone ? idx : view.aliasOrigin] / numResources - yw;
 			auto xw = xp + 1 * wax + wp * r / pass.numReads / 2;
 			doc << svg::Rectangle(Point(xw, yw + hax), wax, hw - hax, arrowColorR);
 			doc << (svg::Polygon(arrowColorR, Stroke(1, arrowColorR)) << Point(xw + wax / 2, yw) << Point(xw - wax, yw + hax) << Point(xw + 2 * wax, yw + hax));
@@ -710,7 +839,7 @@ bool RenderPassGraph::test()
 	const uint8_t maxPassWrites = 4;
 	int numTries = 100;
 
-	//std::srand(time(0));
+	std::srand(time(0));
 
 	RenderPassGraph g(engine);
 	auto desc = RPGTexture::Desc();
@@ -729,8 +858,8 @@ bool RenderPassGraph::test()
 	{
 		auto desc = RPGView::Desc(i);
 		auto v = g.create_view(tex, desc);
-		views[v].readPasses = 0;
-		views[v].writePass = RPGIdxNone;
+		gViews[v].readPasses = 0;
+		gViews[v].writePass = RPGIdxNone;
 		for (int t = 0; t < maxPassWrites; ++t)
 		{
 			RPGHandle pw = std::rand() % numPasses + 0;
@@ -775,7 +904,7 @@ bool RenderPassGraph::test()
 					)
 				{
 					auto restorePass = pass;
-					auto restoreView = views[v];
+					auto restoreView = gViews[v];
 					//assert(g.validate());
 					auto idx = g.pass_read(pr, v);
 					auto valid = g.validate();
@@ -784,7 +913,7 @@ bool RenderPassGraph::test()
 					if (!valid)
 					{
 						pass = restorePass;
-						views[v] = restoreView;
+						gViews[v] = restoreView;
 						assert(g.numResources > 0);
 						if (idx == g.numResources - 1) {
 							std::remove(&g.resources[0], &g.resources[g.numResources], v);
@@ -809,11 +938,11 @@ bool RenderPassGraph::test()
 		auto idx = std::rand() % g.numResources;
 		auto v = g.resources[idx];
 		for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
-			if (views[v].readPasses & (uint64_t(1) << pIdx))
+			if (gViews[v].readPasses & (uint64_t(1) << pIdx))
 			{
-				auto newMask = views[v].readPasses & (~(uint64_t(1) << pIdx));
+				auto newMask = gViews[v].readPasses & (~(uint64_t(1) << pIdx));
 				if (newMask) {
-					views[v].readPasses = newMask;
+					gViews[v].readPasses = newMask;
 					assert(g.passes[pIdx].numReads > 0);
 					std::remove(&g.passes[pIdx].reads[0], &g.passes[pIdx].reads[g.passes[pIdx].numReads], idx);
 					g.passes[pIdx].numReads--;
@@ -827,17 +956,24 @@ bool RenderPassGraph::test()
 
 	// todo: cull passes
 	OrderList order;
-	auto newNumPasses = g.sort_dependences(order);
+	g.sort_dependences(order);
+	assert(g.validate());
 	if (firstTime) {
 		g.export_svg("dep.svg", order);
 	}
-	auto res0 = g.validate();
-	assert(res0);
 
 	auto [baseCost, optCost] = g.optimize(order);
+	assert(g.validate());
 	if (firstTime) {
 		g.export_svg("opt.svg", order);
 	}
+
+	g.alias_resources(order);
+	assert(g.validate());
+	if (firstTime) {
+		g.export_svg("alas.svg", order);
+	}
+
 
 	//LOG_INFO("rdp");
 	//for (RPGIdx i = 0; i < numPasses; ++i)
@@ -872,7 +1008,7 @@ bool RenderPassGraph::validate()
 			auto rV = resources[idx];
 
 			// nobody writes this res?
-			if (views[rV].writePass == RPGIdxNone)
+			if (gViews[rV].writePass == RPGIdxNone)
 				return false;
 				
 			auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
@@ -897,7 +1033,7 @@ bool RenderPassGraph::validate()
 
 void RenderPassGraph::check_physical_texture(RPGHandle h, RPGPass& pass)
 {
-	auto& tex = textures[h];
+	auto& tex = gTextures[h];
 	if (tex.image)
 		return;
 
@@ -931,7 +1067,7 @@ void RenderPassGraph::check_physical_texture(RPGHandle h, RPGPass& pass)
 	auto allocator = engine->_allocator;
 	auto alloc = newImage._allocation;
 	engine->_surfaceDeletionQueue.push_function([=]() {
-		textures[h].image = 0;
+		gTextures[h].image = 0;
 		vmaDestroyImage(allocator, newImage._image, alloc);
 		});
 
@@ -942,8 +1078,8 @@ void RenderPassGraph::check_physical_texture(RPGHandle h, RPGPass& pass)
 
 void RenderPassGraph::check_physical_view(RPGHandle h)
 {
-	auto& view = views[h];
-	auto& tex = textures[view.rgView.texHandle];
+	auto& view = gViews[h];
+	auto& tex = gTextures[view.rgView.texHandle];
 	assert(tex.image);
 
 	if (!view.imageView && tex.rgTex.desc.format != VK_FORMAT_UNDEFINED)
@@ -957,7 +1093,7 @@ void RenderPassGraph::check_physical_view(RPGHandle h)
 
 		auto device = engine->_device;
 		engine->_surfaceDeletionQueue.push_function([=]() {
-			views[h].imageView = 0;
+			gViews[h].imageView = 0;
 			vkDestroyImageView(device, newView, nullptr);
 			});
 

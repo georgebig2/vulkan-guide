@@ -93,7 +93,7 @@ private:
 
 	std::array<RPGIdx, 8> writes = {};
 	std::array<RPGIdx, 8> reads = {};
-	RPGIdx nextAliasRes = RPGIdxNone;
+	//RPGIdx nextAliasRes = RPGIdxNone;
 
 	std::function<void(RenderPassGraph&)> func; // todo: remove heap!!!	//use stack allocator
 	RPGName name;
@@ -136,6 +136,7 @@ private:
 	RPGIdx sort_dependences(OrderList& order);
 
 	std::tuple<int, int> optimize(OrderList& order);
+	void alias_resources(OrderList& order);
 	int  calc_cost_wr(OrderList& order);
 	int  calc_cost_alias(OrderList& order);
 
