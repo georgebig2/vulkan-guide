@@ -256,8 +256,8 @@ void RenderPassGraph::execute()
 			auto idx = pass.writes[w];
 			auto wV = resources[idx];
 			auto& wView = gViews[wV];
-			//assert(!wView.isAliased);		// not ready yet
-			//if (!wView.isAliased) 
+			//assert(wView.nextAliasRes == RPGIdxNone);		// not ready yet
+			//if (wView.nextAliasRes == RPGIdxNone)
 			{
 				auto wT = wView.rgView.texHandle;
 				check_physical_texture(wT, pass);
