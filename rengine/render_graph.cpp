@@ -703,13 +703,13 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 	const auto ho = 8 * height / 10;
 	const auto dpx = width / 128;
 	const auto dry = height / 128;
-	const auto wax = width / 512;
+	const auto wax = width / 800;
 	const auto hax = height / 128;
 	const auto hr = 2 * ho / 3;
 	const auto yr = yo + ho - hr;
 	auto hp = ho / 20;
-	Color arrowColorW(255, 0, 0, 0.7f);
-	Color arrowColorR(255, 255, 0, 0.7f);
+	Color arrowColorW(255, 0, 0, 0.9f);
+	Color arrowColorR(255, 255, 0, 0.9f);
 
 	Dimensions dimensions(width, height);
 	Document doc(fileName, Layout(dimensions, Layout::TopLeft));
