@@ -397,7 +397,9 @@ AutoCVar_String::AutoCVar_String(const char* name, const char* description, cons
 
 const char* AutoCVar_String::Get()
 {
-	return GetCVarCurrentByIndex<CVarType>(index).c_str();
+	static std::string var;
+	var = GetCVarCurrentByIndex<CVarType>(index);
+	return var.c_str();
 };
 
 void AutoCVar_String::Set(std::string&& val)
