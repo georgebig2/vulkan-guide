@@ -32,11 +32,12 @@ struct AllocatedBuffer : public AllocatedBufferUntyped {
 	AllocatedBuffer() = default;
 };
 
-struct AllocatedImage {
-	VkImage _image;
+struct AllocatedImage
+{
+	VkImage _image = 0;
 	VmaAllocation _allocation;
-	VkImageView _defaultView;
-	int mipLevels;
+	VkImageView _defaultView = 0;
+	int mipLevels = 0;
 };
 
 

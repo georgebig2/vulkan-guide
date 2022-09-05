@@ -1,790 +1,1106 @@
 #include "Tracy.hpp"
 #include "TracyVulkan.hpp"
-
 #include "rengine.h"
 #include "vk_profiler.h"
 #include "logger.h"
-#include "cvars.h"
 #include <vk_types.h>
 #include <vk_initializers.h>
 #include <vk_descriptors.h>
-#include <vk_scene.h>
-#include "imgui.h"
-#include "imgui_impl_vulkan.h"
-#include "frame_data.h"
+#include "render_graph.h"
+#include <random>
 
 
-AutoCVar_Int CVAR_FreezeCull("culling.freeze", "Locks culling", 0, CVarFlags::EditCheckbox);
-AutoCVar_Float CVAR_ShadowBias("gpu.shadowBias", "Distance cull", 5.25f);
-AutoCVar_Float CVAR_SlopeBias("gpu.shadowBiasSlope", "Distance cull", 4.75f);
-AutoCVar_Int CVAR_FreezeShadows("gpu.freezeShadows", "Stop the rendering of shadows", 0, CVarFlags::EditCheckbox);
-AutoCVar_Int CVAR_Shadowcast("gpu.shadowcast", "Use shadowcasting", 1, CVarFlags::EditCheckbox);
+constexpr bool ALLOW_MULTIPLE_RESOURCE_WRITERS = false;
 
-
-void REngine::init_forward_renderpass()
-{
-	VkSamplerCreateInfo shadsamplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER);
-	shadsamplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	shadsamplerInfo.compareEnable = true;
-	shadsamplerInfo.compareOp = VK_COMPARE_OP_LESS;
-	vkCreateSampler(_device, &shadsamplerInfo, nullptr, &_shadowSampler);
-
-	//we define an attachment description for our main color image
-	//the attachment is loaded as "clear" when renderpass start
-	//the attachment is stored when renderpass ends
-	//the attachment layout starts as "undefined", and transitions to "Present" so its possible to display it
-	//we dont care about stencil, and dont use multisampling
-
-	VkAttachmentDescription color_attachment = {};
-	color_attachment.format = nocopy ? _swachainImageFormat : _renderFormat;
-	color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	color_attachment.finalLayout = nocopy ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	VkAttachmentReference color_attachment_ref = {};
-	color_attachment_ref.attachment = 0;
-	color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-	VkAttachmentDescription depth_attachment = {};
-	// Depth attachment
-	depth_attachment.flags = 0;
-	depth_attachment.format = _depthFormat;
-	depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	depth_attachment.finalLayout =  VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	VkAttachmentReference depth_attachment_ref = {};
-	depth_attachment_ref.attachment = 1;
-	depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	//we are going to create 1 subpass, which is the minimum you can do
-	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &color_attachment_ref;
-	//hook the depth attachment into the subpass
-	subpass.pDepthStencilAttachment = &depth_attachment_ref;
-
-	//array of 2 attachments, one for the color, and other for depth
-	VkAttachmentDescription attachments[2] = { color_attachment,depth_attachment };
-
-	VkRenderPassCreateInfo render_pass_info = {};
-	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	//2 attachments from said array
-	render_pass_info.attachmentCount = 2;
-	render_pass_info.pAttachments = &attachments[0];
-	render_pass_info.subpassCount = 1;
-	render_pass_info.pSubpasses = &subpass;
-	//render_pass_info.dependencyCount = 1;
-	//render_pass_info.pDependencies = &dependency;
-
-	VK_CHECK(vkCreateRenderPass(_device, &render_pass_info, nullptr, &_renderPass));
-
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyRenderPass(_device, _renderPass, nullptr);
-		});
-}
-
-void REngine::init_shadow_renderpass()
-{
-	VkAttachmentDescription depth_attachment = {};
-	// Depth attachment
-	depth_attachment.flags = 0;
-	depth_attachment.format = _depthFormat;
-	depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	depth_attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	VkAttachmentReference depth_attachment_ref = {};
-	depth_attachment_ref.attachment = 0;
-	depth_attachment_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-	//we are going to create 1 subpass, which is the minimum you can do
-	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-
-	//hook the depth attachment into the subpass
-	subpass.pDepthStencilAttachment = &depth_attachment_ref;
-
-	VkRenderPassCreateInfo render_pass_info = {};
-	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	//2 attachments from said array
-	render_pass_info.attachmentCount = 1;
-	render_pass_info.pAttachments = &depth_attachment;
-	render_pass_info.subpassCount = 1;
-	render_pass_info.pSubpasses = &subpass;
-
-	VK_CHECK(vkCreateRenderPass(_device, &render_pass_info, nullptr, &_shadowPass));
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyRenderPass(_device, _shadowPass, nullptr);
-		});
-
-	for (auto& frame : _frames)
+struct PoolViewKey {
+	int resource;
+	int level;
+	bool operator==(const PoolViewKey& other) const
 	{
-		//for the depth image, we want to allocate it from gpu local memory
-		VmaAllocationCreateInfo dimg_allocinfo = {};
-		dimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-		dimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-		VkExtent3D shadowExtent = { _shadowExtent.width, _shadowExtent.height, 1 };
-
-		//the depth image will be a image with the format we selected and Depth Attachment usage flag
-		VkImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, shadowExtent);
-
-		vmaCreateImage(_allocator, &dimg_info, &dimg_allocinfo, &frame._shadowImage._image, &frame._shadowImage._allocation, nullptr);
-		VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, frame._shadowImage._image, VK_IMAGE_ASPECT_DEPTH_BIT);
-		VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &frame._shadowImage._defaultView));
-		{
-			VkFramebufferCreateInfo sh_info = vkinit::framebuffer_create_info(_shadowPass, _shadowExtent);
-			sh_info.pAttachments = &frame._shadowImage._defaultView;
-			sh_info.attachmentCount = 1;
-			VK_CHECK(vkCreateFramebuffer(_device, &sh_info, nullptr, &frame._shadowFramebuffer));
-		}
-		{
-			auto v = frame._shadowImage._defaultView;
-			auto i = frame._shadowImage._image;
-			auto a = frame._shadowImage._allocation;
-			auto f = frame._shadowFramebuffer;
-			_mainDeletionQueue.push_function([=]() {
-				vkDestroyFramebuffer(_device, f, nullptr);
-				vkDestroyImageView(_device, v, nullptr);
-				vmaDestroyImage(_allocator, i, a);
-				});
-		}
+		return (resource == other.resource
+			&& level == other.level);
 	}
-}
-
-
-void REngine::init_copy_renderpass(VkFormat swachainImageFormat)
-{
-	VkSamplerCreateInfo samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	//samplerInfo.maxAnisotropy = 10;
-	//samplerInfo.anisotropyEnable = true;
-	vkCreateSampler(_device, &samplerInfo, nullptr, &_smoothSampler);
-
-//	samplerInfo = vkinit::sampler_create_info(VK_FILTER_LINEAR);
-//	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-//	//info.anisotropyEnable = true;
-////	samplerInfo.maxAnisotropy = 10;
-////	samplerInfo.anisotropyEnable = true;
-//	samplerInfo.mipLodBias = 2;
-//	samplerInfo.maxLod = 30.f;
-//	samplerInfo.minLod = 3;
-//	vkCreateSampler(_device, &samplerInfo, nullptr, &_smoothSampler2);
-
-
-	VkSamplerCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	createInfo.magFilter = VK_FILTER_LINEAR;
-	createInfo.minFilter = VK_FILTER_LINEAR;
-	createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-	createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	createInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	createInfo.minLod = 0;
-	createInfo.maxLod = 16.f;
-	VkSamplerReductionModeCreateInfoEXT createInfoReduction = { VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT };
-	auto reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN_EXT;
-	if (reductionMode != VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE_EXT)
-	{
-		createInfoReduction.reductionMode = reductionMode;
-		createInfo.pNext = &createInfoReduction;
-	}
-	VK_CHECK(vkCreateSampler(_device, &createInfo, 0, &_depthSampler));
-
-	//we define an attachment description for our main color image
-//the attachment is loaded as "clear" when renderpass start
-//the attachment is stored when renderpass ends
-//the attachment layout starts as "undefined", and transitions to "Present" so its possible to display it
-//we dont care about stencil, and dont use multisampling
-
-	VkAttachmentDescription color_attachment = {};
-	color_attachment.format = swachainImageFormat;
-	color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-	color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
-	VkAttachmentReference color_attachment_ref = {};
-	color_attachment_ref.attachment = 0;
-	color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-	//we are going to create 1 subpass, which is the minimum you can do
-	VkSubpassDescription subpass = {};
-	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = 1;
-	subpass.pColorAttachments = &color_attachment_ref;
-
-
-	VkRenderPassCreateInfo render_pass_info = {};
-	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	//2 attachments from said array
-	render_pass_info.attachmentCount = 1;
-	render_pass_info.pAttachments = &color_attachment;
-	render_pass_info.subpassCount = 1;
-	render_pass_info.pSubpasses = &subpass;
-	//render_pass_info.dependencyCount = 1;
-	//render_pass_info.pDependencies = &dependency;
-
-	VK_CHECK(vkCreateRenderPass(_device, &render_pass_info, nullptr, &_copyPass));
-
-	_mainDeletionQueue.push_function([=]() {
-		vkDestroyRenderPass(_device, _copyPass, nullptr);
-		});
-}
-
-void REngine::forward_pass(VkClearValue clearValue, VkCommandBuffer cmd)
-{
-	vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu forward pass");
-	vkutil::VulkanPipelineStatRecorder timer2(cmd, _profiler, "Forward Primitives");
-	VkClearValue depthClear;
-	depthClear.depthStencil.depth = 0.f;
-
-	//start the main renderpass. 
-	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, nocopy ? get_current_frame()._framebuffer : get_current_frame()._forwardFramebuffer);
-
-	//connect clear values
-	rpInfo.clearValueCount = 2;
-	VkClearValue clearValues[] = { clearValue, depthClear };
-
-	rpInfo.pClearValues = &clearValues[0];
-	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	VkViewport viewport;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)_windowExtent.width;
-	viewport.height = (float)_windowExtent.height;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-
-	VkRect2D scissor;
-	scissor.offset = { 0, 0 };
-	scissor.extent = _windowExtent;
-
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
-	vkCmdSetDepthBias(cmd, 0, 0, 0);
-
-	//stats.drawcalls = 0;
-	//stats.draws = 0;
-	//stats.objects = 0;
-	//stats.triangles = 0;
-	{
-		//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Forward Pass");
-		draw_objects_forward(cmd, get_render_scene()->_forwardPass);
-		draw_objects_forward(cmd, get_render_scene()->_transparentForwardPass);
-	}
-	{
-		//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Imgui Draw");
-		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
-	}
-	//finalize the render pass
-	vkCmdEndRenderPass(cmd);
-}
-
-void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
-{
-	ZoneScopedNC("DrawObjects", tracy::Color::Blue);
-	VkDescriptorBufferInfo instanceInfo = pass.compactedInstanceBuffer.get_info();
-	if (instanceInfo.range == 0)
-		return;
-
-	glm::mat4 view = _camera.get_view_matrix(this);
-	glm::mat4 projection = _camera.get_projection_matrix(this);
-	glm::mat4 pre_rotate = _camera.get_pre_rotation_matrix(this);
-
-
-	GPUCameraData camData;
-	camData.proj = projection;
-	camData.view = view;
-	camData.viewproj = pre_rotate * projection * view;
-
-	_sceneParameters.sunlightShadowMatrix = _mainLight.get_projection() * _mainLight.get_view();
-
-	float framed = (_frameNumber / 120.f);
-	_sceneParameters.ambientColor = glm::vec4{ 0.5 };
-	_sceneParameters.sunlightColor = glm::vec4{ 1.f };
-	_sceneParameters.sunlightDirection = glm::vec4(_mainLight.lightDirection * 1.f, 1.f);
-
-	_sceneParameters.sunlightColor.w = CVAR_Shadowcast.Get() ? 0 : 1;
-
-	//push data to dynmem
-	uint32_t scene_data_offset = get_current_frame().dynamicData.push(_sceneParameters);
-	uint32_t camera_data_offset = get_current_frame().dynamicData.push(camData);
-
-	VkDescriptorBufferInfo objectBufferInfo = get_render_scene()->objectDataBuffer.get_info();
-	VkDescriptorBufferInfo sceneInfo = get_current_frame().dynamicData.source.get_info();
-	sceneInfo.range = sizeof(GPUSceneData);
-
-	VkDescriptorBufferInfo camInfo = get_current_frame().dynamicData.source.get_info();
-	camInfo.range = sizeof(GPUCameraData);
-
-
-	VkDescriptorImageInfo shadowImage;
-	shadowImage.sampler = _shadowSampler;
-
-	shadowImage.imageView = get_current_frame()._shadowImage._defaultView;
-	shadowImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	VkDescriptorSet GlobalSet;
-	vkutil::DescriptorBuilder::begin(_descriptorLayoutCache, get_current_frame().dynamicDescriptorAllocator)
-		.bind_buffer(0, &camInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
-		.bind_buffer(1, &sceneInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
-		.bind_image(2, &shadowImage, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(GlobalSet);
-
-	VkDescriptorSet ObjectDataSet;
-	vkutil::DescriptorBuilder::begin(_descriptorLayoutCache, get_current_frame().dynamicDescriptorAllocator)
-		.bind_buffer(0, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-		.bind_buffer(1, &instanceInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-		.build(ObjectDataSet);
-	vkCmdSetDepthBias(cmd, 0, 0, 0);
-
-	std::vector<uint32_t> dynamic_offsets;
-	dynamic_offsets.push_back(camera_data_offset);
-	dynamic_offsets.push_back(scene_data_offset);
-	execute_draw_commands(cmd, pass, ObjectDataSet, dynamic_offsets, GlobalSet);
-}
-
-void REngine::shadow_pass(VkCommandBuffer cmd)
-{
-	vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu shadow pass");
-	vkutil::VulkanPipelineStatRecorder timer2(cmd, _profiler, "Shadow Primitives");
-
-	if (CVAR_FreezeShadows.Get() || !*CVarSystem::Get()->GetIntCVar("gpu.shadowcast"))
-		return;
-
-	//clear depth at 1
-	VkClearValue depthClear;
-	depthClear.depthStencil.depth = 1.f;
-	VkRenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_shadowPass, _shadowExtent, get_current_frame()._shadowFramebuffer);
-
-	//connect clear values
-	rpInfo.clearValueCount = 1;
-
-	VkClearValue clearValues[] = { depthClear };
-
-	rpInfo.pClearValues = &clearValues[0];
-	vkCmdBeginRenderPass(cmd, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-	VkViewport viewport;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)_shadowExtent.width;
-	viewport.height = (float)_shadowExtent.height;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-
-	VkRect2D scissor;
-	scissor.offset = { 0, 0 };
-	scissor.extent = _shadowExtent;
-
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
-
-	if (get_render_scene()->_shadowPass.batches.size() > 0)
-	{
-		//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Shadow  Pass");
-		draw_objects_shadow(cmd, get_render_scene()->_shadowPass);
-	}
-
-	//finalize the render pass
-	vkCmdEndRenderPass(cmd);
-}
-
-void REngine::draw_objects_shadow(VkCommandBuffer cmd, MeshPass& pass)
-{
-	ZoneScopedNC("DrawObjects", tracy::Color::Blue);
-	VkDescriptorBufferInfo instanceInfo = pass.compactedInstanceBuffer.get_info();
-	if (instanceInfo.range == 0)
-		return;
-
-	glm::mat4 view = _mainLight.get_view();
-
-	glm::mat4 projection = _mainLight.get_projection();
-
-	GPUCameraData camData;
-	camData.proj = projection;
-	camData.view = view;
-	camData.viewproj = projection * view;
-
-	//push data to dynmem
-	uint32_t camera_data_offset = get_current_frame().dynamicData.push(camData);
-
-
-	VkDescriptorBufferInfo objectBufferInfo = get_render_scene()->objectDataBuffer.get_info();
-
-	VkDescriptorBufferInfo camInfo = get_current_frame().dynamicData.source.get_info();
-	camInfo.range = sizeof(GPUCameraData);
-
-	VkDescriptorSet GlobalSet;
-	vkutil::DescriptorBuilder::begin(_descriptorLayoutCache, get_current_frame().dynamicDescriptorAllocator)
-		.bind_buffer(0, &camInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
-		.build(GlobalSet);
-
-	VkDescriptorSet ObjectDataSet;
-	vkutil::DescriptorBuilder::begin(_descriptorLayoutCache, get_current_frame().dynamicDescriptorAllocator)
-		.bind_buffer(0, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-		.bind_buffer(1, &instanceInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-		.build(ObjectDataSet);
-
-	vkCmdSetDepthBias(cmd, CVAR_ShadowBias.GetFloat(), 0, CVAR_SlopeBias.GetFloat());
-
-	std::vector<uint32_t> dynamic_offsets;
-	dynamic_offsets.push_back(camera_data_offset);
-
-	execute_draw_commands(cmd, pass, ObjectDataSet, dynamic_offsets, GlobalSet);
-}
-
-glm::vec4 normalizePlane(glm::vec4 p)
-{
-	return p / glm::length(glm::vec3(p));
-}
-
-void REngine::execute_compute_cull(VkCommandBuffer cmd, MeshPass& pass, CullParams& params)
-{
-	if (CVAR_FreezeCull.Get())
-		return;
-	if (pass.batches.size() == 0)
-		return;
-
-	//TracyVkZone(_graphicsQueueContext, cmd, "Cull Dispatch");
-	VkDescriptorBufferInfo objectBufferInfo = get_render_scene()->objectDataBuffer.get_info();
-
-	VkDescriptorBufferInfo dynamicInfo = get_current_frame().dynamicData.source.get_info();
-	dynamicInfo.range = sizeof(GPUCameraData);
-
-	VkDescriptorBufferInfo instanceInfo = pass.passObjectsBuffer.get_info();
-	VkDescriptorBufferInfo finalInfo = pass.compactedInstanceBuffer.get_info();
-	VkDescriptorBufferInfo indirectInfo = pass.drawIndirectBuffer.get_info();
-
-	VkDescriptorImageInfo depthPyramid;
-	depthPyramid.sampler = _depthSampler;
-	depthPyramid.imageView = get_current_frame()._depthPyramid._defaultView;
-	depthPyramid.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-
-	VkDescriptorSet COMPObjectDataSet;
-	vkutil::DescriptorBuilder::begin(_descriptorLayoutCache, get_current_frame().dynamicDescriptorAllocator)
-		.bind_buffer(0, &objectBufferInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-		.bind_buffer(1, &indirectInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-		.bind_buffer(2, &instanceInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-		.bind_buffer(3, &finalInfo, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-		.bind_image(4, &depthPyramid, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
-		.bind_buffer(5, &dynamicInfo, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT)
-		.build(COMPObjectDataSet);
-
-
-	glm::mat4 projection = params.projmat;
-	glm::mat4 projectionT = transpose(projection);
-
-	glm::vec4 frustumX = normalizePlane(projectionT[3] + projectionT[0]); // x + w < 0
-	glm::vec4 frustumY = normalizePlane(projectionT[3] + projectionT[1]); // y + w < 0
-
-	DrawCullData cullData = {};
-	cullData.P00 = projection[0][0];
-	cullData.P11 = projection[1][1];
-	cullData.znear = 0.1f;
-	cullData.zfar = params.drawDist;
-	cullData.frustum[0] = frustumX.x;
-	cullData.frustum[1] = frustumX.z;
-	cullData.frustum[2] = frustumY.y;
-	cullData.frustum[3] = frustumY.z;
-	cullData.flags = static_cast<uint16_t>(pass.flat_batches.size()) << 16;
-	cullData.flags |= params.frustrumCull ? 1 : 0;
-	//cullData.lodEnabled = false;
-	cullData.flags |= params.occlusionCull ? 2 : 0;
-	//cullData.lodBase = 10.f;
-	//cullData.lodStep = 1.5f;
-	//cullData.pyramidWidth = static_cast<float>(depthPyramidWidth);
-	//cullData.pyramidHeight = static_cast<float>(depthPyramidHeight);
-	cullData.pyramid = depthPyramidWidth + (depthPyramidHeight << 16);
-	cullData.view = params.viewmat;//get_view_matrix();
-
-	cullData.flags |= params.aabb ? 8 : 0;
-	cullData.aabbmin_x = params.aabbmin.x;
-	cullData.aabbmin_y = params.aabbmin.y;
-	cullData.aabbmin_z = params.aabbmin.z;
-
-	cullData.aabbmax_x = params.aabbmax.x;
-	cullData.aabbmax_y = params.aabbmax.y;
-	cullData.aabbmax_z = params.aabbmax.z;
-
-	cullData.flags |= params.drawDist > 10000 ? 0 : 4;
-
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _cullPipeline);
-	vkCmdPushConstants(cmd, _cullLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(DrawCullData), &cullData);
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _cullLayout, 0, 1, &COMPObjectDataSet, 0, nullptr);
-	vkCmdDispatch(cmd, static_cast<uint32_t>((pass.flat_batches.size() / 256) + 1), 1, 1);
-
-
-	//barrier the 2 buffers we just wrote for culling, the indirect draw one, and the instances one, so that they can be read well when rendering the pass
-	{
-		VkBufferMemoryBarrier barrier = vkinit::buffer_barrier(pass.compactedInstanceBuffer._buffer, _graphicsQueueFamily);
-		barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-
-		VkBufferMemoryBarrier barrier2 = vkinit::buffer_barrier(pass.drawIndirectBuffer._buffer, _graphicsQueueFamily);
-		barrier2.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-		barrier2.dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
-
-		VkBufferMemoryBarrier barriers[] = { barrier,barrier2 };
-
-		postCullBarriers.push_back(barrier);
-		postCullBarriers.push_back(barrier2);
-
-	}
-	/*if (*CVarSystem::Get()->GetIntCVar("culling.outputIndirectBufferToFile"))
-	{
-		uint32_t offset = get_current_frame().debugDataOffsets.back();
-		VkBufferCopy debugCopy;
-		debugCopy.dstOffset = offset;
-		debugCopy.size = pass.batches.size() * sizeof(GPUIndirectObject);
-		debugCopy.srcOffset = 0;
-		vkCmdCopyBuffer(cmd, pass.drawIndirectBuffer._buffer, get_current_frame().debugOutputBuffer._buffer, 1, &debugCopy);
-		get_current_frame().debugDataOffsets.push_back(offset + static_cast<uint32_t>(debugCopy.size));
-		get_current_frame().debugDataNames.push_back("Cull Indirect Output");
-	}*/
-}
-
-
-struct alignas(16) DepthReduceData
-{
-	glm::vec2 imageSize;
 };
-inline uint32_t getGroupCount(uint32_t threadCount, uint32_t localSize)
+struct PoolViewKeyHash {
+	std::size_t operator()(const PoolViewKey& k) const
+	{
+		return ((std::hash<int>()(k.resource)
+			^ (std::hash<int>()(k.level) << 1)) >> 1);
+		//^ (hash<int>()(k.third) << 1);
+	}
+};
+
+std::unordered_map<RPGName, int> registry_textures;
+std::unordered_map<PoolViewKey, int, PoolViewKeyHash> registry_views;
+
+struct PoolTexture 
 {
-	return (threadCount + localSize - 1) / localSize;
+	RPGTexture rgTex;
+	VkImage image = 0;
+};
+struct PoolView
+{
+	RPGView rgView;
+	RPGIdx writePass = RPGIdxNone;
+	uint64_t readPasses = 0;
+	VkImageView imageView = 0;
+	RPGIdx nextAliasRes = RPGIdxNone;
+	RPGIdx aliasOrigin = RPGIdxNone;
+};
+
+std::vector<PoolTexture> gTextures;
+std::vector<PoolView> gViews;
+
+RPGHandle get_texture_handle(RPGName name)
+{
+	int h = -1;
+	auto it = registry_textures.find(name);
+	if (it == registry_textures.end()) {
+		h = (int)gTextures.size();
+		registry_textures.insert({ name, h });
+		gTextures.resize(h + 1);
+	}
+	else {
+		h = it->second;
+	}
+	return h;
 }
 
-void REngine::reduce_depth(VkCommandBuffer cmd)
+RPGHandle get_view_handle(PoolViewKey key)
 {
-	vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu depth reduce");
+	int h = -1;
+	auto it = registry_views.find(key);
+	if (it == registry_views.end()) {
+		h = (int)gViews.size();
+		registry_views.insert({ key, h });
+		gViews.resize(h + 1);
+	}
+	else {
+		h = it->second;
+	}
+	return h;
+}
 
-	VkImageMemoryBarrier depthReadBarriers[] = {
-		vkinit::image_barrier(get_current_frame()._depthImage._image,
-		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, 
-		VK_ACCESS_SHADER_READ_BIT,
-		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-		VK_IMAGE_ASPECT_DEPTH_BIT),
-	};
-	vkCmdPipelineBarrier(cmd, 
-		VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-		VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
-		VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, depthReadBarriers);
+VkImage get_pool_image(RPGName name, RPGHandle* texHandle, RPGTexture* rgTex)
+{
+	auto h = get_texture_handle(name);
+	if (rgTex)
+		*rgTex = gTextures[h].rgTex;
+	if (texHandle)
+		*texHandle = h;
+	return gTextures[h].image;
+}
 
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _depthReducePipeline);
+VkImageView get_pool_image_view(RPGHandle tex, int level)
+{
+	auto h = get_view_handle({ tex, level });
+	return gViews[h].imageView;
+}
 
-	for (int32_t i = 0; i < depthPyramidLevels; ++i)
+RenderPassGraph::RenderPassGraph(REngine* e) 
+	: engine(e)
+{
+	//auto pass = add_pass(PASS_PROLOGUE, RGPASS_FLAG_GRAPHICS, [=](RenderPassGraph& g) {});
+}
+
+
+RPGHandle RenderPassGraph::create_texture(RPGName name, const RPGTexture::Desc& desc)
+{
+	auto h = get_texture_handle(name);
+	gTextures[h].rgTex = RPGTexture(name, desc);
+	return h;
+}
+
+RPGHandle RenderPassGraph::create_texture(RPGName name, VkImage image)
+{
+	auto h = get_texture_handle(name);
+	RPGTexture::Desc desc;
+	gTextures[h].rgTex = RPGTexture(name, desc);
+	gTextures[h].image = image;
+	return h;
+}
+
+RPGHandle RenderPassGraph::create_view(RPGHandle tex, const RPGView::Desc& desc)
+{
+	auto h = get_view_handle({ tex, desc.level });
+	gViews[h].rgView = RPGView(gTextures[tex].rgTex, tex, desc);
+	return h;
+}
+
+RPGHandle RenderPassGraph::create_view(RPGHandle tex, VkImageView view)
+{
+	auto h = get_view_handle({ tex, -1 });
+	RPGView::Desc desc;
+	gViews[h].rgView = RPGView(gTextures[tex].rgTex, tex, desc);
+	gViews[h].imageView = view;
+	return h;
+}
+
+VkImage RenderPassGraph::get_image(RPGHandle handle) const
+{
+	return gTextures[handle].image;
+}
+
+VkImageView RenderPassGraph::get_image_view(RPGHandle handle) const
+{
+	return gViews[handle].imageView;
+}
+
+
+RPGIdx RenderPassGraph::pass_write(RPGHandle& pass, RPGHandle& view)
+{
+	//v.writePasses |= uint64_t(1) << pass;
+	//RPGIdx idx = std::lower_bound(&resources[0], &resources[numResources], view) - &resources[0];
+	//if (idx == numResources || resources[idx] != view) {
+	//	for (auto i = numResources; i > idx; --i) resources[i] = resources[i - 1];
+	//	resources[idx] = view;
+	//	numResources++;
+	//}
+	RPGIdx idx = std::find(&resources[0], &resources[numResources], view) - &resources[0];		// todo: O(1)
+	if (idx == numResources) {
+		resources[numResources++] = view;
+	}
+
+	passes[pass].write(idx);
+	auto& v = gViews[view];
+	//assert(pass >= 0 && pass < 64);
+	assert(v.writePass == RPGIdxNone || v.writePass == pass);
+	v.writePass = pass;
+	return idx;
+
+}
+RPGIdx RenderPassGraph::pass_read(RPGHandle& pass, RPGHandle& view)
+{
+	RPGIdx idx = std::find(&resources[0], &resources[numResources], view) - &resources[0];		// todo: O(1)
+	if (idx == numResources) {
+		resources[numResources++] = view;
+	}
+
+	passes[pass].read(idx);
+	auto& v = gViews[view];
+	//auto t = v.texHandle;
+	//auto& tex = textures[t];
+	assert(pass >= 0 && pass < 64);
+	v.readPasses |= uint64_t(1) << pass;
+	return idx;
+
+}
+
+std::tuple<RPGIdx,bool,bool> RenderPassGraph::find_next_resource_pass(RPGIdx res, RPGIdx curPassIdx, const OrderList& order)
+{
+	bool reads = false;
+	bool writes = false;
+
+	for (RPGIdx i = curPassIdx + 1; i < numPasses; ++i)
 	{
-		VkDescriptorImageInfo destTarget;
-		destTarget.sampler = _depthSampler;
-		destTarget.imageView = get_current_frame().depthPyramidMips[i];
-		destTarget.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+		auto pIdx = order[i];
+		auto& nextPass = passes[pIdx];
+	
+		for (int8_t r = 0; r < nextPass.numReads; ++r) {
+			auto idx = nextPass.reads[r];
+			if (res == idx) {
+				reads = true;
+				break;
+			}
+		}
+		for (int8_t w = 0; w < nextPass.numWrites; ++w) {
+			auto idx = nextPass.writes[w];
+			if (res == idx) {
+				writes = true;
+				break;
+			}
+		}
 
-		VkDescriptorImageInfo sourceTarget;
-		sourceTarget.sampler = _depthSampler;
-		if (i == 0)
+		if (reads || writes)
+			return std::make_tuple(i, reads, writes);
+	}
+
+	return std::make_tuple(numPasses, false, false);
+}
+
+
+void RenderPassGraph::execute()
+{
+	auto& cmd = engine->get_current_frame()._mainCommandBuffer;
+	vkutil::VulkanScopeTimer timer(cmd, engine->_profiler, "RG execute");
+
+	assert(test());
+	//add_pass(PASS_EPILOGUE, RGPASS_FLAG_GRAPHICS, [=](RenderPassGraph& g){});
+
+	// todo: cull passes
+
+	OrderList order;
+	auto newNumPasses = sort_dependences(order);
+	assert(newNumPasses == numPasses);
+	optimize(order);
+	alias_resources(order);
+	assert(validate());
+
+	// resource transition between passes
+	// vk render passes for graphics passes
+	// r->w, r->r, w->w
+	// grouping barriers after pass
+	// split barriers?
+	// parallel passes?
+	// parallel queues (compute/graphics)
+	// resourse aliasing
+	// barriers between frames?
+	for (int i = 0; i < numPasses; ++i)
+	{
+		auto pIdx = order[i];
+		auto& pass = passes[pIdx];
+
+		// create write resources
+		for (int8_t w = 0; w < pass.numWrites; ++w)
 		{
-			sourceTarget.imageView = get_current_frame()._depthImage._defaultView;
-			sourceTarget.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			auto idx = pass.writes[w];
+			auto wV = resources[idx];
+			auto& wView = gViews[wV];
+			//assert(wView.nextAliasRes == RPGIdxNone);		// not ready yet
+			//if (wView.nextAliasRes == RPGIdxNone)
+			{
+				auto wT = wView.rgView.texHandle;
+				check_physical_texture(wT, pass);
+				check_physical_view(wV);
+			}
+		}
+
+		pass.func(*this);
+
+		// lets find what will be next with our write res
+		for (int8_t w = 0; w < pass.numWrites; ++w)
+		{
+			auto idx = pass.writes[w];
+			auto wV = resources[idx];
+			auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
+			if (nextReads || nextWrites)
+			{
+				auto nextPidx = order[ii];
+				auto& nextPass = passes[nextPidx];
+				assert(!nextWrites);					// w -> w?
+
+				// w -> r
+				if (nextReads)
+				{
+					auto& wView = gViews[wV];
+					auto wT = wView.rgView.texHandle;
+					auto& wTex = gTextures[wT];
+					bool compute2compute = (pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
+					bool graphics2compute = !(pass.flags & RGPASS_FLAG_COMPUTE) && (nextPass.flags & RGPASS_FLAG_COMPUTE);
+					if (compute2compute)
+					{
+						VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
+							VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+							VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+							VK_IMAGE_ASPECT_COLOR_BIT);
+						vkCmdPipelineBarrier(cmd,
+							VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+							VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
+					}
+					else if (graphics2compute)		// do transition in EndRenderPass?
+					{
+						VkImageMemoryBarrier wrb = vkinit::image_barrier(wTex.image,
+							VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
+							VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+							VK_IMAGE_ASPECT_DEPTH_BIT);
+						vkCmdPipelineBarrier(cmd,
+							VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+							VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &wrb);
+					}
+				}
+			}
+				
+		}
+
+		// lets find what will be next with our read res
+		for (int8_t r = 0; r < pass.numReads; ++r)
+		{
+			auto idx = pass.reads[r];
+			auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
+			
+			auto rV = resources[idx];
+			auto& rView = gViews[rV];
+
+			if (nextReads || nextWrites)
+			{
+				assert(!nextWrites);			// r -> w?
+				
+				// todo: r -> r barrier
+			}
+			else if (rView.nextAliasRes != RPGIdxNone) 	// resource alias?
+			{
+				auto idx = rView.nextAliasRes;
+				auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
+				if (nextReads || nextWrites)
+				{
+					assert(!nextReads);			// write needs to be first
+					// todo: r -> w barrier
+				}
+			}
+		}
+
+	}
+}
+
+bool has_duplicates(const OrderList& order, int len)
+{
+	OrderList copy = order;
+	std::sort(&copy[0], &copy[len]);
+	bool hasDuplicates = std::adjacent_find(&copy[0], &copy[len]) != &copy[len];
+	return hasDuplicates;
+}
+
+
+// use topological sorting for ordering passes writes/reads
+template <bool Random>
+RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
+{
+	static auto randomEngine = std::default_random_engine(time(0));
+
+	// search enter passes
+	OrderList zerosQ;
+	RPGIdx backIdx = 0;
+	for (RPGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
+	{
+		auto& pass = passes[pIdx];
+		pass.depthLevel = 0;
+		pass.inDegrees = pass.numReads;
+		bool ignore = (!pass.numReads && !pass.numWrites);
+		if (!ignore && !pass.inDegrees) {
+			zerosQ[backIdx++] = pIdx;
+		}
+		out[pIdx] = pIdx;
+	}
+	assert(!has_duplicates(out, numPasses));
+
+	if (Random) {
+		std::shuffle(&zerosQ[0], &zerosQ[backIdx], randomEngine);
+	}
+
+	//assert(backIdx <= 1);	// one enter for now
+	//assert(backIdx > 0);
+	if (!backIdx)
+		return 0;
+
+	OrderList order;
+	RPGIdx frontIdx = 0;
+	RPGIdx orderIdx = 0;
+	for (RPGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
+	{
+		if (frontIdx >= backIdx)
+			break;
+
+		auto zero = zerosQ[frontIdx++];
+		order[orderIdx++] = zero;
+		assert(!has_duplicates(order, orderIdx));
+
+		auto prevBack = backIdx;
+		auto& pass = passes[zero];
+		for (int8_t w = 0; w < pass.numWrites; ++w)
+		{
+			auto idx = pass.writes[w];
+			auto viewHandle = resources[idx];
+			auto& v = gViews[viewHandle];
+
+			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
+			{
+				if (v.readPasses & (uint64_t(1) << pIdx))
+				{
+					auto& neighbour = passes[pIdx];
+					assert(neighbour.inDegrees > 0 || ALLOW_MULTIPLE_RESOURCE_WRITERS);
+					if (ALLOW_MULTIPLE_RESOURCE_WRITERS && !neighbour.inDegrees)
+						continue;
+					if (!--neighbour.inDegrees) {
+						zerosQ[backIdx++] = pIdx;
+						neighbour.depthLevel = pass.depthLevel + 1;
+					}
+				}
+			}
+		}
+		if (Random) {
+			std::shuffle(&zerosQ[prevBack], &zerosQ[backIdx], randomEngine);
+		}
+	}
+
+	OrderList sorted = { 0 };
+	RPGIdx pIdx = 0;
+	for (RPGIdx i = 0; pIdx < numPasses && i < orderIdx; ++pIdx)
+	{
+		auto& pass = passes[pIdx];
+		bool ignore = (!pass.numReads && !pass.numWrites);
+		if (!ignore) {
+			auto nIdx = order[i++];
+			out[pIdx] = nIdx;
+			sorted[nIdx] = 1;
 		}
 		else {
-			sourceTarget.imageView = get_current_frame().depthPyramidMips[i - 1];
-			sourceTarget.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+			sorted[pIdx] = 1;
 		}
-
-		VkDescriptorSet depthSet;
-		vkutil::DescriptorBuilder::begin(_descriptorLayoutCache, get_current_frame().dynamicDescriptorAllocator)
-			.bind_image(0, &destTarget, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, VK_SHADER_STAGE_COMPUTE_BIT)
-			.bind_image(1, &sourceTarget, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT)
-			.build(depthSet);
-
-		vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _depthReduceLayout, 0, 1, &depthSet, 0, nullptr);
-
-		uint32_t levelWidth = depthPyramidWidth >> i;
-		uint32_t levelHeight = depthPyramidHeight >> i;
-		if (levelHeight < 1) levelHeight = 1;
-		if (levelWidth < 1) levelWidth = 1;
-
-		DepthReduceData reduceData = { glm::vec2(levelWidth, levelHeight) };
-
-		vkCmdPushConstants(cmd, _depthReduceLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(reduceData), &reduceData);
-		vkCmdDispatch(cmd, getGroupCount(levelWidth, 32), getGroupCount(levelHeight, 32), 1);
-
-		VkImageMemoryBarrier reduceBarrier = vkinit::image_barrier(get_current_frame()._depthPyramid._image,
-			VK_ACCESS_SHADER_WRITE_BIT, 
-			VK_ACCESS_SHADER_READ_BIT, 
-			VK_IMAGE_LAYOUT_GENERAL, 
-			VK_IMAGE_LAYOUT_GENERAL, 
-			VK_IMAGE_ASPECT_COLOR_BIT);
-
-		vkCmdPipelineBarrier(cmd, 
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
-			VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &reduceBarrier);
 	}
-
-	VkImageMemoryBarrier depthWriteBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
-		VK_ACCESS_SHADER_READ_BIT, 
-		VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 
-		VK_IMAGE_ASPECT_DEPTH_BIT);
-	vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthWriteBarrier);
-}
-
-void REngine::execute_draw_commands(VkCommandBuffer cmd, MeshPass& pass, VkDescriptorSet ObjectDataSet, std::vector<uint32_t> dynamic_offsets, VkDescriptorSet GlobalSet)
-{
-	if (pass.batches.size() > 0)
+	for (RPGIdx i = 0; i < numPasses; ++i)
 	{
-		ZoneScopedNC("Draw Commit", tracy::Color::Blue4);
-		Mesh* lastMesh = nullptr;
-		VkPipeline lastPipeline{ VK_NULL_HANDLE };
-		VkPipelineLayout lastLayout{ VK_NULL_HANDLE };
-		VkDescriptorSet lastMaterialSet{ VK_NULL_HANDLE };
-
-		{
-			VkDeviceSize offset[] = { 0, 0 };
-			VkBuffer buffs[] = { get_render_scene()->mergedVertexBufferP._buffer, get_render_scene()->mergedVertexBufferA._buffer };
-			vkCmdBindVertexBuffers(cmd, 0, pass.type == MeshpassType::DirectionalShadow ? 1 : 2, buffs, offset);
+		auto& pass = passes[i];
+		if (!sorted[i]) {
+			out[pIdx++] = i;
+			passes[i].depthLevel = -1;
 		}
+	}
 
-		vkCmdBindIndexBuffer(cmd, get_render_scene()->mergedIndexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+	assert(!has_duplicates(out, numPasses));
+	return numPasses;
+}
 
-		stats.objects += static_cast<uint32_t>(pass.flat_batches.size());
-		for (int i = 0; i < pass.multibatches.size(); i++)
+// try to "shrink" split barriers (more passes between w/r)
+std::tuple<int, int> RenderPassGraph::optimize(OrderList& out)
+{
+	// generate all valid shuffles?
+
+	auto random_shuffle = [&]()
+	{
+		for (RPGIdx i = numPasses - 1; i > 0; --i) {
+			auto ii = std::rand() % (i + 1);
+			auto o1 = out[i];
+			auto o2 = out[ii];
+			auto& p1 = passes[o1];
+			auto& p2 = passes[o2];
+			bool ignore1 = (!p1.numReads && !p1.numWrites);
+			bool ignore2 = (!p2.numReads && !p2.numWrites);
+			if (p1.depthLevel == p2.depthLevel && !ignore1 && !ignore2)
+				std::swap(out[i], out[ii]);
+		}
+	};
+	auto random_shuffle2 = [&]()
+	{
+		for (RPGIdx i = 0; i < numPasses - 1; ++i) {
+			auto o1 = out[i];
+			auto o2 = out[i + 1];
+			auto& p1 = passes[o1];
+			auto& p2 = passes[o2];
+			bool ignore1 = (!p1.numReads && !p1.numWrites);
+			bool ignore2 = (!p2.numReads && !p2.numWrites);
+			if (p1.depthLevel == p2.depthLevel && !ignore1 && !ignore2 && (std::rand() < RAND_MAX/2)) {
+				std::swap(out[i], out[i + 1]);
+			}
+		}
+	};
+
+	auto baseCost = calc_cost_alias(out);
+
+	OrderList maxOrder;
+	int maxCost = 0;
+	for (int i = 0; i < numPasses*10; ++i)
+	{
+		int cost = calc_cost_alias(out);
+		if (cost >= maxCost) {
+			maxCost = cost;
+			maxOrder = out;
+		}
+		random_shuffle2();
+		//auto res = sort_dependences<true>(out);
+		//assert(res);
+	}
+	if (maxCost > 0)
+		out = maxOrder;
+
+	assert(!has_duplicates(out, numPasses));
+	return std::make_tuple(baseCost, maxCost);
+}
+
+int RenderPassGraph::calc_cost_wr(OrderList& order)
+{
+	int cost = 0;
+	for (int i = 0; i < numPasses; ++i)
+	{
+		auto pIdx = order[i];
+		auto& pass = passes[pIdx];
+		bool ignore = (!pass.numReads && !pass.numWrites);
+		if (ignore)
+			continue;
+
+		for (int8_t w = 0; w < pass.numWrites; ++w)
 		{
-			auto& multibatch = pass.multibatches[i];
-			auto& instanceDraw = pass.batches[multibatch.first];
-
-			VkPipeline newPipeline = instanceDraw.material.shaderPass->pipeline;
-			VkPipelineLayout newLayout = instanceDraw.material.shaderPass->layout;
-			VkDescriptorSet newMaterialSet = instanceDraw.material.materialSet;
-
-			Mesh* drawMesh = get_render_scene()->get_mesh(instanceDraw.meshID)->original;
-
-			if (newPipeline != lastPipeline)
-			{
-				lastPipeline = newPipeline;
-				vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, newPipeline);
-				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, newLayout, 1, 1, &ObjectDataSet, 0, nullptr);
-
-				//update dynamic binds
-				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, newLayout, 0, 1, &GlobalSet, dynamic_offsets.size(), dynamic_offsets.data());
+			auto idx = pass.writes[w];
+			auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
+			assert(!nextWrites || ALLOW_MULTIPLE_RESOURCE_WRITERS);
+			if (nextReads) {
+				cost += ii - i;
 			}
-			if (newMaterialSet != lastMaterialSet)
-			{
-				lastMaterialSet = newMaterialSet;
-				vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, newLayout, 2, 1, &newMaterialSet, 0, nullptr);
-			}
+		}
+	}
+	return cost;
+}
 
-			bool merged = get_render_scene()->get_mesh(instanceDraw.meshID)->isMerged;
-			if (merged)
-			{
-				if (lastMesh != nullptr)
-				{
-					assert(0);
-					VkDeviceSize offset = 0;
-					//vkCmdBindVertexBuffers(cmd, 0, 1, &get_render_scene()->mergedVertexBuffer._buffer, &offset);
+int RenderPassGraph::calc_cost_alias(OrderList& order)
+{
+	int cost = 0;
 
-					vkCmdBindIndexBuffer(cmd, get_render_scene()->mergedIndexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
-					lastMesh = nullptr;
+	OrderList iOrder;
+	for (int i = 0; i < numPasses; ++i) 
+		iOrder[order[i]] = i;
+
+	for (RPGIdx i = 0; i < numResources; ++i)
+	{
+		for(RPGIdx j = 0; j < numResources; ++j)
+		{
+			if (j >= i)
+				continue;
+			auto idx1 = resources[i];
+			auto idx2 = resources[j];
+			auto& v1 = gViews[idx1];
+			auto& v2 = gViews[idx2];
+
+			auto get_span = [&iOrder](const PoolView& v) -> std::tuple<RPGIdx, RPGIdx>
+			{
+				if (!v.readPasses || v.writePass==RPGIdxNone)
+					return std::make_tuple(0, 0);
+
+				RPGIdx w = iOrder[v.writePass];
+				RPGIdx r = 0;
+				for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
+					if (v.readPasses & (uint64_t(1) << pIdx)) {
+						auto o = iOrder[pIdx];
+						r = std::max(r, o);
+					}
+				}
+				return std::make_tuple(w, r);
+			};
+
+			auto [w1, r1] = get_span(v1);
+			auto [w2, r2] = get_span(v2);
+			assert(r1 >= w1);
+			assert(r2 >= w2);
+			auto intersect = std::abs((w1 + r1) - (w2 + r2)) - (r1-w1 + r2-w2);
+ 			cost += intersect;
+		}
+	}
+
+	return cost;
+}
+
+void RenderPassGraph::alias_resources(OrderList& order)
+{
+	OrderList iOrder, destOrder, aliasOrder;
+
+	for (RPGIdx i = 0; i < numPasses; ++i)
+		iOrder[order[i]] = i;
+
+	// find all resources lifetimes
+	struct ResSpan
+	{
+		RPGIdx s = 0, e = 0;
+	};
+	std::array<ResSpan, MAX_RESOURCES> spans;
+	for (RPGIdx r = 0; r < numResources; ++r)
+	{
+		auto& v = gViews[resources[r]];
+		v.aliasOrigin = RPGIdxNone;
+		if (v.readPasses && v.writePass != RPGIdxNone)
+		{
+			spans[r].s = iOrder[v.writePass];
+			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
+				if (v.readPasses & (uint64_t(1) << pIdx)) {
+					auto o = iOrder[pIdx];
+					spans[r].e = std::max(spans[r].e, o);
 				}
 			}
-			else if (lastMesh != drawMesh)
+			assert(spans[r].e >= spans[r].s);
+		}
+	}
+
+	for (RPGIdx i = 0; i < numResources; ++i) {
+		destOrder[i] = i;
+		aliasOrder[i] = i;
+	}
+
+	// sort dest rest by first write
+	std::sort(&destOrder[0], &destOrder[numResources],
+		[&iOrder, this](RPGIdx idx1, RPGIdx idx2)
+		{
+			auto& v1 = gViews[resources[idx1]];
+			auto& v2 = gViews[resources[idx2]];
+			return iOrder[v1.writePass] < iOrder[v2.writePass];
+		});
+
+	// sort alias res by importance (memory?, longest w->r barrier)
+	std::sort(&aliasOrder[0], &aliasOrder[numResources],
+		[&iOrder, this](RPGIdx idx1, RPGIdx idx2)
+		{
+			auto& v1 = gViews[resources[idx1]];
+			auto& v2 = gViews[resources[idx2]];
+			return iOrder[v1.writePass] > iOrder[v2.writePass];
+		});
+
+	// do aliasing
+	for (RPGIdx a = 0; a < numResources; ++a)
+	{
+		auto idxA = aliasOrder[a];
+		if (!spans[idxA].s && !spans[idxA].e)	// "empty" res
+			continue;
+		auto rA = resources[idxA];
+		auto& vA = gViews[rA];
+		if (vA.imageView)		// dont alias physical resources
+			continue;
+
+		for (RPGIdx d = 0; d < numResources; ++d)
+		{
+			auto idxD = destOrder[d];
+			if (!spans[idxD].s && !spans[idxD].e)	// "empty" res
+				continue;
+			//assert(spans[idxA].s >= spans[idxD].s);
+			if (spans[idxA].s <= spans[idxD].s)
+				continue;
+
+			auto rD = resources[idxD];
+			auto& vD = gViews[rD];
+			if (vD.aliasOrigin != RPGIdxNone)	// already aliased?
+				continue;
+
+			// lets find end of hole
+			auto& as = spans[idxA];
+			auto idxP = idxD;
+			while (as.s > spans[idxD].s)
 			{
-				assert(0);
-				//bind the mesh vertex buffer with offset 0
-				VkDeviceSize offset = 0;
-				//vkCmdBindVertexBuffers(cmd, 0, 1, &drawMesh->_vertexBuffer._buffer, &offset);
-
-				if (drawMesh->_indexBuffer._buffer != VK_NULL_HANDLE) {
-					vkCmdBindIndexBuffer(cmd, drawMesh->_indexBuffer._buffer, 0, VK_INDEX_TYPE_UINT32);
+				auto rD = resources[idxD];
+				auto& vD = gViews[rD];
+				if (vD.nextAliasRes == RPGIdxNone) {
+					idxD = RPGIdxNone;
+					break;
 				}
-				lastMesh = drawMesh;
+				idxP = idxD;
+				idxD = vD.nextAliasRes;
 			}
 
-			bool bHasIndices = drawMesh->_indices.size() > 0;
-			if (!bHasIndices) {
-				stats.draws++;
-				stats.triangles += static_cast<int32_t>(drawMesh->_vertices_p.size() / 3) * instanceDraw.count;
-				vkCmdDraw(cmd, static_cast<uint32_t>(drawMesh->_vertices_p.size()), instanceDraw.count, 0, instanceDraw.first);
-			}
-			else {
-				stats.triangles += static_cast<int32_t>(drawMesh->_indices.size() / 3) * instanceDraw.count;
+			if (idxD != RPGIdxNone && as.e >= spans[idxD].s)
+				continue;
+			if (as.s <= spans[idxP].e)
+				continue;
 
-				vkCmdDrawIndexedIndirect(cmd, pass.drawIndirectBuffer._buffer, multibatch.first * sizeof(GPUIndirectObject), multibatch.count, sizeof(GPUIndirectObject));
-
-				stats.draws++;
-				stats.drawcalls += instanceDraw.count;
+			auto rP = resources[idxP];
+			auto& vP = gViews[rP];
+			vP.nextAliasRes = idxA;
+			vA.aliasOrigin = idxP;
+			{
+				auto rA = resources[idxA];
+				auto& vA = gViews[rA];
+				vA.nextAliasRes = idxD;
 			}
+			break;
 		}
 	}
 }
 
-void REngine::copy_render_to_swapchain(VkCommandBuffer cmd)
+
+#include "svg.h"
+using namespace svg;
+void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 {
-	if (nocopy)
+	const int maxThreads = 1;
+	const auto width = 2170;
+	const auto height = 1100;
+	const auto xo = width / 9;
+	const auto yo = height / 10;
+	const auto wo = 85 * width / 100;
+	const auto ho = 8 * height / 10;
+	const auto dpx = width / 128;
+	const auto dry = height / 128;
+	const auto wax = width / 800;
+	const auto hax = height / 128;
+	const auto hr = 2 * ho / 3;
+	const auto yr = yo + ho - hr;
+	auto hp = ho / 20;
+	Color arrowColorW(0, 255, 255, 0.9f);
+	Color arrowColorR(255, 255, 0, 0.9f);
+
+	Dimensions dimensions(width, height);
+	Document doc(fileName, Layout(dimensions, Layout::TopLeft));
+	doc << svg::Rectangle(Point(0, 0), width, height, Color::Black);
+
+	auto cost = calc_cost_wr(order);
+	char label[128]; std::sprintf(label, "Cost: %d", cost);
+	doc << Text(Point(width/2, height/32), label, Color::White, Font(18, "Verdana"));
+
+	// sort res by first write
+	OrderList resOrder, iOrder;
+	for (RPGHandle i = 0; i < numPasses; ++i) iOrder[order[i]] = i;
+	for (RPGHandle i = 0; i < numResources; ++i) resOrder[i] = i;
+	std::sort(&resOrder[0], &resOrder[numResources],
+		[&iOrder,this](RPGIdx idx1, RPGIdx idx2)
+		{
+			auto& v1 = gViews[resources[idx1]];
+			auto& v2 = gViews[resources[idx2]];
+			auto pidx1 = v1.writePass;
+			auto pidx2 = v2.writePass;
+			return iOrder[pidx1] < iOrder[pidx2];
+		});
+	for (RPGHandle i = 0; i < numResources; ++i) iOrder[resOrder[i]] = i;
+
+	doc << svg::Rectangle(Point(xo, yo + hp/2), wo, height/512, Color::White);
+	doc << (svg::Polygon(Color::White, Stroke(1, arrowColorR)) << Point(xo + wo, yo + hp/2) << Point(xo + wo-wax, yo + hp / 2 - hax) << Point(xo + wo-wax, yo + hp / 2+hax));
+
+	for (int i = 0; i < numPasses; ++i)
+	{
+		auto pIdx = order[i];
+		auto& pass = passes[pIdx];
+
+		// draw pass
+		Color passColor = Color::Green;
+		if (!pass.numWrites)
+			passColor = Color::Grey;//.alpha = 0.5f;
+		if (pass.depthLevel % 2) {
+			passColor.red /= 2; passColor.green /= 2; passColor.blue /= 2;
+		}
+		auto wp = (wo - dpx * (numPasses - 1)) / numPasses;
+		auto xp = xo + (wp + dpx) * i;
+		auto yp = yo;
+		doc << svg::Rectangle(Point(xp, yp), wp, hp, passColor);
+		char label[128]; std::sprintf(label, "%d %s", pass.depthLevel, pass.name);
+		doc << Text(Point(xp+wp/3, yp + hp / 2), label, Color::White, Font(14, "Verdana"));
+
+		// draw resources
+		for (int8_t w = 0; w < pass.numWrites; ++w)
+		{
+			auto idx = pass.writes[w];
+			auto wV = resources[idx];
+			auto& view = gViews[wV];
+			auto hw = (hr - dry * (numResources-1)) / numResources;
+			auto yw = yr + hr * iOrder[view.aliasOrigin == RPGIdxNone ? idx : view.aliasOrigin] / numResources;
+
+			auto xw = xo;
+			auto ww = wo;
+			//doc << svg::Rectangle(Point(xw, yw), ww, hw, Color::Grey);
+			auto ii = i;
+			while (1)
+			{
+				auto [iii, nextReads, nextWrites] = find_next_resource_pass(idx, ii, order);
+				assert(!nextWrites || ALLOW_MULTIPLE_RESOURCE_WRITERS);
+				if (!nextReads)
+					break;
+				xw = xp;
+				ww = (wp + dpx) * (iii - i + 1);
+				ii = iii;
+			}
+
+
+			Color resColor = ii != i ? Color::Blue : Color::Grey;
+			resColor.alpha = 0.8f;
+			if (view.aliasOrigin != RPGIdxNone) {
+				resColor.alpha = 0.3f;//resColor.red / 2; resColor.green
+				resColor.green = 128;
+			}
+
+			doc << svg::Rectangle(Point(xw, yw), ww, hw, resColor);
+			char label[128]; std::sprintf(label, "%s-%d", view.rgView.name, wV);
+			doc << Text(Point(xw+ww/2, yw + hw *8/10), label, Color::Silver, Font(12, "Verdana"));
+		}
+	}
+
+	// draw arrows
+	for (int i = 0; i < numPasses; ++i)
+	{
+		auto pIdx = order[i];
+		auto& pass = passes[pIdx];
+
+		auto wp = (wo - dpx * (numPasses - 1)) / numPasses;
+		auto xp = xo + (wp + dpx) * i;
+		auto yp = yo;
+		for (int8_t w = 0; w < pass.numWrites; ++w) 
+		{
+			auto idx = pass.writes[w];
+			auto wV = resources[idx];
+			auto& view = gViews[wV];
+			auto yw = yp + hp;
+			auto hw = yr + hr * iOrder[view.aliasOrigin == RPGIdxNone ? idx : view.aliasOrigin] / numResources - yw;
+			auto xw = xp + wp - 1*wax -  wp*w / pass.numWrites / 2;
+			doc << svg::Rectangle(Point(xw, yw), wax, hw-hax, arrowColorW);
+			doc << (svg::Polygon(arrowColorW, Stroke(1, arrowColorW)) << Point(xw+wax/2, yw+hw) << Point(xw-wax, yw+hw-hax) << Point(xw+2*wax, yw+hw-hax));
+		}
+		for (int8_t r = 0; r < pass.numReads; ++r) 
+		{
+			auto idx = pass.reads[r];
+			auto rV = resources[idx];
+			auto& view = gViews[rV];
+			auto yw = yp + hp;
+			auto hw = yr + hr * iOrder[view.aliasOrigin == RPGIdxNone ? idx : view.aliasOrigin] / numResources - yw;
+			auto xw = xp + 1 * wax + wp * r / pass.numReads / 2;
+			doc << svg::Rectangle(Point(xw, yw + hax), wax, hw - hax, arrowColorR);
+			doc << (svg::Polygon(arrowColorR, Stroke(1, arrowColorR)) << Point(xw + wax / 2, yw) << Point(xw - wax, yw + hax) << Point(xw + 2 * wax, yw + hax));
+		}
+	}
+	//doc << Circle(Point(80, 80), 20, Fill(Color(100, 200, 120)), Stroke(1, Color(200, 250, 150)));
+	doc.save();
+}
+
+// generate random render graph and test it
+bool RenderPassGraph::test()
+{
+	const RPGHandle numViews = 25;
+	const char* passesNames[] = { "a","b","c","d","e","f", "g", "j", "i", "k", "l", "m", "n", "o" , "p", "r", "q", "s", "t" };//, "y", "v", "w", "z" };
+	const uint8_t maxPassReads = 4;
+	const uint8_t maxPassWrites = 4;
+	int numTries = 100;
+
+	std::srand(time(0));
+
+	RenderPassGraph g(engine);
+	auto desc = RPGTexture::Desc();
+	auto tex = g.create_texture("TestTexture", desc);
+
+	// create passes
+	RPGIdx numPasses = sizeof(passesNames) / sizeof(const char*);
+	for (RPGIdx i = 0; i < numPasses; ++i)
+	{
+		auto p = g.add_pass(passesNames[i], RGPASS_FLAG_GRAPHICS, [=](RenderPassGraph& g) {});
+	}
+
+	// multiple writers to one resource?
+	// each view gets one pass writer(producer)
+	for (RPGHandle i = 0; i < numViews; ++i)
+	{
+		auto desc = RPGView::Desc(i);
+		auto v = g.create_view(tex, desc);
+		gViews[v].readPasses = 0;
+		gViews[v].writePass = RPGIdxNone;
+		for (int t = 0; t < maxPassWrites; ++t)
+		{
+			RPGHandle pw = std::rand() % numPasses + 0;
+			auto& pass = g.passes[pw];
+			//assert(std::find(&pass.writes[0], &pass.writes[pass.numWrites], v) == &pass.writes[pass.numWrites]);
+			if (pass.numWrites < maxPassWrites
+				//&& std::find(&pass.writes[0], &pass.writes[pass.numWrites], v) == &pass.writes[pass.numWrites]
+				//&& std::find(&pass.reads[0], &pass.reads[pass.numReads], v) == &pass.reads[pass.numReads]
+				) 
+			{
+				//!(views[v].writePasses & (uint64_t(1) << pw))) {
+				g.pass_write(pw, v);
+				if (!ALLOW_MULTIPLE_RESOURCE_WRITERS)
+					break;
+			}
+		}
+	}
+
+	assert(g.validate());
+
+	// cpu w/r?
+	// several queues?
+	// each view(resource) is read by several passes //(except last one)
+	std::unordered_map<RPGHandle, RPGIdx> iOrder;
+	for (RPGHandle i = 0; i < g.numResources; ++i) iOrder[g.resources[i]] = i;
+	for (RPGHandle i = 0; i < numViews-1; ++i)
+	{
+		auto desc = RPGView::Desc(i);
+		auto v = g.create_view(tex, desc);
+		auto idx = iOrder[v];
+
+		uint8_t numR = std::rand() % maxPassReads;
+		for (uint8_t r = 0; r <= numR; ++r)
+		{
+			for (int t = 0; t < numTries; ++t) 
+			{
+				RPGHandle pr = std::rand() % (numPasses - 1) + 1;  // first pass is graph enter
+				auto& pass = g.passes[pr];
+				if (pass.numReads < maxPassReads 
+					&& std::find(&pass.reads[0], &pass.reads[pass.numReads], idx) == &pass.reads[pass.numReads]
+					&& std::find(&pass.writes[0], &pass.writes[pass.numWrites], idx) == &pass.writes[pass.numWrites]
+					)
+				{
+					auto restorePass = pass;
+					auto restoreView = gViews[v];
+					//assert(g.validate());
+					auto idx = g.pass_read(pr, v);
+					auto valid = g.validate();
+
+					// rewind (maybe dangerous!)
+					if (!valid)
+					{
+						pass = restorePass;
+						gViews[v] = restoreView;
+						assert(g.numResources > 0);
+						if (idx == g.numResources - 1) {
+							std::remove(&g.resources[0], &g.resources[g.numResources], v);
+							g.numResources--;
+						}
+						if (t == numTries - 1) {
+							//assert(0);
+						}
+						assert(g.validate());
+						continue;
+					}
+					break;
+				}
+			}
+		}
+	}
+	assert(g.validate());
+
+	// relax graph (remove some dependecies)
+	for (int t = 0; t < numViews/2; ++t)
+	{
+		auto idx = std::rand() % g.numResources;
+		auto v = g.resources[idx];
+		for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
+			if (gViews[v].readPasses & (uint64_t(1) << pIdx))
+			{
+				auto newMask = gViews[v].readPasses & (~(uint64_t(1) << pIdx));
+				if (newMask) {
+					gViews[v].readPasses = newMask;
+					assert(g.passes[pIdx].numReads > 0);
+					std::remove(&g.passes[pIdx].reads[0], &g.passes[pIdx].reads[g.passes[pIdx].numReads], idx);
+					g.passes[pIdx].numReads--;
+				}
+			}
+		}
+	}
+	assert(g.validate());
+
+	static bool firstTime = true;
+
+	// todo: cull passes
+	OrderList order;
+	g.sort_dependences(order);
+	assert(g.validate());
+	if (firstTime) {
+		g.export_svg("dep.svg", order);
+	}
+
+	auto [baseCost, optCost] = g.optimize(order);
+	assert(g.validate());
+	if (firstTime) {
+		g.export_svg("opt.svg", order);
+	}
+
+	g.alias_resources(order);
+	assert(g.validate());
+	if (firstTime) {
+		g.export_svg("alas.svg", order);
+	}
+
+
+	//LOG_INFO("rdp");
+	//for (RPGIdx i = 0; i < numPasses; ++i)
+	//{
+	//	auto pIdx = order[i];
+	//	auto& pass = g.passes[pIdx];
+	//	LOG_LINE(pass.name);
+	//}
+	//LOG_LINE(" {}->{} ", baseCost, optCost);
+
+	firstTime = false;
+
+	auto res = g.validate();
+	assert(res);
+	return res;
+}
+
+bool RenderPassGraph::validate()
+{
+	OrderList order;
+	auto res = sort_dependences(order) > 0;
+	if (!res)
+		return false;
+	
+	for (int i = 0; i < numPasses; ++i)
+	{
+		auto pIdx = order[i];
+		auto& pass = passes[pIdx];
+		for (int8_t r = 0; r < pass.numReads; ++r)
+		{
+			auto idx = pass.reads[r];
+			auto rV = resources[idx];
+
+			// nobody writes this res?
+			if (gViews[rV].writePass == RPGIdxNone)
+				return false;
+				
+			auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
+			// read before write?
+			if (nextWrites && !ALLOW_MULTIPLE_RESOURCE_WRITERS)
+				return false;
+
+			// read and write the same resource in one pass?
+			for (int8_t w = 0; w < pass.numWrites; ++w)
+			{
+				auto wV = pass.writes[w];
+				if (wV == idx)
+					return false;
+			}
+		}
+	}
+
+	return true;
+}
+
+
+
+void RenderPassGraph::check_physical_texture(RPGHandle h, RPGPass& pass)
+{
+	auto& tex = gTextures[h];
+	if (tex.image)
 		return;
 
-	//start the main renderpass. 
-	//We will use the clear color from above, and the framebuffer of the index the swapchain gave us
-	VkRenderPassBeginInfo copyRP = vkinit::renderpass_begin_info(_copyPass, _windowExtent, get_current_frame()._framebuffer);
+	// cache textures (per frame?)
+	VkExtent3D extent = { (uint32_t)tex.rgTex.desc.w, (uint32_t)tex.rgTex.desc.h, (uint32_t)tex.rgTex.desc.d };
+	VkImageCreateInfo info = vkinit::image_create_info(tex.rgTex.desc.format,
+		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,		//???
+		extent);
+	info.mipLevels = tex.rgTex.desc.levels;
 
-	vkCmdBeginRenderPass(cmd, &copyRP, VK_SUBPASS_CONTENTS_INLINE);
+	VmaAllocationCreateInfo allocInfo = {};
+	allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	allocInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	VkViewport viewport;
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = (float)_windowExtent.width;
-	viewport.height = (float)_windowExtent.height;
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	//std::swap(viewport.width, viewport.height);
+	AllocatedImage newImage;
+	VK_CHECK(vmaCreateImage(engine->_allocator, &info, &allocInfo, &newImage._image, &newImage._allocation, nullptr));
 
-	VkRect2D scissor;
-	scissor.offset = { 0, 0 };
-	scissor.extent = _windowExtent;
+	bool compute = (pass.flags & RGPASS_FLAG_COMPUTE);
+	assert(compute);
+	if (compute) 
+ 	{
+		VkImageMemoryBarrier initB = vkinit::image_barrier(newImage._image,
+			0, VK_ACCESS_SHADER_WRITE_BIT,
+			VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
+			VK_IMAGE_ASPECT_COLOR_BIT);
+		vkCmdPipelineBarrier(engine->get_current_frame()._mainCommandBuffer,
+			VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &initB);
+	}
 
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
-	vkCmdSetDepthBias(cmd, 0, 0, 0);
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _blitPipeline);
+	auto allocator = engine->_allocator;
+	auto alloc = newImage._allocation;
+	engine->_surfaceDeletionQueue.push_function([=]() {
+		gTextures[h].image = 0;
+		vmaDestroyImage(allocator, newImage._image, alloc);
+		});
 
-	VkDescriptorImageInfo sourceImage;
-	sourceImage.sampler = _smoothSampler;
-
-	sourceImage.imageView = get_current_frame()._rawRenderImage._defaultView;
-	sourceImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-	VkDescriptorSet blitSet;
-	vkutil::DescriptorBuilder::begin(_descriptorLayoutCache, get_current_frame().dynamicDescriptorAllocator)
-		.bind_image(0, &sourceImage, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-		.build(blitSet);
-
-	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _blitLayout, 0, 1, &blitSet, 0, nullptr);
-
-	vkCmdDraw(cmd, 3, 1, 0, 0);
-
-	vkCmdEndRenderPass(cmd);
+	assert(newImage._image);
+	tex.image = newImage._image;
 }
+
+
+void RenderPassGraph::check_physical_view(RPGHandle h)
+{
+	auto& view = gViews[h];
+	auto& tex = gTextures[view.rgView.texHandle];
+	assert(tex.image);
+
+	if (!view.imageView && tex.rgTex.desc.format != VK_FORMAT_UNDEFINED)
+	{
+		VkImageViewCreateInfo viewInfo = vkinit::imageview_create_info(tex.rgTex.desc.format, tex.image,
+			VK_IMAGE_ASPECT_COLOR_BIT); //??
+		viewInfo.subresourceRange.levelCount = view.rgView.desc.level == -1 ? tex.rgTex.desc.levels : 1;
+		viewInfo.subresourceRange.baseMipLevel = view.rgView.desc.level == -1 ? 0 : view.rgView.desc.level;
+		VkImageView newView;
+		VK_CHECK(vkCreateImageView(engine->_device, &viewInfo, nullptr, &newView));
+
+		auto device = engine->_device;
+		engine->_surfaceDeletionQueue.push_function([=]() {
+			gViews[h].imageView = 0;
+			vkDestroyImageView(device, newView, nullptr);
+			});
+
+		assert(newView);
+		view.imageView = newView;
+	}
+}
+
+
+

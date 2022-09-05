@@ -34,6 +34,7 @@
 #include "prefab_asset.h"
 #include "material_asset.h"
 #include "frame_data.h"
+#include "render_graph.h"
 
 constexpr bool bUseValidationLayers = true;
 
@@ -352,8 +353,8 @@ void REngine::init(bool debug)
 	_camera.position = { 0.f, 5.f, 1.f };
 
 	_mainLight.lightPosition = { 0,50,0 };
-	_mainLight.lightDirection = glm::vec3(0.3, -1, 0.3);
-	_mainLight.shadowExtent = { 700 ,700 ,700 };
+	_mainLight.lightDirection = glm::normalize(glm::vec3(1.73, -1, 0.3));
+	_mainLight.shadowExtent = { 700 , 700 , 700 };
 
 	_profiler = new vkutil::VulkanProfiler();
 	_profiler->init(_device, _gpuProperties.limits.timestampPeriod);
@@ -805,9 +806,7 @@ void REngine::init_pipelines()
 	//a single blend attachment with no blending and writing to RGBA
 	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
 
-
-	//default depthtesting
-	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_GREATER_OR_EQUAL);
+	//pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
 	//build blit pipeline
 	pipelineBuilder.setShaders(blitEffect);
@@ -981,31 +980,6 @@ std::string REngine::shader_path(std::string_view path)
 	return "shaders/" + std::string(path);
 }
 
-
-uint32_t previousPow2(uint32_t v)
-{
-	uint32_t r = 1;
-
-	while (r * 2 < v)
-		r *= 2;
-
-	return r;
-}
-
-uint32_t getImageMipLevels(uint32_t width, uint32_t height)
-{
-	uint32_t result = 1;
-
-	while (width > 1 || height > 1)
-	{
-		result++;
-		width /= 2;
-		height /= 2;
-	}
-
-	return result;
-}
-
 glm::mat4 DirectionalLight::get_projection()
 {
 	glm::mat4 projection = glm::orthoLH_ZO(-shadowExtent.x, shadowExtent.x, -shadowExtent.y, shadowExtent.y, -shadowExtent.z, shadowExtent.z);
@@ -1034,52 +1008,7 @@ VkResult REngine::get_surface_info(VkSurfaceCapabilitiesKHR& capabilities)
 	return res;
 }
 
-int REngine::create_depth_pyramid(int width, int height)
-{
-	int idx = 0;
 
-	// Note: previousPow2 makes sure all reductions are at most by 2x2 which makes sure they are conservative
-	_depthPyramid[idx].width = previousPow2(width);
-	_depthPyramid[idx].height = previousPow2(height);
-	_depthPyramid[idx].levels = getImageMipLevels(_depthPyramid[0].width, _depthPyramid[0].height);
-
-
-	//the depth image will be a image with the format we selected and Depth Attachment usage flag
-	VkExtent3D pyramidExtent = { static_cast<uint32_t>(_depthPyramid[idx].width), static_cast<uint32_t>(_depthPyramid[idx].height), 1 };
-	VkImageCreateInfo pyramidInfo = vkinit::image_create_info(VK_FORMAT_R32_SFLOAT,
-		VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, pyramidExtent);
-
-	pyramidInfo.mipLevels = _depthPyramid[idx].levels;
-
-	VK_CHECK(vmaCreateImage(_allocator, &pyramidInfo, &dimg_allocinfo, &frame._depthPyramid._image, &frame._depthPyramid._allocation, nullptr));
-	VkImageViewCreateInfo priview_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
-	priview_info.subresourceRange.levelCount = _depthPyramid[idx].levels;
-	VK_CHECK(vkCreateImageView(_device, &priview_info, nullptr, &frame._depthPyramid._defaultView));
-	{
-		auto dp = frame._depthPyramid;
-		_surfaceDeletionQueue.push_function([=]() {
-			vkDestroyImageView(_device, dp._defaultView, nullptr);
-			vmaDestroyImage(_allocator, dp._image, dp._allocation);
-			});
-	}
-	for (int32_t i = 0; i < _depthPyramid[idx].levels; ++i)
-	{
-		VkImageViewCreateInfo level_info = vkinit::imageview_create_info(VK_FORMAT_R32_SFLOAT, frame._depthPyramid._image, VK_IMAGE_ASPECT_COLOR_BIT);
-		level_info.subresourceRange.levelCount = 1;
-		level_info.subresourceRange.baseMipLevel = i;
-
-		VkImageView pyramid;
-		vkCreateImageView(_device, &level_info, nullptr, &pyramid);
-		_surfaceDeletionQueue.push_function([=]() {
-			vkDestroyImageView(_device, pyramid, nullptr);
-			});
-
-		frame.depthPyramidMips[i] = pyramid;
-		assert(frame.depthPyramidMips[i]);
-	}
-
-	return idx;
-}
 
 void REngine::init_swapchain()
 {
@@ -1104,8 +1033,7 @@ void REngine::init_swapchain()
 	format.format = VK_FORMAT_R8G8B8A8_SRGB;
 	format.colorSpace = VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT;	//VK_COLOR_SPACE_SRGB_NONLINEAR_KHR
 
-	vkb::destroy_swapchain(_swapchain);
-
+	
 	auto swap_ret = swapchainBuilder
 		//.use_default_format_selection()
 		.set_in_capabilities(&capabilities)
@@ -1223,11 +1151,7 @@ void REngine::init_swapchain()
 					});
 			}
 		}
-
-		auto idx = create_depth_pyramid(_windowExtent.width, _windowExtent.height);
-
-
-
+				
 	}
 
 }
@@ -1442,6 +1366,8 @@ bool REngine::handle_surface_changes(bool force_update)
 		vkDeviceWaitIdle(_device);
 		_surfaceDeletionQueue.flush();
 
+		vkb::destroy_swapchain(_swapchain);
+
 		vkDestroySurfaceKHR(_instance.instance, _surface, nullptr);
 		auto res = create_surface(_instance.instance, &_surface);
 		assert(res);
@@ -1459,10 +1385,14 @@ bool REngine::handle_surface_changes(bool force_update)
 
 AutoCVar_Int CVAR_OcclusionCullGPU("culling.enableOcclusionGPU", "Perform occlusion culling in gpu", 1, CVarFlags::EditCheckbox);
 
+void reduce_depth(RenderPassGraph& graph, VkCommandBuffer cmd, RPGHandle inDepthTex, VkExtent2D ext, RPGName outRes);
 
 void REngine::draw()
 {
 	ZoneScopedN("Engine Draw");
+
+	RenderPassGraph graph(this);
+
 
 	stats.drawcalls = 0;
 	stats.draws = 0;
@@ -1569,22 +1499,25 @@ void REngine::draw()
 	_profiler->grab_queries(cmd);
 
 	{
-		postCullBarriers.clear();
-		cullReadyBarriers.clear();
-
 		//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "gpu frame");
 		ZoneScopedNC("Render Frame", tracy::Color::White);
-
 		vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu frame");
 
 		{
 			vkutil::VulkanScopeTimer timer(cmd, _profiler, "gpu ready");
 
+			postCullBarriers.clear();
+			cullReadyBarriers.clear();
+
 			ready_mesh_draw(cmd);
+
 			ready_cull_data(_renderScene._forwardPass, cmd);
 			ready_cull_data(_renderScene._transparentForwardPass, cmd);
 			ready_cull_data(_renderScene._shadowPass, cmd);
-			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, cullReadyBarriers.size(), cullReadyBarriers.data(), 0, nullptr);
+
+			vkCmdPipelineBarrier(cmd,
+				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+				0, 0, nullptr, cullReadyBarriers.size(), cullReadyBarriers.data(), 0, nullptr);
 		}
 
 		{
@@ -1594,7 +1527,7 @@ void REngine::draw()
 			forwardCull.projmat = _camera.get_projection_matrix(this, true);
 			forwardCull.viewmat = _camera.get_view_matrix(this);
 			forwardCull.frustrumCull = true;
-			forwardCull.occlusionCull = CVAR_OcclusionCullGPU.Get();
+			forwardCull.occlusionCull = CVAR_OcclusionCullGPU.Get() ? RES_DEPTH_PYRAMID : 0;
 			forwardCull.drawDist = CVAR_DrawDistance.Get();
 			forwardCull.aabb = false;
 			execute_compute_cull(cmd, _renderScene._forwardPass, forwardCull);
@@ -1612,9 +1545,9 @@ void REngine::draw()
 				shadowCull.projmat = _mainLight.get_projection();
 				shadowCull.viewmat = _mainLight.get_view();
 				shadowCull.frustrumCull = true;
-				shadowCull.occlusionCull = false;
-				shadowCull.drawDist = 9999999;
-				shadowCull.aabb = true;
+				shadowCull.occlusionCull = 0;// CVAR_OcclusionCullGPU.Get() ? RES_DEPTH_PYRAMID_SHADOW : 0;
+				shadowCull.drawDist = 9999999;		//?
+				shadowCull.aabb = CVAR_OcclusionCullGPU.Get() ? true : true;
 
 				glm::vec3 aabbcenter = _mainLight.lightPosition;
 				glm::vec3 aabbextent = _mainLight.shadowExtent * 1.5f;
@@ -1623,15 +1556,45 @@ void REngine::draw()
 				execute_compute_cull(cmd, _renderScene._shadowPass, shadowCull);
 			}
 		}
+		vkCmdPipelineBarrier(cmd, 
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+			0, 0, nullptr, postCullBarriers.size(), postCullBarriers.data(), 0, nullptr);
 
-		vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT, 0, 0, nullptr, postCullBarriers.size(), postCullBarriers.data(), 0, nullptr);
 
-		shadow_pass(cmd);
-		forward_pass(clearValue, cmd);
-		reduce_depth(cmd);
+		shadow_pass(graph, cmd);
+
+		// shadow map pyramid
+		if (0)
+		{
+			auto depthTex = graph.create_texture(RES_SHADOW_MAP, get_current_frame()._shadowImage._image);
+			reduce_depth(graph, cmd, depthTex, _shadowExtent, RES_DEPTH_PYRAMID_SHADOW);
+		}
+
+
+		forward_pass(graph, clearValue, cmd);
+
+		// forward depth pyramid
+		{
+			auto depthTex = graph.create_texture(RES_DEPTH, get_current_frame()._depthImage._image);
+			reduce_depth(graph, cmd, depthTex, _windowExtent, RES_DEPTH_PYRAMID);
+
+			graph.execute();
+
+			//// next pass with depth write will be forward pass
+			//VkImageMemoryBarrier depthWriteBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
+			//	VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+			//	VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+			//	VK_IMAGE_ASPECT_DEPTH_BIT);
+			//vkCmdPipelineBarrier(cmd,
+			//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT
+			//	, 0, 0, 0, 0, 1, &depthWriteBarrier);
+
+		}
 
 		copy_render_to_swapchain(cmd);
 	}
+
+
 
 	//TracyVkCollect(_graphicsQueueContext, get_current_frame()._mainCommandBuffer);
 
@@ -1704,12 +1667,10 @@ void REngine::unmap_buffer(AllocatedBufferUntyped& buffer)
 #include <future>
 void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 {
-
 	//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Data Refresh");
 	ZoneScopedNC("Draw Upload", tracy::Color::Blue);
 
-	//upload object data to gpu
-
+	// upload object data to gpu
 	if (_renderScene.dirtyObjects.size() > 0)
 	{
 		ZoneScopedNC("Refresh Object Buffer", tracy::Color::Red);
@@ -1743,7 +1704,7 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 		}
 		else
 		{
-			//update only the changed elements
+			// update only the changed elements
 
 			std::vector<VkBufferCopy> copies;
 			copies.reserve(_renderScene.dirtyObjects.size());
@@ -1787,7 +1748,7 @@ void REngine::ready_mesh_draw(VkCommandBuffer cmd)
 
 			VkDescriptorBufferInfo indexData = targetBuffer.get_info();
 			VkDescriptorBufferInfo sourceData = newBuffer.get_info();
-			VkDescriptorBufferInfo targetInfo = _renderScene.objectDataBuffer.get_info();
+			VkDescriptorBufferInfo targetInfo = _renderScene.objectDataBuffer.get_info();	//!!!
 
 			VkDescriptorSet COMPObjectDataSet;
 			vkutil::DescriptorBuilder::begin(_descriptorLayoutCache, get_current_frame().dynamicDescriptorAllocator)

@@ -39,10 +39,6 @@ struct FrameData
 	VkCommandBuffer _mainCommandBuffer;
 
 	vkutil::PushBuffer dynamicData;
-	//AllocatedBufferUntyped dynamicDataBuffer;
-
-	//AllocatedBufferUntyped debugOutputBuffer;
-
 	vkutil::DescriptorAllocator* dynamicDescriptorAllocator;
 
 	std::vector<uint32_t> debugDataOffsets;
@@ -58,6 +54,6 @@ struct FrameData
 	VkFramebuffer _forwardFramebuffer;
 	VkFramebuffer _shadowFramebuffer;
 
-	AllocatedImage _depthPyramid;
-	VkImageView depthPyramidMips[16] = {};
+	//AllocatedImage _depthPyramid;
+	//VkImageView depthPyramidMips[16] = {};
 };

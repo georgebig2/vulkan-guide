@@ -305,7 +305,7 @@ void vkutil::MaterialSystem::fill_builders()
 		shadowBuilder.vertexDescription = get_vertex_description(CRenderPass::SHADOW);
 		shadowBuilder._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 		shadowBuilder._rasterizer = vkinit::rasterization_state_create_info(VK_POLYGON_MODE_FILL);
-		shadowBuilder._rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT;
+		shadowBuilder._rasterizer.cullMode = VK_CULL_MODE_FRONT_BIT; //VK_CULL_MODE_NONE
 		shadowBuilder._rasterizer.depthBiasEnable = VK_TRUE;
 		shadowBuilder._multisampling = vkinit::multisampling_state_create_info();
 		shadowBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();

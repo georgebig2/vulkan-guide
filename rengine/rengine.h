@@ -5,13 +5,12 @@
 #include <deque>
 #include <string_view>
 //#include <unordered_map>
-
 #include "common.h"
 #include <player_camera.h>
 #include "vk_types.h"
 #include "frame_data.h"
 
-
+#include "render_graph.h"
 
 //forward declarations
 namespace vkutil {
@@ -24,7 +23,7 @@ namespace vkutil {
 struct CullParams {
     glm::mat4 viewmat;
     glm::mat4 projmat;
-    bool occlusionCull;
+    RPGName occlusionCull = 0;
     bool frustrumCull;
     float drawDist;
     bool aabb;
@@ -160,8 +159,6 @@ public:
 
     void init_swapchain();
 
-    int create_depth_pyramid(int width, int height);
-
     void draw();
     void hud_update();
 
@@ -184,7 +181,7 @@ public:
     PlayerCamera _camera;
 
 	VkDevice _device;
-	VmaAllocator _allocator; //vma lib allocator
+	VmaAllocator _allocator;
 
     vkb::Instance _instance;
     VkPhysicalDevice _chosenGPU;
@@ -206,17 +203,8 @@ public:
 
 
     VkSampler _smoothSampler;
-    //VkSampler _smoothSampler2;
     VkSampler _shadowSampler;
     VkSampler _depthSampler;
-
-    struct DepthPyramid
-    {
-        int width = 0;
-        int height = 0;
-        int levels = 0;
-    };
-    DepthPyramid _depthPyramid[2];
 
     void init_commands();
     void init_sync_structures();
@@ -242,8 +230,6 @@ public:
 
     EngineStats stats;
     bool recreate_imgui = false;
-
-    //ShaderCache _shaderCache;
 
     VkRenderPass _renderPass;
     VkRenderPass _shadowPass;
@@ -272,9 +258,9 @@ public:
     T* map_buffer(AllocatedBuffer<T>& buffer);
     void unmap_buffer(AllocatedBufferUntyped& buffer);
     void copy_render_to_swapchain(VkCommandBuffer cmd);
-    void shadow_pass(VkCommandBuffer cmd);
-    void reduce_depth(VkCommandBuffer cmd);
-    void forward_pass(VkClearValue clearValue, VkCommandBuffer cmd);
+    void shadow_pass(RenderPassGraph& graph, VkCommandBuffer cmd);
+    //void reduce_depth(VkCommandBuffer cmd);
+    void forward_pass(RenderPassGraph& graph, VkClearValue clearValue, VkCommandBuffer cmd);
     void init_descriptors();
     size_t pad_uniform_buffer_size(size_t originalSize);
     void init_scene();
@@ -287,7 +273,6 @@ public:
     VkPipelineLayout _blitLayout;
     VkPipeline _depthReducePipeline;
     VkPipelineLayout _depthReduceLayout;
-    //VkDescriptorSetLayout _singleTextureSetLayout;
 
     DirectionalLight _mainLight;
     GPUSceneData _sceneParameters;
