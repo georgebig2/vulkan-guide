@@ -176,6 +176,8 @@ private:
 	std::tuple<int, int, char*> allocate_memory(size_t);
 	bool rollback_memory(int page, int pagePos);
 
+	void hud();
+
 	int firstMemPage = -1;
 	int firstMemPagePos = 0;
 

@@ -278,7 +278,7 @@ void RenderPassGraph::execute()
 	auto& cmd = engine->get_current_frame()._mainCommandBuffer;
 	vkutil::VulkanScopeTimer timer(cmd, engine->_profiler, "RG execute");
 
-	assert(test());
+	//assert(test());
 	//add_pass(PASS_EPILOGUE, RGPASS_FLAG_GRAPHICS, [=](RenderPassGraph& g){});
 
 	// todo: cull passes
@@ -310,8 +310,8 @@ void RenderPassGraph::execute()
 			auto idx = pass.writes[w];
 			auto wV = resources[idx];
 			auto& wView = gViews[wV];
-			//assert(wView.nextAliasRes == RPGIdxNone);		// not ready yet
-			//if (wView.nextAliasRes == RPGIdxNone)
+			assert(wView.aliasOrigin == RPGIdxNone);		// not ready yet
+			if (wView.aliasOrigin == RPGIdxNone)
 			{
 				auto wT = wView.rgView.texHandle;
 				check_physical_texture(wT, pass);
@@ -394,7 +394,31 @@ void RenderPassGraph::execute()
 		}
 
 	}
+
+	hud();
 }
+
+
+void RenderPassGraph::hud()
+{
+	//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+	//ImVec2 windowSize = main_viewport->Size;
+	////std::swap(windowSize.x, windowSize.y);
+	//ImVec2 windowPos = { 0, windowSize.y / 2 };
+	//windowSize.y /= 2.4f;
+	//ImGui::SetNextWindowPos(windowPos, ImGuiCond_FirstUseEver);
+	//ImGui::SetNextWindowSize(windowSize, ImGuiCond_FirstUseEver);
+	//ImGui::SetNextWindowBgAlpha(0.4f);
+
+	//static bool opened = true;
+	//if (ImGui::Begin("History graph show", &opened, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)) {
+
+	//	if (ImGui::Button(paused ? "resume" : "pause")) {
+	//		paused = !paused;
+	//	}
+	//}
+}
+
 
 bool has_duplicates(const OrderList& order, int len)
 {
@@ -621,29 +645,9 @@ int RenderPassGraph::calc_cost_alias(OrderList& order)
 		{
 			if (j >= i)
 				continue;
-			//auto idx1 = resources[i];
-			//auto idx2 = resources[j];
-			//auto& v1 = gViews[idx1];
-			//auto& v2 = gViews[idx2];
 
-			//auto get_span = [&iOrder](const PoolView& v) -> std::tuple<RPGIdx, RPGIdx>
-			//{
-			//	if (!v.readPasses || v.writePass==RPGIdxNone)
-			//		return std::make_tuple(0, 0);
-
-			//	RPGIdx w = iOrder[v.writePass];
-			//	RPGIdx r = 0;
-			//	for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
-			//		if (v.readPasses & (uint64_t(1) << pIdx)) {
-			//			auto o = iOrder[pIdx];
-			//			r = std::max(r, o);
-			//		}
-			//	}
-			//	return std::make_tuple(w, r);
-			//};
-
-			auto [w1, r1] = std::make_tuple(spans[i].s, spans[i].e);// get_span(v1);
-			auto [w2, r2] = std::make_tuple(spans[j].s, spans[j].e);// get_span(v2);
+			auto [w1, r1] = std::make_tuple(spans[i].s, spans[i].e);
+			auto [w2, r2] = std::make_tuple(spans[j].s, spans[j].e);
 			assert(r1 >= w1);
 			assert(r2 >= w2);
 			auto intersect = std::abs((w1 + r1) - (w2 + r2)) - (r1-w1 + r2-w2);
@@ -755,11 +759,18 @@ void RenderPassGraph::alias_resources(OrderList& order)
 
 			auto rP = resources[idxP];
 			auto& vP = gViews[rP];
+			auto rA = resources[idxA];
+			auto& vA = gViews[rA];
+
+			// check physical merge
+			{
+
+				continue;
+			}
+
 			vP.nextAliasRes = idxA;
 			vA.aliasOrigin = idxP;
 			{
-				auto rA = resources[idxA];
-				auto& vA = gViews[rA];
 				vA.nextAliasRes = idxD;
 			}
 			break;
