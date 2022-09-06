@@ -63,6 +63,23 @@ constexpr int MAX_PASSES = 32;
 constexpr int MAX_RESOURCES = 64;
 typedef std::array<RPGIdx, MAX_PASSES> OrderList;
 
+class RenderPassGraph;
+
+struct BaseLambda
+{
+	virtual void execute(RenderPassGraph&) {}
+};
+template <typename F>
+struct Lambda : public BaseLambda
+{
+	Lambda(const F&& f) : func(std::move(f)) {}
+	F func;
+	void execute(RenderPassGraph& g) override
+	{
+		func(g);
+	}
+};
+
 class RPGPass
 {
 	friend class RenderPassGraph;
@@ -93,9 +110,8 @@ private:
 
 	std::array<RPGIdx, 8> writes = {};
 	std::array<RPGIdx, 8> reads = {};
-	//RPGIdx nextAliasRes = RPGIdxNone;
 
-	std::function<void(RenderPassGraph&)> func; // todo: remove heap!!!	//use stack allocator
+	BaseLambda* func = nullptr;
 	RPGName name;
 };
 
@@ -104,6 +120,7 @@ class RenderPassGraph
 {
 public:
 	RenderPassGraph(REngine* e);
+	~RenderPassGraph();
 
 	RPGHandle create_texture(RPGName name, const RPGTexture::Desc& desc); 	//ERDGTextureFlags Flags
 	RPGHandle create_texture(RPGName name, VkImage image);
@@ -115,11 +132,17 @@ public:
 	VkImageView get_image_view(RPGHandle handle) const;
 
 	template <typename F>
-	RPGHandle add_pass(RPGName name, RPGPassFlags flags, F&& func)
+	RPGHandle add_pass(RPGName name, RPGPassFlags flags, F&& lambda)
 	{
-		static_assert(sizeof(F) < 300, "DONT CAPTURE TOO MUCH IN THE LAMBDA");
+		static_assert(sizeof(F) < 512, "DONT CAPTURE TOO MUCH IN THE LAMBDA");
+		auto [page, pos, mem] = allocate_memory(sizeof(Lambda<F>));
+		if (firstMemPage == -1) {
+			firstMemPage = page;
+			firstMemPagePos = pos;
+		}
+		BaseLambda* f = new (mem) Lambda<F>(std::move(lambda));
 		RPGPass pass(name, flags);
-		pass.func = func;				// todo: remove heap!!!
+		pass.func = f;
 		passes[numPasses++] = pass;
 		return numPasses - 1;
 	}
@@ -149,6 +172,12 @@ private:
 
 	bool test();
 	void export_svg(const char* fileName, OrderList& order);
+
+	std::tuple<int, int, char*> allocate_memory(size_t);
+	bool rollback_memory(int page, int pagePos);
+
+	int firstMemPage = -1;
+	int firstMemPagePos = 0;
 
 	RPGIdx numPasses = 0;
 	std::array<RPGPass, MAX_PASSES>	passes;

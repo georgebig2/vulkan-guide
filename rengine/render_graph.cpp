@@ -11,6 +11,60 @@
 
 
 constexpr bool ALLOW_MULTIPLE_RESOURCE_WRITERS = false;
+constexpr int MEM_PAGE_SIZE = 1024*16;
+
+
+struct MemStackPage
+{
+	int curPos = 0;
+	std::array<char, MEM_PAGE_SIZE> data;
+};
+struct MemStackPool
+{
+	MemStackPool()
+	{
+		pages.resize(1);
+	}
+
+	std::tuple<int,int,char*> allocate(size_t size)
+	{
+		assert(size <= MEM_PAGE_SIZE);
+
+		auto& p = pages[curPage];
+		if (p.curPos + size > p.data.size())
+		{
+			pages.resize(++curPage + 1);
+			p = pages[curPage];
+		}
+		p.curPos += size;
+		return std::make_tuple(curPage, p.curPos-size, &p.data[p.curPos - size]);
+	}
+
+	bool rollback_memory(int page, int pagePos)
+	{
+		curPage = page;
+		pages[curPage].curPos = pagePos;
+		return true;
+	}
+
+	int curPage = 0;
+	std::vector<MemStackPage> pages;
+} memStackPool;
+
+std::tuple<int, int, char*> RenderPassGraph::allocate_memory(size_t size)
+{
+	return memStackPool.allocate(size);
+}
+
+bool RenderPassGraph::rollback_memory(int page, int pagePos)
+{
+	return memStackPool.rollback_memory(page, pagePos);
+}
+
+RenderPassGraph::~RenderPassGraph()
+{
+	rollback_memory(firstMemPage, firstMemPagePos);
+}
 
 struct PoolViewKey {
 	int resource;
@@ -265,7 +319,7 @@ void RenderPassGraph::execute()
 			}
 		}
 
-		pass.func(*this);
+		pass.func->execute(*this);
 
 		// lets find what will be next with our write res
 		for (int8_t w = 0; w < pass.numWrites; ++w)
