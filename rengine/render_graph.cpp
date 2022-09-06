@@ -592,35 +592,58 @@ int RenderPassGraph::calc_cost_alias(OrderList& order)
 	for (int i = 0; i < numPasses; ++i) 
 		iOrder[order[i]] = i;
 
+	// find all resources lifetimes
+	struct ResSpan
+	{
+		RPGIdx s = 0, e = 0;
+	};
+	std::array<ResSpan, MAX_RESOURCES> spans;
+	for (RPGIdx r = 0; r < numResources; ++r)
+	{
+		auto& v = gViews[resources[r]];
+		v.aliasOrigin = RPGIdxNone;
+		if (v.readPasses && v.writePass != RPGIdxNone)
+		{
+			spans[r].s = iOrder[v.writePass];
+			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
+				if (v.readPasses & (uint64_t(1) << pIdx)) {
+					auto o = iOrder[pIdx];
+					spans[r].e = std::max(spans[r].e, o);
+				}
+			}
+			assert(spans[r].e >= spans[r].s);
+		}
+	}
+
 	for (RPGIdx i = 0; i < numResources; ++i)
 	{
 		for(RPGIdx j = 0; j < numResources; ++j)
 		{
 			if (j >= i)
 				continue;
-			auto idx1 = resources[i];
-			auto idx2 = resources[j];
-			auto& v1 = gViews[idx1];
-			auto& v2 = gViews[idx2];
+			//auto idx1 = resources[i];
+			//auto idx2 = resources[j];
+			//auto& v1 = gViews[idx1];
+			//auto& v2 = gViews[idx2];
 
-			auto get_span = [&iOrder](const PoolView& v) -> std::tuple<RPGIdx, RPGIdx>
-			{
-				if (!v.readPasses || v.writePass==RPGIdxNone)
-					return std::make_tuple(0, 0);
+			//auto get_span = [&iOrder](const PoolView& v) -> std::tuple<RPGIdx, RPGIdx>
+			//{
+			//	if (!v.readPasses || v.writePass==RPGIdxNone)
+			//		return std::make_tuple(0, 0);
 
-				RPGIdx w = iOrder[v.writePass];
-				RPGIdx r = 0;
-				for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
-					if (v.readPasses & (uint64_t(1) << pIdx)) {
-						auto o = iOrder[pIdx];
-						r = std::max(r, o);
-					}
-				}
-				return std::make_tuple(w, r);
-			};
+			//	RPGIdx w = iOrder[v.writePass];
+			//	RPGIdx r = 0;
+			//	for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
+			//		if (v.readPasses & (uint64_t(1) << pIdx)) {
+			//			auto o = iOrder[pIdx];
+			//			r = std::max(r, o);
+			//		}
+			//	}
+			//	return std::make_tuple(w, r);
+			//};
 
-			auto [w1, r1] = get_span(v1);
-			auto [w2, r2] = get_span(v2);
+			auto [w1, r1] = std::make_tuple(spans[i].s, spans[i].e);// get_span(v1);
+			auto [w2, r2] = std::make_tuple(spans[j].s, spans[j].e);// get_span(v2);
 			assert(r1 >= w1);
 			assert(r2 >= w2);
 			auto intersect = std::abs((w1 + r1) - (w2 + r2)) - (r1-w1 + r2-w2);
@@ -648,6 +671,7 @@ void RenderPassGraph::alias_resources(OrderList& order)
 	{
 		auto& v = gViews[resources[r]];
 		v.aliasOrigin = RPGIdxNone;
+		v.nextAliasRes = RPGIdxNone;
 		if (v.readPasses && v.writePass != RPGIdxNone)
 		{
 			spans[r].s = iOrder[v.writePass];
@@ -893,7 +917,7 @@ bool RenderPassGraph::test()
 	const uint8_t maxPassWrites = 4;
 	int numTries = 100;
 
-	std::srand(time(0));
+	//std::srand(time(0));
 
 	RenderPassGraph g(engine);
 	auto desc = RPGTexture::Desc();
