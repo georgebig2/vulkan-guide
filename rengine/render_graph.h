@@ -148,7 +148,7 @@ public:
 	}
 
 	RPGIdx pass_write(RPGHandle& pass, RPGHandle& view);
-	RPGIdx pass_read(RPGHandle& pass, RPGHandle& view);
+	bool pass_read(RPGHandle& pass, RPGHandle& view);
 
 	void execute();
 
@@ -159,9 +159,14 @@ private:
 	RPGIdx sort_dependences(OrderList& order);
 
 	std::tuple<int, int> optimize(OrderList& order);
-	void alias_resources(OrderList& order);
-	int  calc_cost_wr(OrderList& order);
-	int  calc_cost_alias(OrderList& order);
+	void alias_resources(const OrderList& order);
+	int  calc_cost_wr(const OrderList& order);
+	int  calc_cost_alias(const OrderList& order);
+
+	struct ResSpan {
+		RPGIdx s = RPGIdxNone, e = 0;
+	};
+	void calc_res_spans(const OrderList& iOrder, std::array<ResSpan, MAX_RESOURCES>& spans);
 
 	std::tuple<RPGIdx, bool, bool> find_next_resource_pass(RPGIdx res, RPGIdx curPassIdx, const OrderList& order);
 

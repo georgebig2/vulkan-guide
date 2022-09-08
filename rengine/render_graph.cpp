@@ -10,7 +10,7 @@
 #include <random>
 
 
-constexpr bool ALLOW_MULTIPLE_RESOURCE_WRITERS = false;
+constexpr bool ALLOW_MULTIPLE_RESOURCE_WRITERS = true;
 constexpr int MEM_PAGE_SIZE = 1024*16;
 
 
@@ -95,8 +95,12 @@ struct PoolTexture
 struct PoolView
 {
 	RPGView rgView;
-	RPGIdx writePass = RPGIdxNone;
+	//RPGIdx writePass = RPGIdxNone;
+	uint64_t writePasses = 0;
 	uint64_t readPasses = 0;
+
+	int8_t inDegrees = 0;
+
 	VkImageView imageView = 0;
 	RPGIdx nextAliasRes = RPGIdxNone;
 	RPGIdx aliasOrigin = RPGIdxNone;
@@ -217,17 +221,20 @@ RPGIdx RenderPassGraph::pass_write(RPGHandle& pass, RPGHandle& view)
 
 	passes[pass].write(idx);
 	auto& v = gViews[view];
-	//assert(pass >= 0 && pass < 64);
-	assert(v.writePass == RPGIdxNone || v.writePass == pass);
-	v.writePass = pass;
+	assert(pass >= 0 && pass < 64);
+	v.writePasses |= uint64_t(1) << pass;
+	//assert(v.writePass == RPGIdxNone || v.writePass == pass);
+	//v.writePass = pass;
 	return idx;
 
 }
-RPGIdx RenderPassGraph::pass_read(RPGHandle& pass, RPGHandle& view)
+bool RenderPassGraph::pass_read(RPGHandle& pass, RPGHandle& view)
 {
+	bool added = false;
 	RPGIdx idx = std::find(&resources[0], &resources[numResources], view) - &resources[0];		// todo: O(1)
 	if (idx == numResources) {
 		resources[numResources++] = view;
+		added = true;
 	}
 
 	passes[pass].read(idx);
@@ -236,7 +243,7 @@ RPGIdx RenderPassGraph::pass_read(RPGHandle& pass, RPGHandle& view)
 	//auto& tex = textures[t];
 	assert(pass >= 0 && pass < 64);
 	v.readPasses |= uint64_t(1) << pass;
-	return idx;
+	return added;
 
 }
 
@@ -278,16 +285,17 @@ void RenderPassGraph::execute()
 	auto& cmd = engine->get_current_frame()._mainCommandBuffer;
 	vkutil::VulkanScopeTimer timer(cmd, engine->_profiler, "RG execute");
 
-	//assert(test());
+	assert(test());
 	//add_pass(PASS_EPILOGUE, RGPASS_FLAG_GRAPHICS, [=](RenderPassGraph& g){});
 
 	// todo: cull passes
+	// todo: merge passes
 
 	OrderList order;
 	auto newNumPasses = sort_dependences(order);
 	assert(newNumPasses == numPasses);
 	optimize(order);
-	alias_resources(order);
+	//alias_resources(order);
 	assert(validate());
 
 	// resource transition between passes
@@ -395,6 +403,11 @@ void RenderPassGraph::execute()
 
 	}
 
+	static bool firstTime = true;
+	if (firstTime) {
+		export_svg("runtime.svg", order);
+		firstTime = false;
+	}
 	hud();
 }
 
@@ -460,6 +473,16 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 	if (!backIdx)
 		return 0;
 
+	for (int r = 0; r < numResources; ++r) {
+		auto viewHandle = resources[r];
+		auto& v = gViews[viewHandle];
+		v.inDegrees = 0;
+		for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
+			if (v.writePasses & (uint64_t(1) << pIdx))
+				v.inDegrees++;
+	}
+
+
 	OrderList order;
 	RPGIdx frontIdx = 0;
 	RPGIdx orderIdx = 0;
@@ -479,18 +502,18 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 			auto idx = pass.writes[w];
 			auto viewHandle = resources[idx];
 			auto& v = gViews[viewHandle];
-
-			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
-			{
-				if (v.readPasses & (uint64_t(1) << pIdx))
+			//assert(v.inDegrees > 0);
+			if (v.inDegrees > 0 && !--v.inDegrees) {
+				for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
 				{
-					auto& neighbour = passes[pIdx];
-					assert(neighbour.inDegrees > 0 || ALLOW_MULTIPLE_RESOURCE_WRITERS);
-					if (ALLOW_MULTIPLE_RESOURCE_WRITERS && !neighbour.inDegrees)
-						continue;
-					if (!--neighbour.inDegrees) {
-						zerosQ[backIdx++] = pIdx;
-						neighbour.depthLevel = pass.depthLevel + 1;
+					if (v.readPasses & (uint64_t(1) << pIdx))
+					{
+						auto& neighbour = passes[pIdx];
+						assert(neighbour.inDegrees > 0);
+						if (!--neighbour.inDegrees) {
+							zerosQ[backIdx++] = pIdx;
+							neighbour.depthLevel = pass.depthLevel + 1;
+						}
 					}
 				}
 			}
@@ -520,7 +543,7 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 		auto& pass = passes[i];
 		if (!sorted[i]) {
 			out[pIdx++] = i;
-			passes[i].depthLevel = -1;
+			passes[i].depthLevel = RPGIdxNone;
 		}
 	}
 
@@ -584,7 +607,7 @@ std::tuple<int, int> RenderPassGraph::optimize(OrderList& out)
 	return std::make_tuple(baseCost, maxCost);
 }
 
-int RenderPassGraph::calc_cost_wr(OrderList& order)
+int RenderPassGraph::calc_cost_wr(const OrderList& order)
 {
 	int cost = 0;
 	for (int i = 0; i < numPasses; ++i)
@@ -599,7 +622,7 @@ int RenderPassGraph::calc_cost_wr(OrderList& order)
 		{
 			auto idx = pass.writes[w];
 			auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
-			assert(!nextWrites || ALLOW_MULTIPLE_RESOURCE_WRITERS);
+			//assert(!nextWrites);
 			if (nextReads) {
 				cost += ii - i;
 			}
@@ -608,27 +631,22 @@ int RenderPassGraph::calc_cost_wr(OrderList& order)
 	return cost;
 }
 
-int RenderPassGraph::calc_cost_alias(OrderList& order)
+
+// find all resources lifetimes
+void RenderPassGraph::calc_res_spans(const OrderList& iOrder, std::array<ResSpan, MAX_RESOURCES>& spans)
 {
-	int cost = 0;
-
-	OrderList iOrder;
-	for (int i = 0; i < numPasses; ++i) 
-		iOrder[order[i]] = i;
-
-	// find all resources lifetimes
-	struct ResSpan
-	{
-		RPGIdx s = 0, e = 0;
-	};
-	std::array<ResSpan, MAX_RESOURCES> spans;
 	for (RPGIdx r = 0; r < numResources; ++r)
 	{
 		auto& v = gViews[resources[r]];
-		v.aliasOrigin = RPGIdxNone;
-		if (v.readPasses && v.writePass != RPGIdxNone)
+		if (v.readPasses && v.writePasses)
 		{
-			spans[r].s = iOrder[v.writePass];
+			//spans[r].s = iOrder[v.writePass];
+			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
+				if (v.writePasses & (uint64_t(1) << pIdx)) {
+					auto o = iOrder[pIdx];
+					spans[r].s = std::min(spans[r].s, o);
+				}
+			}
 			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
 				if (v.readPasses & (uint64_t(1) << pIdx)) {
 					auto o = iOrder[pIdx];
@@ -637,7 +655,22 @@ int RenderPassGraph::calc_cost_alias(OrderList& order)
 			}
 			assert(spans[r].e >= spans[r].s);
 		}
+		else {
+			spans[r].s = spans[r].e = 0;
+		}
 	}
+}
+
+int RenderPassGraph::calc_cost_alias(const OrderList& order)
+{
+	int cost = 0;
+
+	OrderList iOrder;
+	for (int i = 0; i < numPasses; ++i) 
+		iOrder[order[i]] = i;
+
+	std::array<ResSpan, MAX_RESOURCES> spans;
+	calc_res_spans(iOrder, spans);
 
 	for (RPGIdx i = 0; i < numResources; ++i)
 	{
@@ -658,58 +691,36 @@ int RenderPassGraph::calc_cost_alias(OrderList& order)
 	return cost;
 }
 
-void RenderPassGraph::alias_resources(OrderList& order)
+void RenderPassGraph::alias_resources(const OrderList& order)
 {
 	OrderList iOrder, destOrder, aliasOrder;
 
-	for (RPGIdx i = 0; i < numPasses; ++i)
-		iOrder[order[i]] = i;
-
-	// find all resources lifetimes
-	struct ResSpan
-	{
-		RPGIdx s = 0, e = 0;
-	};
-	std::array<ResSpan, MAX_RESOURCES> spans;
-	for (RPGIdx r = 0; r < numResources; ++r)
-	{
-		auto& v = gViews[resources[r]];
+	for (RPGIdx i = 0; i < numResources; ++i) {
+		auto& v = gViews[resources[i]];
 		v.aliasOrigin = RPGIdxNone;
 		v.nextAliasRes = RPGIdxNone;
-		if (v.readPasses && v.writePass != RPGIdxNone)
-		{
-			spans[r].s = iOrder[v.writePass];
-			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
-				if (v.readPasses & (uint64_t(1) << pIdx)) {
-					auto o = iOrder[pIdx];
-					spans[r].e = std::max(spans[r].e, o);
-				}
-			}
-			assert(spans[r].e >= spans[r].s);
-		}
-	}
-
-	for (RPGIdx i = 0; i < numResources; ++i) {
 		destOrder[i] = i;
 		aliasOrder[i] = i;
 	}
 
+	for (RPGIdx i = 0; i < numPasses; ++i) iOrder[order[i]] = i;
+	std::array<ResSpan, MAX_RESOURCES> spans;
+	calc_res_spans(iOrder, spans);
+
 	// sort dest rest by first write
 	std::sort(&destOrder[0], &destOrder[numResources],
-		[&iOrder, this](RPGIdx idx1, RPGIdx idx2)
+		[&iOrder, &spans, this](RPGIdx idx1, RPGIdx idx2)
 		{
-			auto& v1 = gViews[resources[idx1]];
-			auto& v2 = gViews[resources[idx2]];
-			return iOrder[v1.writePass] < iOrder[v2.writePass];
+			//auto& v1 = gViews[resources[idx1]];
+			//auto& v2 = gViews[resources[idx2]];
+			return iOrder[spans[idx1].s] < iOrder[spans[idx2].s];
 		});
 
 	// sort alias res by importance (memory?, longest w->r barrier)
 	std::sort(&aliasOrder[0], &aliasOrder[numResources],
-		[&iOrder, this](RPGIdx idx1, RPGIdx idx2)
+		[&iOrder, &spans, this](RPGIdx idx1, RPGIdx idx2)
 		{
-			auto& v1 = gViews[resources[idx1]];
-			auto& v2 = gViews[resources[idx2]];
-			return iOrder[v1.writePass] > iOrder[v2.writePass];
+			return iOrder[spans[idx1].s] > iOrder[spans[idx2].s];
 		});
 
 	// do aliasing
@@ -745,6 +756,7 @@ void RenderPassGraph::alias_resources(OrderList& order)
 				auto rD = resources[idxD];
 				auto& vD = gViews[rD];
 				if (vD.nextAliasRes == RPGIdxNone) {
+					idxP = idxD;
 					idxD = RPGIdxNone;
 					break;
 				}
@@ -765,7 +777,7 @@ void RenderPassGraph::alias_resources(OrderList& order)
 			// check physical merge
 			{
 
-				continue;
+				//continue;
 			}
 
 			vP.nextAliasRes = idxA;
@@ -812,14 +824,17 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 	OrderList resOrder, iOrder;
 	for (RPGHandle i = 0; i < numPasses; ++i) iOrder[order[i]] = i;
 	for (RPGHandle i = 0; i < numResources; ++i) resOrder[i] = i;
+	std::array<ResSpan, MAX_RESOURCES> spans;
+	calc_res_spans(iOrder, spans);
 	std::sort(&resOrder[0], &resOrder[numResources],
-		[&iOrder,this](RPGIdx idx1, RPGIdx idx2)
+		[&iOrder,&spans,this](RPGIdx idx1, RPGIdx idx2)
 		{
-			auto& v1 = gViews[resources[idx1]];
-			auto& v2 = gViews[resources[idx2]];
-			auto pidx1 = v1.writePass;
-			auto pidx2 = v2.writePass;
-			return iOrder[pidx1] < iOrder[pidx2];
+			//auto& v1 = gViews[resources[idx1]];
+			//auto& v2 = gViews[resources[idx2]];
+			//auto pidx1 = v1.writePass;
+			//auto pidx2 = v2.writePass;
+			return iOrder[spans[idx1].s] < iOrder[spans[idx2].s];
+			//return iOrder[pidx1] < iOrder[pidx2];
 		});
 	for (RPGHandle i = 0; i < numResources; ++i) iOrder[resOrder[i]] = i;
 
@@ -846,41 +861,73 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 		doc << Text(Point(xp+wp/3, yp + hp / 2), label, Color::White, Font(14, "Verdana"));
 
 		// draw resources
-		for (int8_t w = 0; w < pass.numWrites; ++w)
-		{
-			auto idx = pass.writes[w];
-			auto wV = resources[idx];
-			auto& view = gViews[wV];
-			auto hw = (hr - dry * (numResources-1)) / numResources;
-			auto yw = yr + hr * iOrder[view.aliasOrigin == RPGIdxNone ? idx : view.aliasOrigin] / numResources;
+		//for (int8_t w = 0; w < pass.numWrites; ++w)
+		//{
+		//	auto idx = pass.writes[w];
+		//	auto wV = resources[idx];
+		//	auto& view = gViews[wV];
+		//	auto hw = (hr - dry * (numResources-1)) / numResources;
+		//	auto yw = yr + hr * iOrder[view.aliasOrigin == RPGIdxNone ? idx : view.aliasOrigin] / numResources;
 
-			auto xw = xo;
-			auto ww = wo;
-			//doc << svg::Rectangle(Point(xw, yw), ww, hw, Color::Grey);
-			auto ii = i;
-			while (1)
-			{
-				auto [iii, nextReads, nextWrites] = find_next_resource_pass(idx, ii, order);
-				assert(!nextWrites || ALLOW_MULTIPLE_RESOURCE_WRITERS);
-				if (!nextReads)
-					break;
-				xw = xp;
-				ww = (wp + dpx) * (iii - i + 1);
-				ii = iii;
-			}
+		//	auto xw = xo;
+		//	auto ww = wo;
+		//	//doc << svg::Rectangle(Point(xw, yw), ww, hw, Color::Grey);
+		//	auto ii = i;
+		//	while (1)
+		//	{
+		//		auto [iii, nextReads, nextWrites] = find_next_resource_pass(idx, ii, order);
+		//		//assert(!nextWrites);
+		//		if (!nextReads && !nextWrites)
+		//			break;
+		//		xw = xp;
+		//		ww = (wp + dpx) * (iii - i + 1);
+		//		ii = iii;
+		//	}
 
 
-			Color resColor = ii != i ? Color::Blue : Color::Grey;
-			resColor.alpha = 0.8f;
-			if (view.aliasOrigin != RPGIdxNone) {
-				resColor.alpha = 0.3f;//resColor.red / 2; resColor.green
-				resColor.green = 128;
-			}
+		//	Color resColor = ii != i ? Color::Blue : Color::Grey;
+		//	resColor.alpha = 0.8f;
+		//	if (view.aliasOrigin != RPGIdxNone) {
+		//		resColor.alpha = 0.3f;//resColor.red / 2; resColor.green
+		//		resColor.green = 128;
+		//	}
 
-			doc << svg::Rectangle(Point(xw, yw), ww, hw, resColor);
-			char label[128]; std::sprintf(label, "%s-%d", view.rgView.name, wV);
-			doc << Text(Point(xw+ww/2, yw + hw *8/10), label, Color::Silver, Font(12, "Verdana"));
+		//	doc << svg::Rectangle(Point(xw, yw), ww, hw, resColor);
+		//	char label[128]; std::sprintf(label, "%s-%d", view.rgView.name, wV);
+		//	doc << Text(Point(xw+ww/2, yw + hw *8/10), label, Color::Silver, Font(12, "Verdana"));
+		//}
+	}
+
+	// draw resources
+	for (RPGIdx a = 0; a < numResources; ++a)
+	{
+		auto idx = resOrder[a];
+		//if (!spans[idxA].s && !spans[idxA].e)	// "empty" res
+		//	continue;
+		auto wV = resources[idx];
+		auto& view = gViews[wV];
+
+		auto hw = (hr - dry * (numResources-1)) / numResources;
+		auto yw = yr + hr * iOrder[view.aliasOrigin == RPGIdxNone ? idx : view.aliasOrigin] / numResources;
+
+		auto wp = (wo - dpx * (numPasses - 1)) / numPasses;
+		auto xp = xo + (wp + dpx) * spans[idx].s;
+		auto xp2 = xo + (wp + dpx) * (spans[idx].e + 1);
+		auto ww = xp2 - xp;
+		if (!view.readPasses) {
+			ww = wo;
 		}
+
+		Color resColor = view.readPasses ? Color::Blue : Color::Grey;
+		resColor.alpha = 0.8f;
+		if (view.aliasOrigin != RPGIdxNone) {
+			resColor.alpha = 0.3f;
+			resColor.green = 128;
+		}
+
+		doc << svg::Rectangle(Point(xp, yw), ww, hw, resColor);
+		char label[128]; std::sprintf(label, "%s-%d", view.rgView.name, wV);
+		doc << Text(Point(xp+ww/2, yw + hw *8/10), label, Color::Silver, Font(12, "Verdana"));
 	}
 
 	// draw arrows
@@ -948,7 +995,7 @@ bool RenderPassGraph::test()
 		auto desc = RPGView::Desc(i);
 		auto v = g.create_view(tex, desc);
 		gViews[v].readPasses = 0;
-		gViews[v].writePass = RPGIdxNone;
+		gViews[v].writePasses = 0;
 		for (int t = 0; t < maxPassWrites; ++t)
 		{
 			RPGHandle pw = std::rand() % numPasses + 0;
@@ -959,8 +1006,8 @@ bool RenderPassGraph::test()
 				//&& std::find(&pass.reads[0], &pass.reads[pass.numReads], v) == &pass.reads[pass.numReads]
 				) 
 			{
-				//!(views[v].writePasses & (uint64_t(1) << pw))) {
-				g.pass_write(pw, v);
+				if (!(gViews[v].writePasses & (uint64_t(1) << pw)))
+					g.pass_write(pw, v);
 				if (!ALLOW_MULTIPLE_RESOURCE_WRITERS)
 					break;
 			}
@@ -995,7 +1042,7 @@ bool RenderPassGraph::test()
 					auto restorePass = pass;
 					auto restoreView = gViews[v];
 					//assert(g.validate());
-					auto idx = g.pass_read(pr, v);
+					auto added = g.pass_read(pr, v);
 					auto valid = g.validate();
 
 					// rewind (maybe dangerous!)
@@ -1004,7 +1051,7 @@ bool RenderPassGraph::test()
 						pass = restorePass;
 						gViews[v] = restoreView;
 						assert(g.numResources > 0);
-						if (idx == g.numResources - 1) {
+						if (added) {
 							std::remove(&g.resources[0], &g.resources[g.numResources], v);
 							g.numResources--;
 						}
@@ -1097,12 +1144,12 @@ bool RenderPassGraph::validate()
 			auto rV = resources[idx];
 
 			// nobody writes this res?
-			if (gViews[rV].writePass == RPGIdxNone)
+			if (!gViews[rV].writePasses)
 				return false;
 				
 			auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
 			// read before write?
-			if (nextWrites && !ALLOW_MULTIPLE_RESOURCE_WRITERS)
+			if (nextWrites)
 				return false;
 
 			// read and write the same resource in one pass?
