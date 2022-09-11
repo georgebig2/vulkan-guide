@@ -425,21 +425,12 @@ void REngine::forward_pass(RenderPassGraph& graph, VkClearValue clearValue, VkCo
 				draw_objects_forward(cmd, get_render_scene()->_forwardPass);
 				draw_objects_forward(cmd, get_render_scene()->_transparentForwardPass);
 			}
-			{
-				//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Imgui Draw");
-				ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
-			}
+			//{
+			//	//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Imgui Draw");
+			//	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+			//}
 			//finalize the render pass
 			vkCmdEndRenderPass(cmd);
-
-			//// do it early in the end of prev (forward) pass
-			//VkImageMemoryBarrier depthReadBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
-			//	VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT,
-			//	VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			//	VK_IMAGE_ASPECT_DEPTH_BIT);
-			//vkCmdPipelineBarrier(cmd,
-			//	VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-			//	VK_DEPENDENCY_BY_REGION_BIT, 0, 0, 0, 0, 1, &depthReadBarrier);
 
 		});
 	graph.pass_write(pass, depthView);
@@ -827,6 +818,7 @@ void REngine::copy_render_to_swapchain(VkCommandBuffer cmd)
 
 	vkCmdBeginRenderPass(cmd, &copyRP, VK_SUBPASS_CONTENTS_INLINE);
 
+
 	VkViewport viewport;
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
@@ -859,6 +851,13 @@ void REngine::copy_render_to_swapchain(VkCommandBuffer cmd)
 	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _blitLayout, 0, 1, &blitSet, 0, nullptr);
 
 	vkCmdDraw(cmd, 3, 1, 0, 0);
+
+
+	{
+		//TracyVkZone(_graphicsQueueContext, get_current_frame()._mainCommandBuffer, "Imgui Draw");
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+	}
+
 
 	vkCmdEndRenderPass(cmd);
 }

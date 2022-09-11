@@ -25,7 +25,7 @@ struct DeletionQueue
 
 namespace vkutil
 {
-	struct DescriptorAllocator;
+	class DescriptorAllocator;
 }
 
 struct FrameData

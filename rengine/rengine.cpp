@@ -908,7 +908,7 @@ void REngine::init_imgui()
 	init_info.MinImageCount = _frames.size();
 	init_info.ImageCount = _frames.size();
 
-	ImGui_ImplVulkan_Init(&init_info, _renderPass);
+	ImGui_ImplVulkan_Init(&init_info, _copyPass);
 
 	//execute a gpu command to upload imgui font textures
 	immediate_submit([&](VkCommandBuffer cmd) {
@@ -1578,18 +1578,9 @@ void REngine::draw()
 			auto depthTex = graph.create_texture(RES_DEPTH, get_current_frame()._depthImage._image);
 			reduce_depth(graph, cmd, depthTex, _windowExtent, RES_DEPTH_PYRAMID);
 
-			graph.execute();
-
-			//// next pass with depth write will be forward pass
-			//VkImageMemoryBarrier depthWriteBarrier = vkinit::image_barrier(get_current_frame()._depthImage._image,
-			//	VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-			//	VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-			//	VK_IMAGE_ASPECT_DEPTH_BIT);
-			//vkCmdPipelineBarrier(cmd,
-			//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, VK_DEPENDENCY_BY_REGION_BIT
-			//	, 0, 0, 0, 0, 1, &depthWriteBarrier);
-
 		}
+
+		graph.execute();
 
 		copy_render_to_swapchain(cmd);
 	}

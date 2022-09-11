@@ -61,7 +61,59 @@ enum RPGPassFlags
 
 constexpr int MAX_PASSES = 32;
 constexpr int MAX_RESOURCES = 64;
-typedef std::array<RPGIdx, MAX_PASSES> OrderList;
+
+template <typename T, int SIZE>
+struct FixedArray : public std::array<T, SIZE>
+{
+	T num = 0;
+	void push_back(T val)
+	{
+		if (num < SIZE)
+			(*this)[num++] = val;
+	}
+	bool is_full() const { return num >= SIZE; }
+};
+
+struct OrderList : public std::array<RPGIdx, MAX_PASSES>
+{
+	RPGIdx num = 0;
+	bool isOverflow = false;
+
+	void push_back(RPGIdx val)
+	{
+		isOverflow = num >= MAX_PASSES;
+		if (!isOverflow)
+			(*this)[num++] = val;
+	}
+};
+
+class RenderPassGraph;
+
+struct BaseLambda
+{
+	virtual void execute(RenderPassGraph&) {}
+};
+template <typename F>
+struct Lambda : public BaseLambda
+{
+	Lambda(const F&& f) : func(std::move(f)) {}
+	F func;
+	void execute(RenderPassGraph& g) override
+	{
+		func(g);
+	}
+};
+//struct GroupLambda : public BaseLambda
+//{
+//	int8_t numFuncs = 0;
+//	std::array<BaseLambda*, 16> funcs = {};
+//	void execute(RenderPassGraph& g) override
+//	{
+//		for (int8_t i = 0; i < numFuncs; ++i) {
+//			funcs[i]->execute(g);
+//		}
+//	}
+//};
 
 class RPGPass
 {
@@ -73,29 +125,29 @@ public:
 	void write(RPGIdx& res)
 	{
 		assert(res >= 0);
-		assert(std::find(&writes[0], &writes[numWrites], res) == &writes[numWrites]);
-		writes[numWrites++] = res;
+		assert(std::find(&writes[0], &writes[writes.num], res) == &writes[writes.num]);
+		writes.push_back(res);
 	}
 	void read(RPGIdx& res)
 	{
 		assert(res >= 0);
-		assert(std::find(&reads[0], &reads[numReads], res) == &reads[numReads]);
-		reads[numReads++] = res;
+		assert(std::find(&reads[0], &reads[reads.num], res) == &reads[reads.num]);
+		reads.push_back(res);
 	}
 
 private:
-	int8_t numWrites = 0;
-	int8_t numReads = 0;
+	//int8_t numWrites = 0;
+	//int8_t numReads = 0;
 	RPGPassFlags flags = {};
 
 	int8_t inDegrees = 0;
 	RPGIdx depthLevel = 0;
+	bool isMerged = false;
 
-	std::array<RPGIdx, 8> writes = {};
-	std::array<RPGIdx, 8> reads = {};
-	//RPGIdx nextAliasRes = RPGIdxNone;
+	FixedArray<RPGIdx, 8> writes = {};
+	FixedArray<RPGIdx, 8> reads = {};
 
-	std::function<void(RenderPassGraph&)> func; // todo: remove heap!!!	//use stack allocator
+	BaseLambda* func = nullptr;
 	RPGName name;
 };
 
@@ -104,6 +156,7 @@ class RenderPassGraph
 {
 public:
 	RenderPassGraph(REngine* e);
+	~RenderPassGraph();
 
 	RPGHandle create_texture(RPGName name, const RPGTexture::Desc& desc); 	//ERDGTextureFlags Flags
 	RPGHandle create_texture(RPGName name, VkImage image);
@@ -115,17 +168,23 @@ public:
 	VkImageView get_image_view(RPGHandle handle) const;
 
 	template <typename F>
-	RPGHandle add_pass(RPGName name, RPGPassFlags flags, F&& func)
+	RPGHandle add_pass(RPGName name, RPGPassFlags flags, F&& lambda)
 	{
-		static_assert(sizeof(F) < 300, "DONT CAPTURE TOO MUCH IN THE LAMBDA");
+		static_assert(sizeof(F) < 512, "DONT CAPTURE TOO MUCH IN THE LAMBDA");
+		auto [page, pos, mem] = allocate_memory(sizeof(Lambda<F>));
+		if (firstMemPage == -1) {
+			firstMemPage = page;
+			firstMemPagePos = pos;
+		}
+		BaseLambda* f = new (mem) Lambda<F>(std::move(lambda));
 		RPGPass pass(name, flags);
-		pass.func = func;				// todo: remove heap!!!
+		pass.func = f;
 		passes[numPasses++] = pass;
 		return numPasses - 1;
 	}
 
 	RPGIdx pass_write(RPGHandle& pass, RPGHandle& view);
-	RPGIdx pass_read(RPGHandle& pass, RPGHandle& view);
+	bool pass_read(RPGHandle& pass, RPGHandle& view);
 
 	void execute();
 
@@ -136,9 +195,17 @@ private:
 	RPGIdx sort_dependences(OrderList& order);
 
 	std::tuple<int, int> optimize(OrderList& order);
-	void alias_resources(OrderList& order);
-	int  calc_cost_wr(OrderList& order);
-	int  calc_cost_alias(OrderList& order);
+	void alias_resources(const OrderList& order);
+	int  calc_cost_wr(const OrderList& order);
+	int  calc_cost_alias(const OrderList& order);
+
+	void merge_passes();
+	void cull_passes(const OrderList& order);
+
+	struct ResSpan {
+		RPGIdx s = RPGIdxNone, e = 0;
+	};
+	void calc_res_spans(const OrderList& iOrder, std::array<ResSpan, MAX_RESOURCES>& spans);
 
 	std::tuple<RPGIdx, bool, bool> find_next_resource_pass(RPGIdx res, RPGIdx curPassIdx, const OrderList& order);
 
@@ -149,6 +216,14 @@ private:
 
 	bool test();
 	void export_svg(const char* fileName, OrderList& order);
+
+	std::tuple<int, size_t, char*> allocate_memory(size_t);
+	bool rollback_memory(int page, size_t pagePos);
+
+	void hud();
+
+	int firstMemPage = -1;
+	size_t firstMemPagePos = 0;
 
 	RPGIdx numPasses = 0;
 	std::array<RPGPass, MAX_PASSES>	passes;

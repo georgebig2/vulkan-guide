@@ -132,7 +132,7 @@ struct InputData
     float press = 0;
 };
 
-constexpr bool nocopy = true;
+constexpr bool nocopy = false;
 
 
 class REngine {
