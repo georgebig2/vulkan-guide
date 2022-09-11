@@ -193,6 +193,7 @@ public:
 private:
 	template <bool Random=false>
 	RPGIdx sort_dependences(OrderList& order);
+	void sort_dependences_backward(OrderList& order);
 
 	std::tuple<int, int> optimize(OrderList& order);
 	void alias_resources(const OrderList& order);

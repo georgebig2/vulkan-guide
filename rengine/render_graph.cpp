@@ -300,8 +300,9 @@ void RenderPassGraph::execute()
 	//assert(validate());
 
 	OrderList order;
-	auto newNumPasses = sort_dependences(order);
-	assert(newNumPasses == numPasses);
+	//auto newNumPasses = sort_dependences(order);
+	//assert(newNumPasses == numPasses);
+	sort_dependences_backward(order);
 	optimize(order);
 	//alias_resources(order);
 	assert(validate());
@@ -720,6 +721,105 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 
 	assert(!has_duplicates(out, numPasses));
 	return numPasses;
+}
+
+// use topological sorting for ordering passes writes/reads
+void RenderPassGraph::sort_dependences_backward(OrderList& out)
+{
+	// search exit passes
+	OrderList zerosQ;
+	RPGIdx backIdx = 0;
+	for (RPGIdx i = 0; i < numPasses; ++i)
+	{
+		auto& pass = passes[i];
+		pass.depthLevel = 0;
+		pass.inDegrees = pass.writes.num;
+		bool ignore = (!pass.reads.num && !pass.writes.num);
+		assert(!ignore);
+		if (!pass.inDegrees)// && !ignore) {
+			zerosQ[backIdx++] = i;
+		out[i] = i;
+	}
+	assert(!has_duplicates(out, numPasses));
+
+	if (!backIdx)
+		return;
+
+	for (int r = 0; r < numResources; ++r) {
+		auto viewHandle = resources[r];
+		auto& v = gViews[viewHandle];
+		v.inDegrees = 0;
+		for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
+			if (v.readPasses & (uint64_t(1) << pIdx))
+				v.inDegrees++;
+	}
+
+	OrderList order;
+	RPGIdx frontIdx = 0;
+	RPGIdx orderIdx = 0;
+	for (RPGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
+	{
+		if (frontIdx >= backIdx)
+			break;
+
+		auto zero = zerosQ[frontIdx++];
+		order[orderIdx++] = zero;
+		assert(!has_duplicates(order, orderIdx));
+
+		auto prevBack = backIdx;
+		auto& pass = passes[zero];
+		for (int8_t w = 0; w < pass.reads.num; ++w)
+		{
+			auto idx = pass.reads[w];
+			auto viewHandle = resources[idx];
+			auto& v = gViews[viewHandle];
+			//assert(v.inDegrees > 0);
+			if (v.inDegrees > 0 && !--v.inDegrees) {
+				for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
+				{
+					if (v.writePasses & (uint64_t(1) << pIdx))
+					{
+						auto& neighbour = passes[pIdx];
+						assert(neighbour.inDegrees > 0);
+						if (!--neighbour.inDegrees) {
+							zerosQ[backIdx++] = pIdx;
+							neighbour.depthLevel = pass.depthLevel + 1;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	std::reverse(&out[0], &out[orderIdx]);
+
+	OrderList sorted = { 0 };
+	RPGIdx pIdx = 0;
+	for (RPGIdx i = 0; pIdx < numPasses && i < orderIdx; ++pIdx)
+	{
+		auto& pass = passes[pIdx];
+		bool ignore = (!pass.reads.num && !pass.writes.num);
+		if (!ignore) {
+			auto nIdx = order[i++];
+			out[pIdx] = nIdx;
+			sorted[nIdx] = 1;
+		}
+		else {
+			sorted[pIdx] = 1;
+		}
+	}
+	for (RPGIdx i = 0; i < numPasses; ++i)
+	{
+		auto& pass = passes[i];
+		if (!sorted[i]) {
+			out[pIdx++] = i;
+			passes[i].depthLevel = RPGIdxNone;
+		}
+	}
+
+	cull_passes(out);
+
+	assert(!has_duplicates(out, numPasses));
 }
 
 // try to "shrink" split barriers (more passes between w/r)
@@ -1226,7 +1326,8 @@ bool RenderPassGraph::test()
 
 	// todo: cull passes
 	OrderList order;
-	g.sort_dependences(order);
+	//g.sort_dependences(order);
+	g.sort_dependences_backward(order);
 	//g.cull_passes(order);
 	assert(g.validate());
 	if (firstTime) {
