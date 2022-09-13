@@ -100,6 +100,7 @@ struct PoolView
 	uint64_t readPasses = 0;
 
 	int8_t inDegrees = 0;
+	RPGIdx depthLevel = 0;
 
 	VkImageView imageView = 0;
 	RPGIdx nextAliasRes = RPGIdxNone;
@@ -297,7 +298,7 @@ void RenderPassGraph::execute()
 	// todo: merge passes
 
 	//merge_passes();
-	//assert(validate());
+	//assert(!validate());
 
 	OrderList order;
 	//auto newNumPasses = sort_dependences(order);
@@ -305,7 +306,7 @@ void RenderPassGraph::execute()
 	sort_dependences_backward(order);
 	optimize(order);
 	//alias_resources(order);
-	assert(validate());
+	assert(!validate());
 
 	// resource transition between passes
 	// vk render passes for graphics passes
@@ -724,74 +725,84 @@ RPGIdx RenderPassGraph::sort_dependences(OrderList& out)
 }
 
 // use topological sorting for ordering passes writes/reads
-void RenderPassGraph::sort_dependences_backward(OrderList& out)
+template <bool JustValidate>
+bool RenderPassGraph::sort_dependences_backward(OrderList& out)
 {
 	// search exit passes
 	OrderList zerosQ;
 	RPGIdx backIdx = 0;
-	for (RPGIdx i = 0; i < numPasses; ++i)
+	for (int r = 0; r < numResources; ++r)
 	{
-		auto& pass = passes[i];
-		pass.depthLevel = 0;
-		pass.inDegrees = pass.writes.num;
-		bool ignore = (!pass.reads.num && !pass.writes.num);
-		assert(!ignore);
-		if (!pass.inDegrees)// && !ignore) {
-			zerosQ[backIdx++] = i;
-		out[i] = i;
-	}
-	assert(!has_duplicates(out, numPasses));
+		auto h = resources[r];
+		auto& v = gViews[h];
+		//assert(v.readPasses || v.writePasses);
 
-	if (!backIdx)
-		return;
-
-	for (int r = 0; r < numResources; ++r) {
-		auto viewHandle = resources[r];
-		auto& v = gViews[viewHandle];
 		v.inDegrees = 0;
 		for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
 			if (v.readPasses & (uint64_t(1) << pIdx))
 				v.inDegrees++;
+		
+		if (!v.inDegrees)
+			zerosQ[backIdx++] = r;
 	}
+
+	assert(backIdx);
+	if (!backIdx)
+		return false;
+	//if (JustValidate)
+	//	return true;
+
+	for (RPGIdx p = 0; p < numPasses; ++p)
+	{
+		auto& pass = passes[p];
+		pass.depthLevel = RPGIdxNone;
+		pass.inDegrees = pass.writes.num;
+		//bool ignore = (!pass.reads.num && !pass.writes.num);
+		//assert(!ignore);
+		out[p] = p;
+	}
+
 
 	OrderList order;
 	RPGIdx frontIdx = 0;
 	RPGIdx orderIdx = 0;
-	for (RPGIdx pIdx = 0; pIdx < numPasses; ++pIdx)
+	for (RPGIdx i = 0; i < numResources; ++i)
 	{
 		if (frontIdx >= backIdx)
 			break;
 
-		auto zero = zerosQ[frontIdx++];
-		order[orderIdx++] = zero;
-		assert(!has_duplicates(order, orderIdx));
-
-		auto prevBack = backIdx;
-		auto& pass = passes[zero];
-		for (int8_t w = 0; w < pass.reads.num; ++w)
+		auto res = zerosQ[frontIdx++];
+		auto h = resources[res];
+		auto& v = gViews[h];
+		for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
 		{
-			auto idx = pass.reads[w];
-			auto viewHandle = resources[idx];
-			auto& v = gViews[viewHandle];
-			//assert(v.inDegrees > 0);
-			if (v.inDegrees > 0 && !--v.inDegrees) {
-				for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx)
+			if (v.writePasses & (uint64_t(1) << pIdx))
+			{
+				auto& pass = passes[pIdx];
+				assert(pass.inDegrees > 0);
+				if (!--pass.inDegrees)
 				{
-					if (v.writePasses & (uint64_t(1) << pIdx))
+					order[orderIdx++] = pIdx;
+					assert(!has_duplicates(order, orderIdx));
+					pass.depthLevel = v.depthLevel;
+
+					for (int8_t r = 0; r < pass.reads.num; ++r)
 					{
-						auto& neighbour = passes[pIdx];
-						assert(neighbour.inDegrees > 0);
-						if (!--neighbour.inDegrees) {
-							zerosQ[backIdx++] = pIdx;
-							neighbour.depthLevel = pass.depthLevel + 1;
+						auto res2 = pass.reads[r];
+						auto h2 = resources[res2];
+						auto& v2 = gViews[h2];
+						assert(v2.inDegrees > 0);
+						if (v2.inDegrees > 0 && !--v2.inDegrees) {
+							zerosQ[backIdx++] = res2;
+							v2.depthLevel = v.depthLevel + 1;
 						}
 					}
 				}
 			}
 		}
 	}
-
-	std::reverse(&out[0], &out[orderIdx]);
+	assert(!has_duplicates(order, orderIdx));
+	std::reverse(&order[0], &order[orderIdx]);
 
 	OrderList sorted = { 0 };
 	RPGIdx pIdx = 0;
@@ -817,9 +828,11 @@ void RenderPassGraph::sort_dependences_backward(OrderList& out)
 		}
 	}
 
-	cull_passes(out);
+	if (!JustValidate)
+		cull_passes(out);
 
 	assert(!has_duplicates(out, numPasses));
+	return true;
 }
 
 // try to "shrink" split barriers (more passes between w/r)
@@ -909,21 +922,26 @@ void RenderPassGraph::calc_res_spans(const OrderList& iOrder, std::array<ResSpan
 	for (RPGIdx r = 0; r < numResources; ++r)
 	{
 		auto& v = gViews[resources[r]];
-		if (v.readPasses && v.writePasses)
+		if (v.readPasses || v.writePasses)
 		{
-			//spans[r].s = iOrder[v.writePass];
+			spans[r].s = RPGIdxNone;
+			spans[r].e = 0;
 			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
 				if (v.writePasses & (uint64_t(1) << pIdx)) {
 					auto o = iOrder[pIdx];
 					spans[r].s = std::min(spans[r].s, o);
+					spans[r].e = std::max(spans[r].e, o);
 				}
 			}
 			for (RPGIdx pIdx = 0; pIdx < 64; ++pIdx) {
 				if (v.readPasses & (uint64_t(1) << pIdx)) {
 					auto o = iOrder[pIdx];
+					spans[r].s = std::min(spans[r].s, o);
 					spans[r].e = std::max(spans[r].e, o);
 				}
 			}
+		//	if (!v.readPasses)
+			//	spans[r].e = spans[r].s;
 			assert(spans[r].e >= spans[r].s);
 		}
 		else {
@@ -1110,7 +1128,7 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 	for (RPGIdx i = 0; i < numResources; ++i) iOrder[resOrder[i]] = i;
 
 	doc << svg::Rectangle(Point(xo, yo + hp/2), wo, height/512, Color::White);
-	doc << (svg::Polygon(Color::White, Stroke(1, arrowColorR)) << Point(xo + wo, yo + hp/2) << Point(xo + wo-wax, yo + hp / 2 - hax) << Point(xo + wo-wax, yo + hp / 2+hax));
+	doc << (svg::Polygon(Color::White, Stroke(1, Color::White)) << Point(xo + wo, yo + hp/2) << Point(xo + wo-wax, yo + hp / 2 - hax) << Point(xo + wo-wax, yo + hp / 2+hax));
 
 	for (int i = 0; i < numPasses; ++i)
 	{
@@ -1148,15 +1166,15 @@ void RenderPassGraph::export_svg(const char* fileName, OrderList& order)
 		auto xp = xo + (wp + dpx) * spans[idx].s;
 		auto xp2 = xo + (wp + dpx) * (spans[idx].e + 1);
 		auto ww = xp2 - xp;
-		if (!view.readPasses) {
-			ww = wo;
-		}
-
-		Color resColor = view.readPasses ? Color::Blue : Color::Grey;
+		//if (!view.readPasses) {
+			//ww = wo;
+		//}
+		//assert(view.readPasses || view.writePasses);
+		Color resColor = view.readPasses ? Color::Blue : (view.writePasses ? Color::Purple : Color::Grey);
 		resColor.alpha = 0.8f;
 		if (view.aliasOrigin != RPGIdxNone) {
-			resColor.alpha = 0.3f;
-			resColor.green = 128;
+			resColor.alpha = 0.5f;
+			//resColor.green = 64;
 		}
 
 		doc << svg::Rectangle(Point(xp, yw), ww, hw, resColor);
@@ -1248,7 +1266,7 @@ bool RenderPassGraph::test()
 		}
 	}
 
-	assert(g.validate());
+	assert(!g.validate());
 
 	// cpu w/r?
 	// several queues?
@@ -1275,9 +1293,9 @@ bool RenderPassGraph::test()
 				{
 					auto restorePass = pass;
 					auto restoreView = gViews[v];
-					//assert(g.validate());
+					//assert(!g.validate());
 					auto added = g.pass_read(pr, v);
-					auto valid = g.validate();
+					auto valid = !g.validate();
 
 					// rewind (maybe dangerous!)
 					if (!valid)
@@ -1292,7 +1310,7 @@ bool RenderPassGraph::test()
 						if (t == numTries - 1) {
 							//assert(0);
 						}
-						assert(g.validate());
+						assert(!g.validate());
 						continue;
 					}
 					break;
@@ -1300,7 +1318,7 @@ bool RenderPassGraph::test()
 			}
 		}
 	}
-	assert(g.validate());
+	assert(!g.validate());
 
 	// relax graph (remove some dependecies)
 	for (int t = 0; t < numViews/2; ++t)
@@ -1320,7 +1338,7 @@ bool RenderPassGraph::test()
 			}
 		}
 	}
-	assert(g.validate());
+	assert(!g.validate());
 
 	static bool firstTime = true;
 
@@ -1329,14 +1347,15 @@ bool RenderPassGraph::test()
 	//g.sort_dependences(order);
 	g.sort_dependences_backward(order);
 	//g.cull_passes(order);
-	assert(g.validate());
+	auto res = g.validate();
+	assert(!res);
 	if (firstTime) {
 		g.export_svg("dep.svg", order);
 	}
 
 	//g.merge_passes();
 	//for (RPGIdx i = 0; i < g.numPasses; ++i) order[i] = i;
-	////assert(g.validate());
+	////assert(!g.validate());
 	//if (firstTime) {
 	//	g.export_svg("merge.svg", order);
 	//}
@@ -1344,19 +1363,19 @@ bool RenderPassGraph::test()
 	//g.sort_dependences(order);
 	//g.cull_passes(order);
 
-	//assert(g.validate());
+	//assert(!g.validate());
 	//if (firstTime) {
 	//	g.export_svg("merge_dep.svg", order);
 	//}
 
 	auto [baseCost, optCost] = g.optimize(order);
-	assert(g.validate());
+	assert(!g.validate());
 	if (firstTime) {
 		g.export_svg("opt.svg", order);
 	}
 
 	g.alias_resources(order);
-	assert(g.validate());
+	assert(!g.validate());
 	if (firstTime) {
 		g.export_svg("alias.svg", order);
 	}
@@ -1373,17 +1392,17 @@ bool RenderPassGraph::test()
 
 	firstTime = false;
 
-	auto res = g.validate();
-	assert(res);
-	return res;
+	res = g.validate();
+	assert(!res);
+	return !res;
 }
 
-bool RenderPassGraph::validate()
+RenderPassGraph::ValidateError RenderPassGraph::validate()
 {
 	OrderList order;
-	auto res = sort_dependences(order) > 0;
+	auto res = sort_dependences_backward<true>(order) > 0;
 	if (!res)
-		return false;
+		return ValidateDepError;
 	
 	for (int i = 0; i < numPasses; ++i)
 	{
@@ -1396,24 +1415,24 @@ bool RenderPassGraph::validate()
 
 			// nobody writes this res?
 			if (!gViews[rV].writePasses)
-				return false;
+				return ValidateNobodyWrites;
 				
 			auto [ii, nextReads, nextWrites] = find_next_resource_pass(idx, i, order);
 			// read before write?
 			if (nextWrites)
-				return false;
+				return ValidateReadBeforeWrite;
 
 			// read and write the same resource in one pass?
 			for (int8_t w = 0; w < pass.writes.num; ++w)
 			{
 				auto wV = pass.writes[w];
 				if (wV == idx)
-					return false;
+					return ValidateRWSameResource;
 			}
 		}
 	}
 
-	return true;
+	return ValidateOk;
 }
 
 

@@ -380,6 +380,9 @@ void REngine::forward_pass(RenderPassGraph& graph, VkClearValue clearValue, VkCo
 	auto depthTex = graph.create_texture(RES_DEPTH, get_current_frame()._depthImage._image);
 	//	auto desc = RPGView::Desc(-1); 	// ?
 	auto depthView = graph.create_view(depthTex, get_current_frame()._depthImage._defaultView);
+	auto shadowTex = graph.create_texture(RES_SHADOW_MAP, get_current_frame()._shadowImage._image);
+	//	auto desc = RPGView::Desc(-1); 	// ?
+	auto shadowView = graph.create_view(shadowTex, get_current_frame()._shadowImage._defaultView);
 
 	auto pass = graph.add_pass(PASS_FORWARD, RGPASS_FLAG_GRAPHICS,
 		[=](RenderPassGraph& g)
@@ -434,6 +437,7 @@ void REngine::forward_pass(RenderPassGraph& graph, VkClearValue clearValue, VkCo
 
 		});
 	graph.pass_write(pass, depthView);
+	graph.pass_read(pass, shadowView);
 	// do vkCreateRenderPass (_renderPass) and vkCreateFramebuffer(_forwardFramebuffer) in compile graph state? (if not compute)
 	// pipeline?
 	//VkImageView attachments[2] = { frame._rawRenderImage._defaultView, frame._depthImage._defaultView };
@@ -508,6 +512,10 @@ void REngine::draw_objects_forward(VkCommandBuffer cmd, MeshPass& pass)
 
 void REngine::shadow_pass(RenderPassGraph& graph, VkCommandBuffer cmd)
 {
+	auto shadowTex = graph.create_texture(RES_SHADOW_MAP, get_current_frame()._shadowImage._image);
+	//	auto desc = RPGView::Desc(-1); 	// ?
+	auto shadowView = graph.create_view(shadowTex, get_current_frame()._shadowImage._defaultView);
+
 	auto pass = graph.add_pass(PASS_SHADOW, RGPASS_FLAG_GRAPHICS,
 		[=](RenderPassGraph& g)
 		{
@@ -552,6 +560,7 @@ void REngine::shadow_pass(RenderPassGraph& graph, VkCommandBuffer cmd)
 
 			vkCmdEndRenderPass(cmd);
 		});
+	graph.pass_write(pass, shadowView);
 }
 
 void REngine::draw_objects_shadow(VkCommandBuffer cmd, MeshPass& pass)

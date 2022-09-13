@@ -191,9 +191,11 @@ public:
 	REngine* engine;
 
 private:
-	template <bool Random=false>
+	template <bool Random = false>
 	RPGIdx sort_dependences(OrderList& order);
-	void sort_dependences_backward(OrderList& order);
+
+	template <bool JustValidate = false>
+	bool sort_dependences_backward(OrderList& order);
 
 	std::tuple<int, int> optimize(OrderList& order);
 	void alias_resources(const OrderList& order);
@@ -213,7 +215,15 @@ private:
 	void check_physical_texture(RPGHandle tex, RPGPass& pass);
 	void check_physical_view(RPGHandle view);
 
-	bool validate();
+	enum ValidateError
+	{
+		ValidateOk = 0,
+		ValidateDepError,
+		ValidateNobodyWrites,
+		ValidateReadBeforeWrite,
+		ValidateRWSameResource,
+	};
+	ValidateError validate();
 
 	bool test();
 	void export_svg(const char* fileName, OrderList& order);
