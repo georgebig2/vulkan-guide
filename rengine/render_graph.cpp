@@ -472,13 +472,15 @@ void RenderPassGraph::merge_passes()
 						if (!kpass.isMerged)
 						{
 							if (backQ >= MaxMergedPasses) { exitLoop = true; break; }
+							if (qpass.depthLevel != kpass.depthLevel)
+								continue;
 
 							// dont merge input(zero reads) pass with non input pass
-							if ((!mergedReads.num && kpass.reads.num) || (mergedReads.num && !kpass.reads.num))
-								continue;
+							//if ((!mergedReads.num && kpass.reads.num) || (mergedReads.num && !kpass.reads.num))
+							//	continue;
 							// dont merge output(zero writes) pass with non output pass
-							if ((!mergedWrites.num && kpass.writes.num) || (mergedWrites.num && !kpass.writes.num))
-								continue;
+							//if ((!mergedWrites.num && kpass.writes.num) || (mergedWrites.num && !kpass.writes.num))
+							//	continue;
 
 							// no intersection between writes and reads in one pass
 							FixedArray<RPGIdx, 8> tmp3;
@@ -1353,20 +1355,20 @@ bool RenderPassGraph::test()
 		g.export_svg("dep.svg", order);
 	}
 
-	//g.merge_passes();
+	g.merge_passes();
 	//for (RPGIdx i = 0; i < g.numPasses; ++i) order[i] = i;
-	////assert(!g.validate());
+	assert(!g.validate());
 	//if (firstTime) {
 	//	g.export_svg("merge.svg", order);
 	//}
 
-	//g.sort_dependences(order);
+	g.sort_dependences_backward(order);
 	//g.cull_passes(order);
 
-	//assert(!g.validate());
-	//if (firstTime) {
-	//	g.export_svg("merge_dep.svg", order);
-	//}
+	assert(!g.validate());
+	if (firstTime) {
+		g.export_svg("merge_dep.svg", order);
+	}
 
 	auto [baseCost, optCost] = g.optimize(order);
 	assert(!g.validate());
